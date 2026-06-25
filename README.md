@@ -28,11 +28,12 @@ a slide. Save it back in place. Nothing to install for the audience.
 4. **Template-driven structure pages.** Title, section, outline, and closing
    slides come from a small gallery of templates.
 5. **Self-contained.** The deck source is embedded in the file as the single
-   source of truth. By default the CLI **inlines** the engine and all seven
-   themes, so the deck presents — and switches themes — even offline; only
-   reveal's core CSS, KaTeX, Mermaid, SmilesDrawer, and Chart.js load from CDN
-   (cached after first open). `--cdn` references the engine + theme from jsDelivr
-   instead.
+   source of truth. By default the CLI **inlines** the engine, reveal's core CSS,
+   and all seven themes, so a deck **presents and switches themes even offline**.
+   Only KaTeX (math), Mermaid, SmilesDrawer, Chart.js, and the editor
+   (CodeMirror) load from CDN — so a deck that uses math/diagrams/charts, or
+   in-browser editing, needs internet. `--cdn` references the engine + theme from
+   jsDelivr instead.
 
 The deck source lives in the file as the single source of truth; Save
 re-serializes the whole document around it:
@@ -44,10 +45,12 @@ re-serializes the whole document around it:
 ```
 
 > "Self-contained" means *works as one file*. With the default `--inline`, the
-> engine and theme are embedded; the libraries (KaTeX, Mermaid, SmilesDrawer,
-> Chart.js) and reveal's core CSS still load from CDN, so a deck using them needs
-> internet. With `--cdn`, the engine + theme load from jsDelivr too. Presenting
-> works in all modern browsers; in-place Save needs a Chromium browser.
+> engine, reveal's core CSS, and all themes are embedded — a text deck presents
+> offline. The math/diagram/chart libraries (KaTeX, Mermaid, SmilesDrawer,
+> Chart.js) and the editor (CodeMirror) load from CDN, so a deck that uses them,
+> or in-browser editing, needs internet. With `--cdn`, the engine + theme load
+> from jsDelivr too. Presenting works in all modern browsers; in-place Save needs
+> a Chromium browser.
 
 ## Its place in the orz family
 

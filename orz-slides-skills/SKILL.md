@@ -343,12 +343,11 @@ orz-markdown skill at `node_modules/orz-markdown/orz-markdown-skills/SKILL.md`.
 
 ## What the generated file needs at view time
 
-"Self-contained" means *one file*, **not** *offline*. By default the CLI
-**inlines** the engine and all seven themes, so the deck presents even offline —
-**except** the libraries that always load from CDN: reveal.js core CSS, KaTeX,
-Mermaid, SmilesDrawer, and Chart.js (cached after first load). `--cdn` instead
-references the engine + theme from jsDelivr (smaller files, needs network).
-With `--inline`, **all seven themes are embedded**, so switching themes in the
-editor works with no network.
-Editing/Save in place needs a Chromium browser (File System Access API);
-presenting works in all modern browsers.
+"Self-contained" means *one file*. By default the CLI **inlines** the engine,
+reveal's core CSS, and **all seven themes**, so a text deck **presents and
+switches themes offline**. The libraries that load from CDN (cached after first
+load) are only: KaTeX (math), Mermaid, SmilesDrawer, Chart.js, and CodeMirror
+(the editor) — so a deck that uses math/diagrams/charts, or in-browser editing,
+needs internet. `--cdn` instead references the engine + theme from jsDelivr
+(smaller files, needs network). Editing/Save in place needs a Chromium browser
+(File System Access API); presenting works in all modern browsers.

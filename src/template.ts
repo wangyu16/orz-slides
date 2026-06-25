@@ -26,6 +26,10 @@ export type ThemeSpec =
   | { mode: 'inline'; base: string; themes: Array<{ id: string; css: string }> }
   | { mode: 'cdn' };
 
+export type RevealCssSpec =
+  | { mode: 'inline'; reset: string; core: string }
+  | { mode: 'cdn'; resetUrl: string; coreUrl: string };
+
 export interface EditorLibs {
   codemirrorCss: string;
   codemirrorLightThemeCss: string;
@@ -49,9 +53,8 @@ export interface BuildOptions {
   versionManifest: string;
   appJs: string;
   editorLibs: EditorLibs;
+  revealCss: RevealCssSpec;
   cdn: {
-    revealResetCss: string;
-    revealCss: string;
     katexCss: string;
     mermaidJs: string;
     smilesJs: string;
@@ -145,6 +148,12 @@ export function buildHtml(o: BuildOptions): string {
       ? `<script>${escapeForScript(o.renderer.js)}</script>`
       : `<script src="${escapeHtml(o.renderer.src)}"></script>`;
 
+  const revealCssTag =
+    o.revealCss.mode === 'inline'
+      ? `<style>\n${o.revealCss.reset}\n</style>\n<style>\n${o.revealCss.core}\n</style>`
+      : `<link rel="stylesheet" href="${escapeHtml(o.revealCss.resetUrl)}">\n`
+        + `<link rel="stylesheet" href="${escapeHtml(o.revealCss.coreUrl)}">`;
+
   const config = {
     version: o.rendererVersion,
     docId: o.docId,
@@ -165,8 +174,7 @@ export function buildHtml(o: BuildOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(o.title)}</title>
 <meta name="generator" content="orz-slides">
-<link rel="stylesheet" href="${escapeHtml(o.cdn.revealResetCss)}">
-<link rel="stylesheet" href="${escapeHtml(o.cdn.revealCss)}">
+${revealCssTag}
 <link rel="stylesheet" href="${escapeHtml(o.cdn.katexCss)}">
 ${themeTag}
 <style>${CHROME_CSS}</style>

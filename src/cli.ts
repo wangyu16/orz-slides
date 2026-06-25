@@ -139,6 +139,23 @@ function main(): void {
   }
 
   const revealVer = pkgVersion('reveal.js', '5.0.4');
+  // reveal's reset.css + reveal.css contain only data: URIs (no external refs),
+  // so --inline embeds them and the deck presents fully offline.
+  let revealCss: Parameters<typeof buildHtml>[0]['revealCss'];
+  if (args.delivery === 'inline') {
+    const revealDist = dirname(require.resolve('reveal.js'));
+    revealCss = {
+      mode: 'inline',
+      reset: readFileSync(join(revealDist, 'reset.css'), 'utf8'),
+      core: readFileSync(join(revealDist, 'reveal.css'), 'utf8'),
+    };
+  } else {
+    revealCss = {
+      mode: 'cdn',
+      resetUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reset.css`,
+      coreUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reveal.css`,
+    };
+  }
   const appJs = readFileSync(findAsset('app.js'), 'utf8');
   const CM = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16';
   const html = buildHtml({
@@ -162,9 +179,8 @@ function main(): void {
       codemirrorMarkdownJs: `${CM}/mode/markdown/markdown.min.js`,
       codemirrorContinuelistJs: `${CM}/addon/edit/continuelist.min.js`,
     },
+    revealCss,
     cdn: {
-      revealResetCss: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reset.css`,
-      revealCss: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reveal.css`,
       katexCss: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css',
       mermaidJs: 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js',
       smilesJs: 'https://cdn.jsdelivr.net/npm/smiles-drawer@1.0.10/dist/smiles-drawer.min.js',
