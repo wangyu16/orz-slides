@@ -18,8 +18,10 @@ their owned files, interfaces, and the build order.
 
 > **Status: functional, not yet published.** All work packages (WP0–WP10) are
 > built and verified — `orz-slides deck.md` generates a working, self-editing
-> `.slides.html`. The npm packages aren't published yet; a few presenter extras
-> (speaker-view window, PDF export) are planned, not yet wired.
+> `.slides.html`. Presenter tools are wired: speaker view (**S**), step-reveal
+> fragments (`step` flag / `{{attrs[.fragment]}}`), on-deck clock/timer (**T**),
+> slide numbers + progress bar. The npm packages aren't published yet; **PDF
+> export** is the remaining planned presenter extra.
 
 Two npm packages will live here, **versioned in lockstep** (mirroring
 orz-mdhtml):

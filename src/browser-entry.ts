@@ -252,9 +252,16 @@ function deckSource(): string {
 function assemble(source: string): void {
   const slidesEl = document.querySelector('.reveal .slides');
   if (slidesEl) slidesEl.innerHTML = renderDeck(parseDeck(source), md);
+  applyFragments(); // tag step-reveal units before reveal counts fragments
 }
 
-const refresh = () => { enhance(); fitCurrent(); };
+const refresh = () => {
+  enhance();
+  // The single-slide editor re-render replaces a section's innerHTML (dropping
+  // fragment classes) and syncs before calling refresh — re-tag and re-sync.
+  if (applyFragments()) { try { Reveal.sync(); } catch (e) { /* ignore */ } }
+  fitCurrent();
+};
 
 /** Re-render the whole deck from a (possibly edited) source, then re-sync reveal.
  *  Used by the in-file editor after structural edits. */
@@ -273,8 +280,24 @@ function mount(): void {
   const W = 960;
   const H = Math.round((W * (ratio[1] || 9)) / (ratio[0] || 16));
 
-  Reveal.initialize({ width: W, height: H, margin: 0.03, minScale: 0.2, maxScale: 4, hash: true, controls: true, progress: true });
+  deckW = W;
+  deckH = H;
+  Reveal.initialize({
+    width: W, height: H, margin: 0.03, minScale: 0.2, maxScale: 4,
+    hash: true, controls: true, progress: true, slideNumber: 'c/t',
+  });
   window.orzslides.reveal = Reveal;
+
+  // Presenter keybindings (shown in reveal's '?' help): S = speaker view,
+  // T = on-deck clock/timer overlay.
+  try {
+    Reveal.addKeyBinding({ keyCode: 83, key: 'S', description: 'Speaker view' }, openSpeaker);
+    Reveal.addKeyBinding({ keyCode: 84, key: 'T', description: 'Toggle timer/clock' }, toggleDeckTimer);
+  } catch (e) { /* ignore */ }
+  // Keep the speaker window in step with the deck.
+  Reveal.on('slidechanged', syncSpeaker);
+  Reveal.on('fragmentshown', syncSpeaker);
+  Reveal.on('fragmenthidden', syncSpeaker);
 
   const relayout = () => { try { Reveal.layout(); } catch (e) { /* ignore */ } };
   loadEnhancers(cfg).then(() => { relayout(); refresh(); });
@@ -307,6 +330,211 @@ function mount(): void {
   }, true);
 }
 
+/* ---------- fragments (step-reveal) ---------- */
+
+/** The reveal-step units inside a region body: list items reveal individually,
+ *  other top-level blocks reveal as a whole — in document order. */
+function stepUnits(body: HTMLElement): HTMLElement[] {
+  const units: HTMLElement[] = [];
+  Array.prototype.forEach.call(body.children, (child: HTMLElement) => {
+    const tag = child.tagName.toLowerCase();
+    if (tag === 'ul' || tag === 'ol') {
+      Array.prototype.forEach.call(child.children, (li: HTMLElement) => {
+        if (li.tagName.toLowerCase() === 'li') units.push(li);
+      });
+    } else {
+      units.push(child);
+    }
+  });
+  return units;
+}
+
+/** Tag the content of every `step` slide with reveal's `fragment` class.
+ *  Idempotent; returns true if it added any new fragment (so the caller can
+ *  re-sync reveal). Manual `{{attrs[.fragment]}}` blocks are left untouched. */
+function applyFragments(): boolean {
+  let added = false;
+  document.querySelectorAll<HTMLElement>('section[data-step] .orz-region .markdown-body').forEach((body) => {
+    stepUnits(body).forEach((el) => {
+      if (!el.classList.contains('fragment')) { el.classList.add('fragment'); added = true; }
+    });
+  });
+  return added;
+}
+
+/* ---------- presenter clock / timer ---------- */
+
+let deckW = 960;
+let deckH = 540;
+let tickTimer = 0;
+let deckTimerEl: HTMLElement | null = null;
+let speakerWin: Window | null = null;
+
+const clock = {
+  startMs: 0,
+  accumMs: 0,
+  running: false,
+  start(): void { if (!this.running) { this.startMs = Date.now(); this.running = true; } },
+  pause(): void { if (this.running) { this.accumMs += Date.now() - this.startMs; this.running = false; } },
+  toggle(): void { if (this.running) this.pause(); else this.start(); },
+  reset(): void { this.accumMs = 0; this.startMs = Date.now(); },
+  elapsed(): number { return this.accumMs + (this.running ? Date.now() - this.startMs : 0); },
+};
+
+function pad2(n: number): string { return n < 10 ? '0' + n : '' + n; }
+/** Elapsed ms → m:ss (or h:mm:ss past an hour). */
+function fmtElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0 ? h + ':' + pad2(m) + ':' + pad2(sec) : m + ':' + pad2(sec);
+}
+function wallClock(): string {
+  const d = new Date();
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+
+function ensureTick(): void { if (!tickTimer) tickTimer = window.setInterval(updateClocks, 1000); }
+function updateClocks(): void {
+  const speakerOpen = !!(speakerWin && !speakerWin.closed);
+  if (!deckTimerEl && !speakerOpen) { if (tickTimer) { clearInterval(tickTimer); tickTimer = 0; } return; }
+  updateDeckTimer();
+  if (speakerOpen) {
+    const d = speakerWin!.document;
+    const set = (id: string, v: string) => { const el = d.getElementById(id); if (el) el.textContent = v; };
+    set('sv-clock', wallClock());
+    set('sv-timer', fmtElapsed(clock.elapsed()));
+    set('sv-ttoggle', clock.running ? 'Pause' : 'Start');
+  }
+}
+
+function updateDeckTimer(): void {
+  if (!deckTimerEl) return;
+  deckTimerEl.innerHTML =
+    '<span class="orz-timer-clock">' + wallClock() + '</span>' +
+    '<span class="orz-timer-elapsed">' + fmtElapsed(clock.elapsed()) + '</span>';
+}
+
+/** Toggle the on-deck clock + elapsed-timer overlay (T). */
+function toggleDeckTimer(): void {
+  if (deckTimerEl) { deckTimerEl.remove(); deckTimerEl = null; return; }
+  clock.start();
+  deckTimerEl = document.createElement('div');
+  deckTimerEl.className = 'orz-timer';
+  document.body.appendChild(deckTimerEl);
+  updateDeckTimer();
+  ensureTick();
+}
+
+/* ---------- speaker view (self-contained popup) ---------- */
+
+function topSections(): HTMLElement[] {
+  return Array.prototype.slice.call(document.querySelectorAll('.reveal > .slides > section')) as HTMLElement[];
+}
+
+/** A scaled, reveal-positioned-neutralised clone of a slide for preview. */
+function stageHTML(section: HTMLElement | null): string {
+  if (!section) return '<div class="sv-end">— End —</div>';
+  const clone = section.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('aside.notes').forEach((n) => n.remove());
+  clone.classList.add('present');
+  clone.removeAttribute('hidden');
+  clone.style.cssText = '';
+  return '<div class="reveal"><div class="slides">' + clone.outerHTML + '</div></div>';
+}
+
+function scaleStage(stage: HTMLElement): void {
+  const slides = stage.querySelector('.slides') as HTMLElement | null;
+  if (!slides || !stage.clientWidth) return;
+  const k = stage.clientWidth / deckW;
+  slides.style.transform = 'scale(' + k + ')';
+  stage.style.height = deckH * k + 'px';
+}
+
+/** Push current/next preview + notes + position into the speaker window. */
+function syncSpeaker(): void {
+  if (!speakerWin || speakerWin.closed) return;
+  const d = speakerWin.document;
+  const cur = (Reveal.getCurrentSlide && Reveal.getCurrentSlide()) || null;
+  const sections = topSections();
+  const idx = cur ? sections.indexOf(cur) : -1;
+  const next = idx >= 0 ? sections[idx + 1] || null : null;
+  const curEl = d.getElementById('sv-cur');
+  const nxtEl = d.getElementById('sv-nxt');
+  const notesEl = d.getElementById('sv-notes');
+  const posEl = d.getElementById('sv-pos');
+  if (curEl) { curEl.innerHTML = stageHTML(cur); scaleStage(curEl); }
+  if (nxtEl) { nxtEl.innerHTML = stageHTML(next); scaleStage(nxtEl); }
+  if (notesEl) {
+    const notes = cur ? cur.querySelector('aside.notes') : null;
+    notesEl.innerHTML = notes && notes.innerHTML.trim() ? notes.innerHTML : '<em class="sv-nonotes">No notes for this slide.</em>';
+  }
+  if (posEl) posEl.textContent = (idx + 1) + ' / ' + sections.length;
+}
+
+function speakerDoc(headCss: string): string {
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Speaker View — orz-slides</title>'
+    + headCss
+    + '<style>'
+    + '*{box-sizing:border-box}html,body{margin:0;height:100%;background:#16161a;color:#e8e8ea;font:14px/1.45 system-ui,-apple-system,sans-serif}'
+    + '.sv-top{display:flex;align-items:center;gap:18px;padding:8px 16px;background:#000;border-bottom:1px solid #2a2a30}'
+    + '.sv-clock{font-size:20px;font-variant-numeric:tabular-nums;opacity:.85}'
+    + '.sv-tbox{display:flex;align-items:center;gap:8px}.sv-tbox #sv-timer{font-size:22px;font-variant-numeric:tabular-nums;min-width:74px}'
+    + '.sv-tbox button{font:inherit;font-size:12px;padding:3px 10px;border:1px solid #4a4a52;background:#23232a;color:#e8e8ea;border-radius:6px;cursor:pointer}.sv-tbox button:hover{background:#30303a}'
+    + '.sv-pos{margin-left:auto;font-size:17px;opacity:.8;font-variant-numeric:tabular-nums}'
+    + '.sv-main{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;padding:14px;height:calc(100% - 49px)}'
+    + '.sv-current{min-height:0;display:flex;flex-direction:column}.sv-side{display:grid;grid-template-rows:auto 1fr;gap:14px;min-height:0}'
+    + '.sv-label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;opacity:.5;margin:0 0 5px}'
+    + '.sv-stage{position:relative;overflow:hidden;background:#000;border:1px solid #2a2a30;border-radius:7px}'
+    + '.sv-stage .reveal{position:static;width:auto;height:auto}'
+    + '.sv-stage .slides{position:absolute;left:0;top:0;width:' + deckW + 'px;height:' + deckH + 'px;transform-origin:0 0;margin:0;padding:0;text-align:left}'
+    + '.sv-stage .slides>section{position:relative!important;display:block!important;left:0!important;top:0!important;transform:none!important;width:' + deckW + 'px!important;height:' + deckH + 'px!important;opacity:1!important;visibility:visible!important;background:var(--bg,#fff)}'
+    + '.sv-stage .fragment{opacity:1!important;visibility:visible!important}'
+    + '.sv-notes{background:#fbfbfa;color:#16161a;border-radius:7px;padding:16px 18px;overflow:auto;min-height:0;font-size:16px;line-height:1.5}'
+    + '.sv-notes :first-child{margin-top:0}.sv-notes .sv-nonotes{color:#888}'
+    + '.sv-end{display:flex;align-items:center;justify-content:center;height:100%;opacity:.45;font-size:18px}'
+    + '</style></head><body>'
+    + '<div class="sv-top"><div class="sv-clock" id="sv-clock">--:--:--</div>'
+    + '<div class="sv-tbox"><span id="sv-timer">0:00</span>'
+    + '<button id="sv-ttoggle">Pause</button><button id="sv-treset">Reset</button></div>'
+    + '<div class="sv-pos" id="sv-pos">– / –</div></div>'
+    + '<div class="sv-main"><div class="sv-current"><div class="sv-label">Current</div><div class="sv-stage" id="sv-cur"></div></div>'
+    + '<div class="sv-side"><div><div class="sv-label">Next</div><div class="sv-stage" id="sv-nxt"></div></div>'
+    + '<div style="display:flex;flex-direction:column;min-height:0"><div class="sv-label">Notes</div><div class="sv-notes" id="sv-notes"></div></div></div></div>'
+    + '</body></html>';
+}
+
+/** Open (or focus) the speaker-view popup (S). */
+function openSpeaker(): void {
+  if (speakerWin && !speakerWin.closed) { speakerWin.focus(); return; }
+  const win = window.open('', 'orz-speaker', 'width=1280,height=800');
+  if (!win) return;
+  speakerWin = win;
+  const headCss = Array.prototype.slice
+    .call(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map((n: Element) => n.outerHTML)
+    .join('\n');
+  win.document.open();
+  win.document.write(speakerDoc(headCss));
+  win.document.close();
+
+  const d = win.document;
+  const tg = d.getElementById('sv-ttoggle');
+  const rs = d.getElementById('sv-treset');
+  if (tg) tg.addEventListener('click', () => { clock.toggle(); updateClocks(); });
+  if (rs) rs.addEventListener('click', () => { clock.reset(); updateClocks(); });
+  // Drive the main deck from the speaker window.
+  d.addEventListener('keydown', (ev: KeyboardEvent) => {
+    const k = ev.key;
+    if (k === ' ' || k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === 'n' || k === 'N') { ev.preventDefault(); Reveal.next(); }
+    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'p' || k === 'P') { ev.preventDefault(); Reveal.prev(); }
+  });
+  win.addEventListener('resize', syncSpeaker);
+
+  clock.start();
+  ensureTick();
+  syncSpeaker();
+  win.focus();
+}
+
 window.orzslides = {
   version: VERSION,
   md,
@@ -316,5 +544,7 @@ window.orzslides = {
   mount,
   renderAll,
   refresh,
+  openSpeaker,
+  toggleTimer: toggleDeckTimer,
   reveal: null,
 };

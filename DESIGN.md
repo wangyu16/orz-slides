@@ -113,8 +113,11 @@ can show a pre-rendered static deck (progressive enhancement, optional).
 ```
 
 Per-slide options (all optional): `bg=` (color/image), `t=` (transition),
-`fit=` (fit/scroll/off), `class=`, `id=`. (Vertical sub-slides via `down` and
-step-reveal **fragments** are reserved for a later phase — see §17.)
+`fit=` (fit/scroll/off), `class=`, `id=`, and the bare flag `step` (step-reveal:
+auto-tag the slide's content as reveal fragments — lists reveal per item, other
+top-level blocks one at a time, in document order). For per-block control,
+`{{attrs[.fragment]}}` marks an individual paragraph/heading/block as a fragment.
+(Vertical sub-slides via `down` are still reserved — see §17.)
 
 Track ratios always use `/` (CSS-aligned, e.g. `3/2`, `auto/1fr`); `:` is
 reserved for `key: value` in the deck config — one symbol, one meaning.
@@ -464,8 +467,11 @@ about any nested split.
 - **Phase 2:** template gallery (title/section/outline/closing); theme picker
   (port 7); overview / reorder / add / delete; copy-as-markdown; explicit-grid
   syntax.
-- **Phase 3:** PDF export; speaker view; charts; qr; fragments/transitions; CLI
-  + npm (lockstep browser bundle); agent skill; CLAUDE.md.
+- **Phase 3:** ~~speaker view~~ ✅; ~~charts~~ ✅; ~~qr~~ ✅; ~~fragments~~ ✅
+  (slide-level `step` flag + `{{attrs[.fragment]}}`); ~~slide numbers + progress
+  + timer~~ ✅; transitions (per-slide `t=`, deck `transition:`); ~~CLI + npm
+  (lockstep browser bundle)~~ ✅ (built, not yet published); ~~agent skill~~ ✅;
+  ~~CLAUDE.md~~ ✅. **Remaining: PDF export.**
 
 ---
 
@@ -491,8 +497,12 @@ about any nested split.
 
 **Still open (later phases — design before building):**
 
-- **Fragments / step reveals:** how to mark them (e.g. a bullet prefix or a
-  region flag) — Phase 2/3. Need a rule that stays consistent with the grammar.
+- ~~**Fragments / step reveals:** how to mark them~~ — **Resolved:** a bare
+  slide flag `step` auto-tags the slide's content as reveal fragments (lists per
+  item, other top-level blocks in document order); `{{attrs[.fragment]}}` marks
+  an individual block. `step` stays consistent with the existing flag grammar;
+  per-item list fragments are why a region flag (not just `{{attrs}}`) was
+  needed — orz-markdown's attrs can't land a class on an `<li>`. ✅
 - **Vertical sub-slides (`down`):** include or drop. Adds a nesting axis to the
   deck (not just the layout); leaning *drop* unless a real need appears, to keep
   the deck a flat sequence (consistency).

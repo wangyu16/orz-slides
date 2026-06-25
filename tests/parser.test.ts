@@ -341,6 +341,19 @@ describe('slide options', () => {
       'right',
     ]);
   });
+
+  it('parses the bare `step` flag without consuming the layout', () => {
+    const s = parseDeck(`<!-- slide step 2col -->\n## T\nx`).slides[0];
+    expect(s.options.step).toBe(true);
+    expect(asSplit(s.layout).children.map((c) => asLeaf(c).name)).toEqual([
+      'left',
+      'right',
+    ]);
+  });
+
+  it('no `step` flag → step is undefined', () => {
+    expect(parseDeck(`<!-- slide -->\n## T\nx`).slides[0].options.step).toBeUndefined();
+  });
 });
 
 /* ── Lint: heading rules ─────────────────────────────────────────────────── */

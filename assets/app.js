@@ -87,7 +87,7 @@
     // `present` class). Copy the rendered content + render-time attributes; let
     // reveal keep managing the state classes (present/past/future).
     section.innerHTML = fresh.innerHTML;
-    ['data-fit', 'data-kind', 'data-template', 'data-background-color', 'data-transition'].forEach(function (a) {
+    ['data-fit', 'data-kind', 'data-template', 'data-background-color', 'data-transition', 'data-step'].forEach(function (a) {
       if (fresh.hasAttribute(a)) section.setAttribute(a, fresh.getAttribute(a));
       else section.removeAttribute(a);
     });

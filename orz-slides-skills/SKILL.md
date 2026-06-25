@@ -28,8 +28,9 @@ the tool re-serialize.
 
 > Status: orz-slides is **functional but not yet published to npm**. The
 > authoring syntax below is implemented; generate decks with the CLI
-> (`orz-slides deck.md`). A few presenter features (speaker-view window, PDF
-> export) are planned, not yet wired.
+> (`orz-slides deck.md`). Speaker view (**S**), step-reveal fragments, an on-deck
+> timer (**T**), and slide numbers are wired; **PDF export** is the remaining
+> planned presenter feature.
 
 ## When to use it
 
@@ -94,8 +95,28 @@ options:
 ```
 
 Per-slide options (all optional): `bg=` (color or image), `t=` (transition),
-`fit=` (`fit` | `scroll` | `off`, default `fit`), `class=`, `id=`. Template
-variants use `v=` (e.g. `template=title v=2`).
+`fit=` (`fit` | `scroll` | `off`, default `fit`), `class=`, `id=`, and the bare
+flag `step` (step-reveal — see below). Template variants use `v=` (e.g.
+`template=title v=2`).
+
+### Step-reveal fragments
+
+Reveal a slide's content one piece at a time:
+
+- **Whole slide** — add the bare `step` flag: `<!-- slide step -->` (or combined
+  with a layout, `<!-- slide step 2col -->`). Lists reveal **per item**; other
+  top-level blocks (paragraphs, images, tables) reveal **one at a time**, in
+  document order, across all regions.
+- **Individual block** — tag it with `{{attrs[.fragment]}}` (orz-markdown attrs),
+  e.g. `A revealed paragraph.{{attrs[.fragment]}}`. Note: attrs **cannot** tag a
+  list item — use the `step` flag for per-bullet reveal.
+
+### Presenting
+
+reveal.js keyboard nav, plus: **S** opens a self-contained **speaker view**
+(current + next slide, the slide's `@notes`, a wall clock and a start/pause/reset
+timer; arrows there drive the deck). **T** toggles an on-deck clock/timer
+overlay. Slide numbers (`c/t`) and a progress bar show during the presentation.
 
 > Track ratios always use `/` (CSS-aligned: `3/2`, `auto/1fr`, `30%/1fr`).
 > `:` is reserved for `key: value` config. One symbol, one meaning.
@@ -155,7 +176,7 @@ These names have fixed meaning in **every** layout:
 
 | Marker | Meaning |
 |---|---|
-| `<!-- @notes -->` | Speaker notes → reveal's `<aside class="notes">`. **Never shown** on the slide; stored in the deck and round-tripped on save (the presenter-view window is a planned addition). |
+| `<!-- @notes -->` | Speaker notes → reveal's `<aside class="notes">`. **Never shown** on the slide; stored in the deck, round-tripped on save, and shown in the **speaker view** (press **S** while presenting). |
 | `<!-- @footer -->` | This slide's footer band — shows on that slide alone and overrides the deck-wide footer. The deck-wide footer (`<!-- deck footer: … -->`) appears on every slide **except** the opening `title` page; add an `@footer` to a title slide to force one. |
 | `<!-- @float … -->` | A **free-positioned overlay**, outside the grid (see below). |
 

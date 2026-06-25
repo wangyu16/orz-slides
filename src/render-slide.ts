@@ -99,6 +99,7 @@ function sectionAttrs(slide: Slide, kind: string, template?: string): string {
   if (template) a.push(`data-template="${escapeAttr(template)}"`);
   if (slide.options.id) a.push(`id="${escapeAttr(slide.options.id)}"`);
   if (slide.options.transition) a.push(`data-transition="${escapeAttr(slide.options.transition)}"`);
+  if (slide.options.step) a.push(`data-step="1"`);
   if (slide.options.bg) a.push(`data-background-color="${escapeAttr(slide.options.bg)}"`);
   return a.join(' ');
 }

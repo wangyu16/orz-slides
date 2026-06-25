@@ -29,6 +29,8 @@ interface Window {
     mount(): void;
     renderAll(source: string): void;
     refresh(): void;
+    openSpeaker(): void;
+    toggleTimer(): void;
     reveal: any;
   };
 }

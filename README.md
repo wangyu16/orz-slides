@@ -11,8 +11,8 @@ a slide. Save it back in place. Nothing to install for the audience.
 
 > **Status: functional, not yet published.** The authoring syntax, CLI, engine,
 > and in-file editor all work (see [DESIGN.md](./DESIGN.md)); the npm packages
-> aren't published yet. A few presenter extras (speaker-view window, PDF export)
-> are planned, not yet wired.
+> aren't published yet. Speaker view, step-reveal fragments, an on-deck timer,
+> and slide numbers are wired; **PDF export** is the remaining planned extra.
 
 ## What a `.slides.html` does
 
@@ -127,8 +127,14 @@ grammar, templates, and per-container capacity budgets.
   (add / duplicate / delete / reorder / theme).
 - **Structure templates** — `title` / `section` / `outline` / `closing` pages
   (`title` is fully styled; the others are evolving).
-- **Presenter basics** — navigation, slide overview, and fullscreen from
-  reveal.js. Speaker notes are authored (`@notes`) and stored per slide.
+- **Presenter tools** — navigation, slide overview, fullscreen, slide numbers,
+  and a progress bar from reveal.js; a self-contained **speaker view** (press
+  **S** — current/next slide, your `@notes`, clock + timer) and an on-deck
+  **clock/timer** overlay (press **T**). Speaker notes are authored with
+  `<!-- @notes -->` and stored per slide.
+- **Step-reveal fragments** — `<!-- slide step -->` reveals a slide's content
+  one piece at a time (lists per item); or tag individual blocks with
+  `{{attrs[.fragment]}}`.
 - **Overflow that behaves** — scale-to-fit per region (with `fit=scroll|off`),
   backed by agent capacity budgets so slides are authored within their bounds.
 

@@ -242,6 +242,10 @@ function parseMarker(args: string): MarkerParse {
         continue;
       }
     }
+    if (tok === 'step') {
+      options.step = true;
+      continue;
+    }
     leftover.push(tok);
   }
 

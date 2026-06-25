@@ -79,6 +79,9 @@ export interface SlideOptions {
   fit?: 'fit' | 'scroll' | 'off';
   class?: string;
   id?: string;
+  /** Step-reveal: auto-tag the slide's content as reveal fragments (lists
+   *  reveal per-item, other top-level blocks one at a time, in document order). */
+  step?: boolean;
 }
 
 export interface LintMsg {
