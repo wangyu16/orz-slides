@@ -137,7 +137,7 @@ function initTabs(): void {
       if (i === 0) panel.classList.add('active');
     });
     tabs.insertBefore(bar, panels[0]);
-    tabs.setAttribute('data-js', '');
+    tabs.setAttribute('data-js', '1'); // match orz-markdown's runtime so it doesn't re-init (double bar)
   });
 }
 
