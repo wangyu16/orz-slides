@@ -49,6 +49,9 @@ labels: Q1, Q2, Q3, Q4
 series: Revenue = 10, 14, 9, 17
 }}
 
+<!-- slide template=section -->
+# Part II — In the browser
+
 <!-- slide -->
 ## Float overlay
 

@@ -44,9 +44,33 @@ function titleBand(slide: Slide, md: Renderer): string {
 }
 
 function footerBand(slide: Slide, deck: DeckConfig, md: Renderer): string {
-  const src = slide.footer ?? deck.footer;
+  // Per-slide @footer always wins (and shows on that slide alone). The deck-wide
+  // footer shows on every slide EXCEPT the opening title page, which reads
+  // cleaner without it (add a @footer to a title slide to force one).
+  const isTitle = slide.kind === 'template' && (slide.template ?? 'title') === 'title';
+  const src = slide.footer ?? (isTitle ? undefined : deck.footer);
   if (!src) return '';
   return `<footer class="orz-footer"><div class="markdown-body">${md.render(src)}</div></footer>`;
+}
+
+function inlineOr(md: Renderer, s: string): string {
+  if (!s) return '';
+  return md.renderInline ? md.renderInline(s) : md.render(s).replace(/^<p>|<\/p>\s*$/g, '');
+}
+
+/** Split a template body into its title (h1), subtitle (h2), and the rest. */
+function splitFields(src: string): { title: string; subtitle: string; meta: string } {
+  let title = '';
+  let subtitle = '';
+  const meta: string[] = [];
+  for (const line of src.split('\n')) {
+    const h1 = line.match(/^#\s+(.*\S)\s*$/);
+    const h2 = line.match(/^##\s+(.*\S)\s*$/);
+    if (h1 && !title) title = h1[1];
+    else if (h2 && !subtitle) subtitle = h2[1];
+    else if (line.trim()) meta.push(line);
+  }
+  return { title, subtitle, meta: meta.join('\n') };
 }
 
 function floatBoxes(floats: FloatRegion[], md: Renderer): string {
@@ -94,12 +118,28 @@ function renderNormal(slide: Slide, md: Renderer, deck: DeckConfig): string {
 }
 
 function renderTemplate(slide: Slide, md: Renderer, deck: DeckConfig): string {
-  const rmap = regionMap(slide.regions);
-  const body = md.render(rmap['body'] || '');
+  const name = slide.template || 'title';
   const v = slide.templateVariant ? ` orz-v${slide.templateVariant}` : '';
-  return `<section ${sectionAttrs(slide, 'template', slide.template)}>`
+  const body = regionMap(slide.regions)['body'] || '';
+
+  let inner: string;
+  if (name === 'outline') {
+    inner = `<div class="orz-outline markdown-body">${md.render(body)}</div>`;
+  } else if (name === 'section') {
+    const f = splitFields(body);
+    inner = (f.title ? `<div class="orz-section-main">${inlineOr(md, f.title)}</div>` : '')
+      + (f.meta ? `<div class="orz-section-meta markdown-body">${md.render(f.meta)}</div>` : '');
+  } else {
+    // title / closing / unknown → title-style fields (h1 · h2 · meta)
+    const f = splitFields(body);
+    inner = (f.title ? `<h1 class="orz-title-main">${inlineOr(md, f.title)}</h1>` : '')
+      + (f.subtitle ? `<div class="orz-title-sub">${inlineOr(md, f.subtitle)}</div>` : '')
+      + (f.meta ? `<div class="orz-title-meta markdown-body">${md.render(f.meta)}</div>` : '');
+  }
+
+  return `<section ${sectionAttrs(slide, 'template', name)}>`
     + `<div class="orz-frame">`
-    + `<div class="orz-template orz-template-${escapeAttr(slide.template || 'title')}${v}"><div class="markdown-body">${body}</div></div>`
+    + `<div class="orz-template orz-template-${escapeAttr(name)}${v}">${inner}</div>`
     + footerBand(slide, deck, md)
     + `</div>`
     + floatBoxes(slide.floats, md)

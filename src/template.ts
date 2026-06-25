@@ -76,13 +76,19 @@ const CHROME_CSS = `
   .reveal { height: 100%; }
   [data-mode="edit"] .reveal { height: 58%; }
 
-  .orz-fab {
-    position: fixed; right: 16px; bottom: 16px; z-index: 50;
-    font: 600 14px/1 system-ui, sans-serif; color: #fff; background: #2b2f36;
-    border: 0; border-radius: 999px; padding: 11px 18px; cursor: pointer;
-    box-shadow: 0 2px 12px rgba(0,0,0,.28);
+  /* Small edit control — app.js positions it in the middle of reveal's arrow
+     cluster and keeps it in sync; it adapts to the active theme via --accent. */
+  .orz-edit-ctrl {
+    position: fixed; right: 16px; bottom: 16px; z-index: 30;
+    width: 22px; height: 22px; padding: 0; box-sizing: border-box;
+    border: 0; border-radius: 50%; background: transparent;
+    color: var(--accent, #888); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; line-height: 1; opacity: .5;
+    transition: opacity .15s, transform .15s;
   }
-  [data-mode="edit"] .orz-fab { display: none; }
+  .orz-edit-ctrl:hover { opacity: 1; transform: scale(1.18); }
+  [data-mode="edit"] .orz-edit-ctrl { display: none; }
 
   #orz-panel { display: none; }
   [data-mode="edit"] #orz-panel {
@@ -100,6 +106,7 @@ const CHROME_CSS = `
   }
   #orz-toolbar button:hover { background: #454b55; }
   #orz-toolbar button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+  #orz-toolbar button.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
   #orz-toolbar .orz-pos { color: #aab; font: 600 12.5px/1 system-ui, sans-serif; padding: 0 4px; }
   #orz-toolbar .orz-spacer { flex: 1; }
   #orz-editor-host { flex: 1; min-height: 0; overflow: hidden; }
@@ -182,11 +189,12 @@ ${themeTag}
 <body>
 <div class="reveal"><div class="slides"></div></div>
 
-<button id="orz-edit-fab" class="orz-fab" title="Edit deck">&#9998; Edit</button>
+<button id="orz-edit-fab" class="orz-edit-ctrl" title="Edit this deck">&#9998;</button>
 
 <div id="orz-panel">
   <div id="orz-toolbar">
     <button id="orz-done">Done</button>
+    <button id="orz-deck-btn" title="Edit deck settings: theme, footer, ratio, title">Deck&hellip;</button>
     <span id="orz-pos" class="orz-pos">1 / 1</span>
     <button id="orz-prev" title="Previous slide">&#9664;</button>
     <button id="orz-next" title="Next slide">&#9654;</button>

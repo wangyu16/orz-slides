@@ -18,10 +18,12 @@
   var dirty = false;
   var fileHandle = null;
   var editing = false;
+  var editingDeck = false; // editing the <!-- deck --> preamble vs a slide
   var cm = null;
   var curIndex = 0;
   var suppressChange = false;
   var rerenderTimer = null;
+  var rerenderAllTimer = null;
   var currentTheme = CFG.defaultTheme;
 
   // Deck source split into preamble (the <!-- deck --> block) + per-slide chunks.
@@ -96,6 +98,11 @@
     if (rerenderTimer) clearTimeout(rerenderTimer);
     rerenderTimer = setTimeout(renderCurrentSlide, 160);
   }
+  // Deck-config edits affect every slide (footer, etc.) → re-render the whole deck.
+  function scheduleRerenderAll() {
+    if (rerenderAllTimer) clearTimeout(rerenderAllTimer);
+    rerenderAllTimer = setTimeout(function () { API.renderAll(fullSource()); }, 240);
+  }
 
   function curH() { return (API.reveal && API.reveal.getIndices) ? API.reveal.getIndices().h : 0; }
   function gotoSlide(i) { if (API.reveal) API.reveal.slide(Math.max(0, Math.min(slides.length - 1, i)), 0); }
@@ -138,14 +145,21 @@
       cm.on('change', function () {
         if (suppressChange) return;
         markDirty();
-        slides[curIndex] = cm.getValue();
-        writeDeck();
-        scheduleRerender();
+        if (editingDeck) {
+          preamble = cm.getValue();
+          writeDeck();
+          scheduleRerenderAll();
+        } else {
+          slides[curIndex] = cm.getValue();
+          writeDeck();
+          scheduleRerender();
+        }
       });
     });
   }
 
   function loadSlideIntoEditor(i) {
+    editingDeck = false;
     curIndex = i;
     if (!cm) return;
     suppressChange = true;
@@ -156,16 +170,34 @@
   }
   function updatePos() {
     var el = document.getElementById('orz-pos');
-    if (el) el.textContent = (curIndex + 1) + ' / ' + slides.length;
+    if (!el) return;
+    el.textContent = editingDeck ? 'Deck config' : ((curIndex + 1) + ' / ' + slides.length);
+    var deckBtn = document.getElementById('orz-deck-btn');
+    if (deckBtn) deckBtn.classList.toggle('active', editingDeck);
   }
 
   function enterEdit() {
     editing = true;
+    editingDeck = false;
     root.setAttribute('data-mode', 'edit');
     initEditor().then(function () {
       curIndex = curH();
       loadSlideIntoEditor(curIndex);
       if (API.reveal) API.reveal.layout();
+    });
+  }
+  // Load the <!-- deck --> preamble into the editor (theme/footer/ratio/title).
+  function editDeck() {
+    editing = true;
+    root.setAttribute('data-mode', 'edit');
+    initEditor().then(function () {
+      editingDeck = true;
+      suppressChange = true;
+      if (cm) cm.setValue(preamble);
+      suppressChange = false;
+      updatePos();
+      if (API.reveal) API.reveal.layout();
+      if (cm) setTimeout(function () { cm.refresh(); cm.focus(); }, 0);
     });
   }
   function done() {
@@ -376,11 +408,33 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
   }
 
+  // Position the small edit control at the midpoint between reveal's left/right
+  // arrows, so it reads as part of the control cluster. Kept in sync on
+  // nav/resize. (reveal's .controls box is a 0-size anchor, so we measure the
+  // arrows directly.)
+  function positionEditCtrl() {
+    var btn = document.getElementById('orz-edit-fab');
+    if (!btn) return;
+    var left = document.querySelector('.reveal .controls .navigate-left');
+    var right = document.querySelector('.reveal .controls .navigate-right');
+    if (!left || !right) return;
+    var lr = left.getBoundingClientRect(), rr = right.getBoundingClientRect();
+    if (!lr.width && !rr.width) return; // controls hidden → keep the corner default
+    var cx = (lr.left + lr.width / 2 + rr.left + rr.width / 2) / 2;
+    var cy = (lr.top + lr.height / 2 + rr.top + rr.height / 2) / 2;
+    btn.style.left = (cx - btn.offsetWidth / 2) + 'px';
+    btn.style.top = (cy - btn.offsetHeight / 2) + 'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+
   // ---- wiring --------------------------------------------------------------
   function on(id, ev, fn) { var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
+  function navTo(i) { editingDeck = false; gotoSlide(i); }
   function wireUi() {
     on('orz-edit-fab', 'click', enterEdit);
     on('orz-done', 'click', done);
+    on('orz-deck-btn', 'click', function () { if (editingDeck) loadSlideIntoEditor(curH()); else editDeck(); });
     on('orz-save', 'click', save);
     on('orz-download', 'click', exportCopy);
     on('orz-add', 'click', addSlide);
@@ -388,8 +442,8 @@
     on('orz-del', 'click', delSlide);
     on('orz-up', 'click', function () { moveSlide(-1); });
     on('orz-down', 'click', function () { moveSlide(1); });
-    on('orz-prev', 'click', function () { gotoSlide(curIndex - 1); });
-    on('orz-next', 'click', function () { gotoSlide(curIndex + 1); });
+    on('orz-prev', 'click', function () { navTo(curIndex - 1); });
+    on('orz-next', 'click', function () { navTo(curIndex + 1); });
     on('orz-served-download', 'click', function () { exportCopy(); var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
     on('orz-served-dismiss', 'click', function () { var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
     on('orz-upd-dismiss', 'click', function () { var u = document.getElementById('orz-update'); if (u) u.classList.remove('show'); });
@@ -421,13 +475,17 @@
       loadParts();
       writeDeck();
       updatePos();
+      positionEditCtrl();
       if (API.reveal && API.reveal.on) {
         API.reveal.on('slidechanged', function () {
           curIndex = curH();
-          if (editing) loadSlideIntoEditor(curIndex);
+          if (editing && !editingDeck) loadSlideIntoEditor(curIndex);
           updatePos();
+          positionEditCtrl();
         });
       }
+      window.addEventListener('resize', function () { setTimeout(positionEditCtrl, 80); });
+      [300, 900].forEach(function (t) { setTimeout(positionEditCtrl, t); });
     }
     // The engine mounts on DOMContentLoaded too; wait until reveal exists.
     if (API.reveal) start();

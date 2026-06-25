@@ -156,7 +156,7 @@ These names have fixed meaning in **every** layout:
 | Marker | Meaning |
 |---|---|
 | `<!-- @notes -->` | Speaker notes → reveal's `<aside class="notes">`. **Never shown** on the slide; stored in the deck and round-tripped on save (the presenter-view window is a planned addition). |
-| `<!-- @footer -->` | This slide's footer band. Overrides the deck-wide footer (set once via `<!-- deck footer: … -->`). |
+| `<!-- @footer -->` | This slide's footer band — shows on that slide alone and overrides the deck-wide footer. The deck-wide footer (`<!-- deck footer: … -->`) appears on every slide **except** the opening `title` page; add an `@footer` to a title slide to force one. |
 | `<!-- @float … -->` | A **free-positioned overlay**, outside the grid (see below). |
 
 ### Floats (`<!-- @float … -->`)
@@ -219,18 +219,20 @@ freely. An optional `[a/b]` sets the track ratio.
 
 ## Structure-page templates (`template=`)
 
-Templates are structure pages: a `template=` slide renders its markdown body in a
-centered template container (with `data-template="<name>"` for styling) instead of
-the region grid. `title` has dedicated centered styling today; `section` /
-`outline` / `closing` render their markdown the same way and are gaining bespoke
-styling. A `v=` records a visual variant (`data-vN`).
+Templates are structure pages. A `template=` slide reads structured fields from
+its markdown — `# title`, `## subtitle`, then the rest as a meta/byline block —
+and lays them out with dedicated styling instead of the region grid. Pick a
+layout with `v=` (e.g. `template=title v=2`):
 
-| Template | Write | Use |
+| Template | Write | Layouts (`v=`) |
 |---|---|---|
-| `title` | title (`#`), subtitle (`##`), an author/date line | the opening slide |
-| `section` | a big section title (`#`) | a divider between parts |
-| `outline` | an agenda list | a table of contents |
-| `closing` | thanks / contact / a `{{qr}}` to a link | the final slide |
+| `title` | `#` title, `##` subtitle, author/date line | **v1** centered + accent rule (default) · **v2** left-aligned with an accent bar · **v3** uppercase kicker above the title |
+| `section` | `#` section title (rest = meta) | **v1** left-aligned with an underline rule (default) · **v2** centered, accent title |
+| `closing` | thanks / contact / a `{{qr}}` | centered (like title) |
+| `outline` | an agenda list | left-aligned agenda |
+
+All template styling adapts to the active theme (via `--accent` / `--ink` /
+`--muted`), light or dark.
 
 ---
 

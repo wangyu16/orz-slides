@@ -396,28 +396,81 @@ body {
    TEMPLATE SLIDES (title / section / outline / closing)
    Generic helpers; themes restyle via the same tokens.
    ========================================================== */
-.reveal .orz-slide[data-kind="template"] {
+.reveal .orz-slide[data-kind="template"] .orz-frame { justify-content: center; }
+.reveal .orz-template {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
     justify-content: center;
-    align-items: stretch;
-    text-align: center;
+    gap: 0.35em;
 }
-.reveal .orz-slide[data-template="title"] { text-align: center; }
 
+/* ---------- title — v1 (default): centered with an accent rule ---------- */
+.reveal .orz-template-title { text-align: center; align-items: center; }
 .reveal .orz-title-main {
     font-family: var(--font-heading, 'Segoe UI', system-ui, sans-serif);
-    font-weight: 700;
-    font-size: 2.1em;
-    line-height: 1.1;
-    color: var(--accent, #345);
-    margin: 0 0 0.3em;
+    font-weight: 800;
+    font-size: 2.7em;
+    line-height: 1.06;
+    letter-spacing: -0.015em;
+    color: var(--ink, #1a1a1a);
+    margin: 0;
+}
+.reveal .orz-template-title .orz-title-main::after {
+    content: ""; display: block;
+    width: 2.2em; height: 4px; margin: 0.5em auto 0;
+    background: var(--accent, #345); border-radius: 2px;
 }
 .reveal .orz-title-sub {
-    font-size: 1.1em;
-    color: var(--muted, #777);
-    font-style: italic;
-    margin: 0 0 1em;
+    font-size: 1.3em; font-weight: 500;
+    color: var(--muted, #6b7280);
+    margin: 0.7em 0 0;
 }
-.reveal .orz-title-meta {
-    font-size: 0.7em;
-    color: var(--muted, #777);
+.reveal .orz-title-meta { font-size: 0.85em; color: var(--muted, #6b7280); margin-top: 1.5em; }
+.reveal .orz-title-meta p { margin: 0.15em 0; }
+
+/* title — v2: left-aligned with an accent bar */
+.reveal .orz-template-title.orz-v2 {
+    text-align: left; align-items: flex-start;
+    padding-left: 0.7em; border-left: 6px solid var(--accent, #345);
 }
+.reveal .orz-template-title.orz-v2 .orz-title-main { font-size: 3em; }
+.reveal .orz-template-title.orz-v2 .orz-title-main::after { display: none; }
+.reveal .orz-template-title.orz-v2 .orz-title-sub { margin-top: 0.5em; }
+
+/* title — v3: an uppercase kicker above the title */
+.reveal .orz-template-title.orz-v3 .orz-title-sub {
+    order: -1; margin: 0 0 0.7em;
+    font-size: 0.8em; font-weight: 700; font-style: normal;
+    text-transform: uppercase; letter-spacing: 0.22em;
+    color: var(--accent, #345);
+}
+.reveal .orz-template-title.orz-v3 .orz-title-main::after { display: none; }
+
+/* ---------- section dividers ---------- */
+.reveal .orz-template-section { text-align: left; align-items: flex-start; }
+.reveal .orz-section-main {
+    font-family: var(--font-heading, 'Segoe UI', system-ui, sans-serif);
+    font-weight: 800; font-size: 2.5em; line-height: 1.1;
+    color: var(--ink, #1a1a1a);
+    border-bottom: 4px solid var(--accent, #345);
+    padding-bottom: 0.18em;
+}
+.reveal .orz-section-meta { color: var(--muted, #6b7280); margin-top: 0.6em; }
+
+/* section — v2: centered, accent title, no rule */
+.reveal .orz-template-section.orz-v2 { text-align: center; align-items: center; }
+.reveal .orz-template-section.orz-v2 .orz-section-main {
+    border: none; font-size: 3.1em; color: var(--accent, #345);
+}
+
+/* ---------- closing (centered, tighter) ---------- */
+.reveal .orz-template-closing { text-align: center; align-items: center; }
+.reveal .orz-template-closing .orz-title-main { font-size: 2.2em; }
+.reveal .orz-template-closing .orz-title-main::after { margin-top: 0.45em; }
+
+/* ---------- outline (agenda list) ---------- */
+.reveal .orz-template-outline { text-align: left; align-items: stretch; }
+.reveal .orz-template-outline .orz-outline { font-size: 1.2em; line-height: 1.8; }
+.reveal .orz-template-outline .orz-outline ol,
+.reveal .orz-template-outline .orz-outline ul { padding-left: 1.2em; }
