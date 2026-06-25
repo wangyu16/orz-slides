@@ -48,27 +48,42 @@ function loadEnhancers(cfg: OrzSlidesConfig): Promise<unknown> {
 }
 
 /** Draw mermaid diagrams, smiles structures, and charts that haven't been drawn. */
+/** Is the active theme dark? (drives the smiles draw scheme) */
+function isDarkTheme(): boolean {
+  const cfg: any = (window as any).__ORZ_SLIDES__ || {};
+  const id = document.documentElement.getAttribute('data-theme') || cfg.defaultTheme;
+  const t = (cfg.themes || []).find((x: any) => x.id === id);
+  return !!(t && t.scheme === 'dark');
+}
+
 function enhance(): void {
   const w = window as any;
   try {
     if (w.mermaid) {
       w.mermaid.initialize({ startOnLoad: false });
-      w.mermaid.run({ querySelector: '.mermaid:not([data-processed])' });
+      const p = w.mermaid.run({ querySelector: '.mermaid:not([data-processed])' });
+      if (p && p.then) p.then(() => fitCurrent()).catch(() => undefined); // re-fit once the SVG lands
     }
   } catch (e) { /* ignore */ }
 
   try {
     if (w.SmilesDrawer) {
+      // 'dark' draws light-coloured bonds/atoms for dark themes. Redraw when the
+      // scheme changes (e.g. the user switches to a dark theme in the editor).
+      const scheme = isDarkTheme() ? 'dark' : 'light';
       document.querySelectorAll<HTMLCanvasElement>('canvas[data-smiles]').forEach((c) => {
         const cc = c as any;
-        if (cc.__drawn) return;
-        cc.__drawn = true;
+        // __scheme is set only once a draw succeeds; __pending guards against
+        // re-clearing the canvas while a draw for this scheme is in flight.
+        if (cc.__scheme === scheme || cc.__pending === scheme) return;
+        cc.__pending = scheme;
         if (cc.__ow === undefined) { cc.__ow = c.width; cc.__oh = c.height; }
         c.width = cc.__ow; c.height = cc.__oh;
         const drawer = new w.SmilesDrawer.Drawer({ width: cc.__ow, height: cc.__oh });
-        const scheme = (c.getAttribute('data-smiles-theme') || 'light');
         w.SmilesDrawer.parse(c.getAttribute('data-smiles'), (tree: unknown) => {
-          try { drawer.draw(tree, c, scheme, false); } catch (e) { /* ignore */ }
+          try { drawer.draw(tree, c, scheme, false); cc.__scheme = scheme; } catch (e) { /* ignore */ }
+          cc.__pending = null;
+          fitCurrent();
         });
       });
     }
@@ -181,13 +196,29 @@ function mount(): void {
 
   const relayout = () => { try { Reveal.layout(); } catch (e) { /* ignore */ } };
   loadEnhancers(cfg).then(() => { relayout(); refresh(); });
-  // Run twice per change: once immediately, once after the slide is laid out so
-  // responsive charts size to a real container and fit measures correctly.
-  Reveal.on('slidechanged', () => { enhance(); setTimeout(refresh, 60); });
-  // Recompute reveal's scale once the inlined CSS/fonts have settled, so the
-  // deck fills the screen even if the first layout ran before they loaded.
-  [200, 800].forEach((t) => setTimeout(() => { relayout(); refresh(); }, t));
-  window.addEventListener('resize', () => setTimeout(fitCurrent, 60));
+  // Diagrams/charts finish asynchronously and may settle after the first fit —
+  // re-fit several times so their final size is measured into scale-to-fit.
+  Reveal.on('slidechanged', () => { enhance(); [80, 500, 1400].forEach((t) => setTimeout(refresh, t)); });
+  [200, 700, 1500, 2600].forEach((t) => setTimeout(() => { relayout(); refresh(); }, t));
+  window.addEventListener('resize', () => setTimeout(() => { relayout(); fitCurrent(); }, 60));
+
+  // QR code → click to view fullscreen (the orz-markdown runtime that normally
+  // wires this isn't bundled into slides).
+  document.addEventListener('click', (e) => {
+    const el = e.target as Element;
+    const qr = el && el.closest ? el.closest('.qrcode') : null;
+    if (!qr) return;
+    const svg = qr.querySelector('svg');
+    if (!svg) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'orz-qr-overlay';
+    overlay.appendChild(svg.cloneNode(true));
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); close(); } };
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+  });
 }
 
 window.orzslides = {
