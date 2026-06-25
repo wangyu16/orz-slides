@@ -683,6 +683,11 @@ body {
 .reveal .markdown-body span.warning { color: var(--box-warning, #d9a300); background: var(--box-warning-bg, #fdf6e3); border-color: var(--box-warning, #d9a300); }
 .reveal .markdown-body span.danger  { color: var(--box-danger, #e03131);  background: var(--box-danger-bg, #fdecec);  border-color: var(--box-danger, #e03131); }
 
+/* ---- alignment containers: ::: left | center | right ---- */
+.reveal .markdown-body div.left   { text-align: left; }
+.reveal .markdown-body div.center { text-align: center; }
+.reveal .markdown-body div.right  { text-align: right; }
+
 /* ---- column container: ::: cols / ::: col ---- */
 .reveal .markdown-body .cols {
     display: grid; gap: 0.8em; margin: 0.5em 0;
