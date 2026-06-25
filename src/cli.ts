@@ -18,6 +18,7 @@ import { basename, extname, dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+import { getBrowserRuntimeScript } from 'orz-markdown/runtime';
 import { parseDeck } from './slide-parser.js';
 import { buildHtml, type ThemeEntry, type RendererSpec, type ThemeSpec } from './template.js';
 
@@ -171,6 +172,7 @@ function main(): void {
     ratio,
     versionManifest: 'https://data.jsdelivr.com/v1/packages/npm/orz-slides-browser/resolved',
     appJs,
+    runtime: getBrowserRuntimeScript(),
     editorLibs: {
       codemirrorCss: `${CM}/codemirror.min.css`,
       codemirrorLightThemeCss: `${CM}/theme/eclipse.min.css`,

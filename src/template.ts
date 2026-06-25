@@ -52,6 +52,7 @@ export interface BuildOptions {
   ratio: string;
   versionManifest: string;
   appJs: string;
+  runtime: string;
   editorLibs: EditorLibs;
   revealCss: RevealCssSpec;
   cdn: {
@@ -265,6 +266,7 @@ ${rendererTag}
     else boot();
   })();
 </script>
+<script>${o.runtime}</script>
 <script>${o.appJs}</script>
 </body>
 </html>

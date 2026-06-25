@@ -162,16 +162,31 @@ function fitRegion(region: HTMLElement): void {
 /** Size mermaid SVGs to fit their region (both dimensions), keeping the diagram's
  *  aspect ratio. Font scale-to-fit can't shrink an SVG, so a tall flowchart would
  *  otherwise overflow the region. Charts fill the region via maintainAspectRatio. */
+/** Space available to a graphic = region width × (region height minus the height
+ *  of the OTHER content in its markdown-body) — so a caption and a diagram can
+ *  share one region without the diagram overflowing. */
+function availFor(region: HTMLElement, graphic: Element): { w: number; h: number } {
+  const w = region.clientWidth;
+  const mb = graphic.closest('.markdown-body') as HTMLElement | null;
+  if (!mb) return { w, h: region.clientHeight };
+  let node: Element = graphic;
+  while (node.parentElement && node.parentElement !== mb) node = node.parentElement;
+  let other = 0;
+  Array.prototype.forEach.call(mb.children, (ch: HTMLElement) => {
+    if (ch !== node) other += ch.offsetHeight;
+  });
+  return { w, h: Math.max(40, region.clientHeight - other - 6) };
+}
+
 function fitRegionGraphics(region: HTMLElement): void {
-  const aw = region.clientWidth;
-  const ah = region.clientHeight;
-  if (!aw || !ah) return;
+  if (!region.clientWidth || !region.clientHeight) return;
   region.querySelectorAll<SVGSVGElement>('.mermaid svg').forEach((svg) => {
+    const av = availFor(region, svg);
     const vb = svg.viewBox && svg.viewBox.baseVal;
     const ar = vb && vb.height ? vb.width / vb.height : 1;
-    let w = aw;
+    let w = av.w;
     let h = w / ar;
-    if (h > ah) { h = ah; w = h * ar; }
+    if (h > av.h) { h = av.h; w = h * ar; }
     svg.style.maxWidth = 'none';
     svg.style.width = Math.floor(w) + 'px';
     svg.style.height = Math.floor(h) + 'px';
@@ -180,7 +195,7 @@ function fitRegionGraphics(region: HTMLElement): void {
   if (Chart && Chart.getChart) {
     region.querySelectorAll<HTMLCanvasElement>('canvas.orz-chart').forEach((c) => {
       const inst = Chart.getChart(c);
-      if (inst) { try { inst.resize(aw, ah); } catch (e) { /* ignore */ } }
+      if (inst) { const av = availFor(region, c); try { inst.resize(av.w, av.h); } catch (e) { /* ignore */ } }
     });
   }
 }

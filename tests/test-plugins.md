@@ -79,6 +79,16 @@ Scan to visit orz.how
 {{youtube dQw4w9WgXcQ}}
 
 <!-- slide -->
+## Caption + chart in one region
+A short caption paragraph above the chart, sharing the same region — the chart
+should sit **below** this text, not overlap it.
+{{chart
+type: bar
+labels: A, B, C, D
+data: 10, 22, 15, 28
+}}
+
+<!-- slide -->
 ## Inline plugins — span, emoji, space
 Named-style spans: {{sp[danger] ✗ Error}}, {{sp[success] ✓ Done}}, {{sp[warning] ⚠ Caution}}, {{sp[info] ℹ Note}}.
 

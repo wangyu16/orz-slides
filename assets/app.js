@@ -126,7 +126,10 @@
   function ensureEditorLibs() {
     var L = CFG.editorLibs || {};
     loadCss(L.codemirrorCss);
-    loadCss(themeById(currentTheme).scheme === 'dark' ? L.codemirrorDarkThemeCss : L.codemirrorLightThemeCss);
+    // Load BOTH editor themes so cmTheme() can switch freely (dark editor on
+    // dark slide themes, light on light) without a reload.
+    loadCss(L.codemirrorLightThemeCss);
+    loadCss(L.codemirrorDarkThemeCss);
     return loadScript(L.codemirrorJs)
       .then(function () { return loadScript(L.codemirrorMarkdownJs); })
       .then(function () { return loadScript(L.codemirrorContinuelistJs); });

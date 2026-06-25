@@ -57,8 +57,10 @@ re-serializes the whole document around it:
 orz-slides is the slide-deck sibling of
 [orz-mdhtml](https://www.npmjs.com/package/orz-mdhtml), sharing the same
 philosophy — deck-first, quietly editable, self-contained, CDN-delivered
-renderer — and the same in-file editor stack (CodeMirror, live preview, File
-System Access save, theme picker). Both render content through **orz-markdown**:
+renderer — and the same in-file editor stack (CodeMirror with a dark theme on
+dark decks, live preview, File System Access save, theme picker, and
+copy-as-markdown — selecting rendered slide content copies its Markdown source).
+Both render content through **orz-markdown**:
 
 - **orz-markdown** — the Markdown renderer (parser, plugins, themes) that turns
   region bodies into HTML.

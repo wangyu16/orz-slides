@@ -101,7 +101,10 @@ then the Wave-2 modules (WP5–WP8, WP10) integrate them.
   *(WP8)* — the CLI, the `.slides.html` shell (reveal scaffold + `#orz-deck` +
   editor chrome + app), `window.orzslides` (parse + assemble + reveal-init +
   enhancers + fit, plus `renderAll`/`refresh`/`reveal` for the editor), and the
-  esbuild bundle. Mirror orz-mdhtml packaging exactly.
+  esbuild bundle. Mirror orz-mdhtml packaging exactly. The template also embeds
+  orz-markdown's `getBrowserRuntimeScript()` for **copy-as-markdown** (its `init`
+  runs once on load before slides exist, so it's a no-op for tabs/qr — the engine
+  owns those — and only its global copy handler stays active; no conflict).
 
 `orz-slides-skills/SKILL.md` *(WP9)* is the agent skill for authoring/editing
 decks; match its terminology in any doc change.
