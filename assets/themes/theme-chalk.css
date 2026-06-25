@@ -1,0 +1,96 @@
+/* ==========================================================
+   THEME: Chalk · dark blackboard green, warm chalk white (DARK)
+   Personality: academic, handwritten, warm, approachable.
+   Font: Caveat (handwritten). Blackboard slide, yellow-chalk title
+   with a dashed under-rule, dashed chalk-drawn callout borders.
+   Overrides reveal vars for the dark cascade. Code reverts to
+   monospace for legibility.
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #ffd663;   /* yellow chalk */
+    --ink:           #f2ede2;   /* warm chalk white, >14:1 on bg */
+    --bg:            #1a2420;    /* blackboard green */
+
+    --font-heading:  'Caveat', 'Comic Sans MS', cursive;
+    --font-body:     'Caveat', 'Comic Sans MS', cursive;
+    --font-mono:     ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+    --slide-gap:     28px;
+    --slide-pad:     4% 5.5%;
+
+    /* DARK: override reveal's own vars. */
+    --r-background-color: #1a2420;
+    --r-main-color:       #f2ede2;
+    --r-heading-color:    #ffd663;
+    --r-link-color:       #8ecae6;
+
+    /* Title band: no bar — yellow chalk text with a dashed under-rule */
+    --heading-color:        #ffd663;
+    --heading-bg:           transparent;
+    --heading-radius:       2px;
+    --heading-pad:          0.1em 0 0.3em 0;
+    --heading-align:        left;
+    --heading-font-weight:  700;
+    --heading-letter-spacing: 0.02em;
+    --heading-shadow:       inset 0 -4px 0 -1px rgba(255, 214, 99, 0.6);
+
+    /* Callouts: dashed chalk-drawn rectangles on chalk-dust surfaces */
+    --box-radius:        2px;
+    --box-border-width:  2px;
+    --box-shadow:        none;
+    --box-info:     #8ecae6;  --box-info-bg:    #1c2e30;
+    --box-warning:  #ffd663;  --box-warning-bg: #2a2714;
+    --box-danger:   #f4a4b0;  --box-danger-bg:  #2a1c1e;
+    --box-success:  #8ddbab;  --box-success-bg: #1c2a22;
+
+    --table-head-bg:    #1e2e24;
+    --table-head-color: #ffd663;
+    --row-highlight:    #243a2c;
+
+    --surface:    #1e2e24;
+    --muted:      #b4c4b8;       /* ~6:1 on bg */
+    --rule:       rgba(242, 237, 226, 0.22);
+    --code-bg:    #12201a;
+    --code-color: #8ddbab;
+    --link-color: #8ecae6;
+
+    /* dashed borders read as chalk-drawn */
+    --font-size-bump: 1;
+}
+
+body,
+.reveal-viewport { background-color: #1a2420; }
+
+/* Slightly larger body — Caveat is an open hand */
+.reveal .markdown-body p,
+.reveal .markdown-body li,
+.reveal .markdown-body td { font-size: 0.95em; }
+
+/* Chalk-on-board roughness on headings + title */
+.reveal .orz-title h2,
+.reveal .markdown-body h3,
+.reveal .markdown-body h4 {
+    text-shadow: 1px 1px 0 rgba(26, 36, 32, 0.6);
+}
+
+/* Dashed chalk-drawn callout borders + table rules */
+.reveal .markdown-body .box-info,
+.reveal .markdown-body .box-warning,
+.reveal .markdown-body .box-danger,
+.reveal .markdown-body .box-success { border-style: dashed; }
+.reveal .markdown-body th { border-bottom-style: dashed; }
+.reveal .markdown-body td { border-bottom-style: dashed; }
+
+/* Code reverts to monospace for legibility */
+.reveal .markdown-body code,
+.reveal .markdown-body pre code { font-family: var(--font-mono); }
+.reveal .markdown-body code { border: 1px dashed rgba(255, 214, 99, 0.35); }
+
+/* Chalk-blue links */
+.reveal .markdown-body a {
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(142, 202, 230, 0.5);
+}

@@ -1,0 +1,408 @@
+/* ==========================================================
+   orz-slides · BASE.CSS
+   Structural + content styling for the rendered-slide DOM contract
+   (docs/dom-contract.md). Each theme file `@import`s this and then
+   defines ONLY the design tokens in its own :root{}.
+
+   This file loads alongside reveal.js + reveal.css. It styles our
+   contract classes (.orz-slide, .orz-title, .orz-content, .orz-split,
+   .orz-region, .orz-footer, .orz-float) and the .markdown-body content
+   inside regions. ALL colors and fonts are driven from CSS variables so
+   a theme only sets :root tokens.
+
+   CSS-VARIABLE CONTRACT (a theme sets these in :root):
+     --accent            brand / accent color
+     --ink               body text color
+     --bg                slide background
+     --font-heading      heading font stack
+     --font-body         body font stack
+     --heading-color     text color of the h2 title band
+     --heading-bg        background of the h2 title band
+     --slide-gap         grid gap between regions (e.g. 28px)
+     --slide-pad         slide content padding (e.g. 4% 5%)
+     --box-info / --box-warning / --box-danger / --box-success   (border colors)
+     --box-*-bg          (callout fill backgrounds)
+     --table-head-bg     table header background
+     --row-highlight     highlighted-row background
+   Optional (sensible fallbacks below):
+     --heading-radius --heading-shadow --heading-pad --heading-align
+     --heading-letter-spacing --heading-font-weight
+     --box-radius --box-shadow --box-border-width
+     --surface (elevated panel bg, e.g. floats/code) --muted (dim text)
+     --code-bg --code-color --rule (hairline border color)
+     --link-color
+   Dark themes additionally override reveal's own vars:
+     --r-background-color --r-main-color --r-heading-color --r-link-color
+   ========================================================== */
+
+/* ---------- Reveal-level defaults from our tokens ---------- */
+/* Keep left-aligned, top-anchored slides (reveal defaults to centered). */
+.reveal .slides { text-align: left; }
+
+.reveal,
+.reveal .slides section {
+    font-family: var(--font-body, 'Segoe UI', system-ui, sans-serif);
+    color: var(--ink, #222);
+}
+
+.reveal-viewport,
+body {
+    background-color: var(--bg, #ffffff);
+}
+
+/* ==========================================================
+   SLIDE FRAME — the .orz-slide <section>
+   ========================================================== */
+.reveal .orz-slide {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: var(--slide-pad, 4% 5%);
+    display: flex;
+    flex-direction: column;
+    /* floats are positioned against this box */
+    position: relative;
+    text-align: left;
+    color: var(--ink, #222);
+    font-family: var(--font-body, 'Segoe UI', system-ui, sans-serif);
+}
+
+/* ---------- Title band: .orz-title h2 ---------- */
+.reveal .orz-title {
+    flex: 0 0 auto;
+    margin-bottom: var(--slide-gap, 28px);
+}
+.reveal .orz-title .markdown-body { margin: 0; }
+
+.reveal .orz-title h2 {
+    box-sizing: border-box;
+    margin: 0;
+    width: 100%;
+    font-family: var(--font-heading, 'Segoe UI', system-ui, sans-serif);
+    font-weight: var(--heading-font-weight, 600);
+    font-size: 1.5em;
+    line-height: 1.15;
+    letter-spacing: var(--heading-letter-spacing, 0);
+    text-align: var(--heading-align, left);
+    text-transform: none;
+    color: var(--heading-color, #fff);
+    background: var(--heading-bg, var(--accent, #345));
+    padding: var(--heading-pad, 0.4em 0.7em);
+    border-radius: var(--heading-radius, 8px);
+    box-shadow: var(--heading-shadow, none);
+}
+
+/* ==========================================================
+   CONTENT AREA + LAYOUT GRID
+   ========================================================== */
+.reveal .orz-content {
+    flex: 1 1 auto;
+    min-height: 0;       /* allow grid children to shrink/scroll */
+    display: flex;       /* a single-region content area fills height */
+    flex-direction: column;
+}
+
+/* Splits carry inline grid-template-* from the layout engine; we only
+   theme the gap and make them fill the available content height. */
+.reveal .orz-split {
+    display: grid;
+    gap: var(--slide-gap, 28px);
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    align-items: stretch;
+}
+
+/* A split nested inside another split is itself a grid item — make it
+   stretch to fill its cell. */
+.reveal .orz-split .orz-split { height: 100%; }
+
+/* ---------- Region cell ---------- */
+.reveal .orz-region {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;            /* fit=scroll flips this to auto */
+    display: flex;
+    flex-direction: column;
+    /* WP6 sets --region-scale on this element when scaling to fit. */
+    font-size: calc(1em * var(--region-scale, 1));
+}
+.reveal .orz-slide[data-fit="scroll"] .orz-region { overflow: auto; }
+
+/* ==========================================================
+   FOOTER BAND
+   ========================================================== */
+.reveal .orz-footer {
+    flex: 0 0 auto;
+    margin-top: var(--slide-gap, 28px);
+    padding-top: 0.5em;
+    border-top: 1px solid var(--rule, rgba(0, 0, 0, 0.12));
+    font-size: 0.6em;
+    line-height: 1.3;
+    color: var(--muted, rgba(0, 0, 0, 0.55));
+}
+.reveal .orz-footer .markdown-body { margin: 0; }
+.reveal .orz-footer p { margin: 0; }
+
+/* ==========================================================
+   FLOAT — absolute overlay box (positioned via inline style)
+   ========================================================== */
+.reveal .orz-float {
+    box-sizing: border-box;
+    position: absolute;
+    overflow: hidden;
+    padding: 0.8em 1em;
+    background: var(--surface, #fff);
+    border: 1px solid var(--rule, rgba(0, 0, 0, 0.14));
+    border-radius: var(--box-radius, 8px);
+    box-shadow: var(--box-shadow, 0 6px 20px rgba(0, 0, 0, 0.18));
+    color: var(--ink, #222);
+    font-size: 0.85em;
+}
+.reveal .orz-float .markdown-body { margin: 0; }
+.reveal .orz-float > .markdown-body > :first-child { margin-top: 0; }
+.reveal .orz-float > .markdown-body > :last-child { margin-bottom: 0; }
+
+/* ==========================================================
+   .markdown-body — orz-markdown content inside regions
+   ========================================================== */
+.reveal .markdown-body {
+    line-height: 1.45;
+    color: var(--ink, #222);
+}
+.reveal .orz-region > .markdown-body {
+    margin: 0;
+    height: 100%;
+}
+.reveal .markdown-body > :first-child { margin-top: 0; }
+.reveal .markdown-body > :last-child { margin-bottom: 0; }
+
+/* ---------- Sub-headings h3–h6 (plain, NOT the title band) ---------- */
+.reveal .markdown-body h3,
+.reveal .markdown-body h4,
+.reveal .markdown-body h5,
+.reveal .markdown-body h6 {
+    font-family: var(--font-heading, 'Segoe UI', system-ui, sans-serif);
+    color: var(--accent, #345);
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin: 0 0 0.4em;
+    line-height: 1.2;
+    font-weight: var(--heading-font-weight, 600);
+    text-align: left;
+}
+.reveal .markdown-body h3 { font-size: 1.15em; }
+.reveal .markdown-body h4 { font-size: 1.0em; }
+.reveal .markdown-body h5 { font-size: 0.9em; }
+.reveal .markdown-body h6 { font-size: 0.85em; color: var(--muted, #777); }
+
+/* ---------- Paragraphs ---------- */
+.reveal .markdown-body p {
+    margin: 0 0 0.6em;
+    font-size: 0.82em;
+    line-height: 1.45;
+}
+
+/* ---------- Lists ---------- */
+.reveal .markdown-body ul,
+.reveal .markdown-body ol {
+    text-align: left;
+    margin: 0 0 0.6em;
+    padding-left: 1.3em;
+}
+.reveal .markdown-body li {
+    font-size: 0.82em;
+    line-height: 1.45;
+    margin-bottom: 0.35em;
+}
+.reveal .markdown-body li > ul,
+.reveal .markdown-body li > ol {
+    margin: 0.25em 0 0.25em;
+}
+.reveal .markdown-body li > ul li,
+.reveal .markdown-body li > ol li { font-size: 1em; }
+
+/* ---------- Inline emphasis / links ---------- */
+.reveal .markdown-body strong { color: var(--accent, #345); }
+.reveal .markdown-body a {
+    color: var(--link-color, var(--accent, #345));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* ---------- Tables ---------- */
+.reveal .markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.74em;
+    margin: 0 0 0.6em;
+}
+.reveal .markdown-body th {
+    background: var(--table-head-bg, var(--accent, #345));
+    color: var(--table-head-color, #fff);
+    text-align: left;
+    padding: 0.4em 0.6em;
+    border-bottom: 2px solid var(--accent, #345);
+    font-weight: 600;
+}
+.reveal .markdown-body td {
+    padding: 0.4em 0.6em;
+    border-bottom: 1px solid var(--rule, rgba(0, 0, 0, 0.12));
+}
+.reveal .markdown-body tr.row-highlight,
+.reveal .markdown-body tr.row-highlight td {
+    background: var(--row-highlight, rgba(0, 0, 0, 0.04));
+}
+
+/* ---------- Code ---------- */
+.reveal .markdown-body code {
+    font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', Menlo, monospace);
+    font-size: 0.85em;
+    background: var(--code-bg, rgba(0, 0, 0, 0.06));
+    color: var(--code-color, var(--ink, #222));
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+}
+.reveal .markdown-body pre {
+    margin: 0 0 0.6em;
+    padding: 0.7em 0.9em;
+    background: var(--code-bg, rgba(0, 0, 0, 0.06));
+    border: 1px solid var(--rule, rgba(0, 0, 0, 0.12));
+    border-radius: var(--box-radius, 8px);
+    overflow: auto;
+}
+.reveal .markdown-body pre code {
+    display: block;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-size: 0.72em;
+    line-height: 1.4;
+    color: var(--code-color, var(--ink, #222));
+    white-space: pre;
+}
+
+/* ---------- Blockquote ---------- */
+.reveal .markdown-body blockquote {
+    margin: 0 0 0.6em;
+    padding: 0.5em 1em;
+    border-left: 4px solid var(--accent, #345);
+    background: var(--surface, rgba(0, 0, 0, 0.03));
+    color: var(--ink, #222);
+    font-style: italic;
+}
+.reveal .markdown-body blockquote p { margin: 0; }
+
+/* ---------- Horizontal rule ---------- */
+.reveal .markdown-body hr {
+    border: 0;
+    border-top: 1px solid var(--rule, rgba(0, 0, 0, 0.14));
+    margin: 0.8em 0;
+}
+
+/* ==========================================================
+   CALLOUT BOXES  .box-info / .box-warning / .box-danger / .box-success
+   ========================================================== */
+.reveal .markdown-body .box-info,
+.reveal .markdown-body .box-warning,
+.reveal .markdown-body .box-danger,
+.reveal .markdown-body .box-success {
+    text-align: left;
+    padding: 0.7em 0.9em;
+    margin: 0 0 0.6em;
+    border: var(--box-border-width, 2px) solid currentColor;
+    border-radius: var(--box-radius, 8px);
+    box-shadow: var(--box-shadow, none);
+    font-size: 0.92em;
+}
+.reveal .markdown-body .box-info {
+    border-color: var(--box-info, #2b6cb0);
+    background: var(--box-info-bg, rgba(43, 108, 176, 0.08));
+}
+.reveal .markdown-body .box-warning {
+    border-color: var(--box-warning, #c79a2e);
+    background: var(--box-warning-bg, rgba(199, 154, 46, 0.10));
+}
+.reveal .markdown-body .box-danger {
+    border-color: var(--box-danger, #c0392b);
+    background: var(--box-danger-bg, rgba(192, 57, 43, 0.08));
+}
+.reveal .markdown-body .box-success {
+    border-color: var(--box-success, #2e8b57);
+    background: var(--box-success-bg, rgba(46, 139, 87, 0.08));
+}
+/* keep box text in the ink color (the border colors it, not the text) */
+.reveal .markdown-body .box-info,
+.reveal .markdown-body .box-warning,
+.reveal .markdown-body .box-danger,
+.reveal .markdown-body .box-success { color: var(--ink, #222); }
+
+.reveal .markdown-body .box-info > :first-child,
+.reveal .markdown-body .box-warning > :first-child,
+.reveal .markdown-body .box-danger > :first-child,
+.reveal .markdown-body .box-success > :first-child { margin-top: 0; }
+.reveal .markdown-body .box-info > :last-child,
+.reveal .markdown-body .box-warning > :last-child,
+.reveal .markdown-body .box-danger > :last-child,
+.reveal .markdown-body .box-success > :last-child { margin-bottom: 0; }
+
+/* Headings inside callouts: strip the sub-heading accent, keep inline */
+.reveal .markdown-body .box-info :is(h3,h4,h5,h6),
+.reveal .markdown-body .box-warning :is(h3,h4,h5,h6),
+.reveal .markdown-body .box-danger :is(h3,h4,h5,h6),
+.reveal .markdown-body .box-success :is(h3,h4,h5,h6) {
+    color: inherit;
+    margin-top: 0;
+    font-size: 1em;
+}
+
+/* ==========================================================
+   GENERATED CONSTRUCTS (mermaid / smiles / qrcode / math wrappers)
+   ========================================================== */
+.reveal .markdown-body .mermaid,
+.reveal .markdown-body .smiles-container,
+.reveal .markdown-body .qrcode,
+.reveal .markdown-body .katex-display {
+    text-align: center;
+    margin: 0 auto 0.6em;
+    max-width: 100%;
+}
+.reveal .markdown-body .mermaid svg,
+.reveal .markdown-body .smiles-container svg,
+.reveal .markdown-body .qrcode img,
+.reveal .markdown-body .qrcode canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ==========================================================
+   TEMPLATE SLIDES (title / section / outline / closing)
+   Generic helpers; themes restyle via the same tokens.
+   ========================================================== */
+.reveal .orz-slide[data-kind="template"] {
+    justify-content: center;
+    align-items: stretch;
+    text-align: center;
+}
+.reveal .orz-slide[data-template="title"] { text-align: center; }
+
+.reveal .orz-title-main {
+    font-family: var(--font-heading, 'Segoe UI', system-ui, sans-serif);
+    font-weight: 700;
+    font-size: 2.1em;
+    line-height: 1.1;
+    color: var(--accent, #345);
+    margin: 0 0 0.3em;
+}
+.reveal .orz-title-sub {
+    font-size: 1.1em;
+    color: var(--muted, #777);
+    font-style: italic;
+    margin: 0 0 1em;
+}
+.reveal .orz-title-meta {
+    font-size: 0.7em;
+    color: var(--muted, #777);
+}

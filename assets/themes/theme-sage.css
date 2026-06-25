@@ -1,0 +1,50 @@
+/* ==========================================================
+   THEME: Sage · warm ivory, sage green, casual-professional
+   Personality: friendly, natural, approachable, warm.
+   Font: Nunito Sans. Ivory slide, rounded darkened-sage title band
+   (7:1 contrast on white), soft earth-tone callouts.
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #5a7a5f;   /* sage green */
+    --ink:           #2d3a2e;   /* dark forest */
+    --bg:            #f6f3ec;    /* warm ivory */
+
+    --font-heading:  'Nunito Sans', 'Segoe UI', sans-serif;
+    --font-body:     'Nunito Sans', 'Segoe UI', sans-serif;
+
+    --slide-gap:     28px;
+    --slide-pad:     4% 5.5%;
+
+    /* Title band: darker sage for white-text contrast, soft round corners */
+    --heading-color:        #ffffff;
+    --heading-bg:           #3a5f40;
+    --heading-radius:       8px;
+    --heading-pad:          0.4em 0.7em;
+    --heading-align:        left;
+    --heading-font-weight:  700;
+    --heading-letter-spacing: 0.01em;
+    --heading-shadow:       0 2px 8px rgba(90, 122, 95, 0.25);
+
+    /* Callouts: soft rounded earth tones */
+    --box-radius:        8px;
+    --box-border-width:  3px;
+    --box-shadow:        0 2px 8px rgba(90, 122, 95, 0.12);
+    --box-info:     #5a7a5f;  --box-info-bg:    #edf5ee;
+    --box-warning:  #c8a05a;  --box-warning-bg: #fdf7ec;
+    --box-danger:   #c0614a;  --box-danger-bg:  #fdf0ee;
+    --box-success:  #4a8c50;  --box-success-bg: #ecf6ec;
+
+    --table-head-bg:    #dbe9dc;
+    --table-head-color: #2d3a2e;
+    --row-highlight:    #e6f0e7;
+
+    --surface:    #eef4ef;
+    --muted:      #6f7d70;
+    --rule:       #d4cfc5;
+    --code-bg:    #ede9e0;
+    --code-color: #2d3a2e;
+    --link-color: #4a8c50;
+}

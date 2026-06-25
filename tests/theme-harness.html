@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>orz-slides · theme harness</title>
+
+  <!-- reveal.js core CSS (cdnjs, 5.0.4) -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
+  <!-- a minimal reveal theme provides the --r-* vars our dark themes override -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/theme/white.min.css">
+
+  <!-- the orz-slides theme under test — swapped by the <select> below -->
+  <link id="theme" rel="stylesheet" href="../assets/themes/theme-paper.css">
+
+  <style>
+    /* Theme picker — harness-only chrome, not part of any theme. */
+    #theme-picker {
+      position: fixed; top: 10px; right: 10px; z-index: 999999;
+      font: 14px/1.2 system-ui, sans-serif;
+      background: rgba(255,255,255,0.92); color: #222;
+      padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    #theme-picker select { font: inherit; margin-left: 6px; }
+  </style>
+</head>
+<body>
+  <div id="theme-picker">
+    Theme
+    <select id="theme-select" aria-label="Theme">
+      <option value="paper">Paper</option>
+      <option value="architect">Architect</option>
+      <option value="executive">Executive</option>
+      <option value="sage">Sage</option>
+      <option value="poppy">Poppy</option>
+      <option value="neon">Neon</option>
+      <option value="chalk">Chalk</option>
+    </select>
+  </div>
+
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ============================================================
+           SLIDE 1 · title-style template slide
+           ============================================================ -->
+      <section class="orz-slide" data-fit="fit"
+               data-kind="template" data-template="title">
+        <h1 class="orz-title-main">Controlled Polymerization</h1>
+        <p class="orz-title-sub">RAFT vs ATRP — a side-by-side</p>
+        <p class="orz-title-meta"><strong>Dr. Yu Wang</strong> · Louisiana · 2026</p>
+        <aside class="notes">Open warm; set up the comparison.</aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 2 · normal slide: title band + 2-col split content
+           Each region holds real .markdown-body content.
+           ============================================================ -->
+      <section class="orz-slide" data-fit="fit" data-kind="normal">
+
+        <header class="orz-title">
+          <div class="markdown-body"><h2>Results at a glance</h2></div>
+        </header>
+
+        <div class="orz-content">
+          <!-- col 3/2 { left; right } -->
+          <div class="orz-split"
+               style="display:grid; grid-auto-flow:column; grid-template-columns:3fr 2fr;">
+
+            <div class="orz-region" data-region="left">
+              <div class="markdown-body">
+                <h3>Key findings</h3>
+                <ul>
+                  <li>Accuracy reached <strong>92%</strong> on the holdout set.</li>
+                  <li>Narrow PDI across all four methods.</li>
+                  <li>Two-step workflow halved turnaround.</li>
+                </ul>
+                <table>
+                  <thead>
+                    <tr><th>Method</th><th>Yield</th><th>PDI</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>RAFT</td><td>88%</td><td>1.08</td></tr>
+                    <tr class="row-highlight"><td>ATRP</td><td>92%</td><td>1.05</td></tr>
+                    <tr><td>NMP</td><td>81%</td><td>1.12</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="orz-region" data-region="right">
+              <div class="markdown-body">
+                <h3>Snippet</h3>
+                <pre><code>def pdi(mw, mn):
+    return mw / mn
+
+print(pdi(10500, 10000))
+# -&gt; 1.05</code></pre>
+                <div class="box-info">
+                  <p><strong>Note:</strong> values averaged over three runs;
+                  see the appendix for raw traces.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <footer class="orz-footer">
+          <div class="markdown-body"><p>Internal · v3 · 2026</p></div>
+        </footer>
+
+        <aside class="notes">Remember to explain back-pressure on the table.</aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 3 · normal slide with a .orz-float overlay
+           ============================================================ -->
+      <section class="orz-slide" data-fit="fit" data-kind="normal">
+
+        <header class="orz-title">
+          <div class="markdown-body"><h2>Architecture</h2></div>
+        </header>
+
+        <div class="orz-content">
+          <div class="orz-region" data-region="body">
+            <div class="markdown-body">
+              <p>The pipeline runs in three stages — ingest, transform, serve —
+              each independently scalable behind a queue.</p>
+              <ul>
+                <li>Ingest buffers bursts and applies back-pressure.</li>
+                <li>Transform is stateless and horizontally scaled.</li>
+                <li>Serve reads from a cached materialized view.</li>
+              </ul>
+              <div class="box-success">
+                <p><strong>Result:</strong> p99 latency under 40&nbsp;ms at peak.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- float overlay: geometry comes inline per the contract -->
+        <div class="orz-float"
+             style="left:58%; top:12%; width:36%; height:44%; z-index:1;">
+          <div class="markdown-body">
+            <blockquote>
+              <p>Key takeaway: <strong>narrow PDI</strong> across all methods.</p>
+            </blockquote>
+          </div>
+        </div>
+
+        <aside class="notes">Point at the float for the takeaway.</aside>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- reveal.js core (cdnjs, 5.0.4) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.js"></script>
+  <script>
+    // Our slides own their own frame: don't let reveal center/auto-size,
+    // and keep it left-aligned so the contract layout shows true.
+    Reveal.initialize({
+      hash: true,
+      center: false,
+      width: 960,
+      height: 700,
+      margin: 0.04
+    });
+
+    // Swap the theme stylesheet href across all 7 themes.
+    var link = document.getElementById('theme');
+    document.getElementById('theme-select').addEventListener('change', function (e) {
+      link.href = '../assets/themes/theme-' + e.target.value + '.css';
+    });
+  </script>
+</body>
+</html>

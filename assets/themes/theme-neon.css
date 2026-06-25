@@ -1,0 +1,92 @@
+/* ==========================================================
+   THEME: Neon · near-black, electric cyan, glowing edges (DARK)
+   Personality: tech, futuristic, hacker aesthetic, bold.
+   Font: JetBrains Mono. Near-black slide, cyan glowing title band,
+   dark callout surfaces with full colored borders. Overrides reveal
+   vars so body text/headings stay light on the dark cascade.
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #00f5d4;   /* electric cyan */
+    --ink:           #e0f7f4;   /* soft cyan-white, >12:1 on bg */
+    --bg:            #0e0e12;    /* near-black, cyan-tinted */
+
+    --font-heading:  'JetBrains Mono', ui-monospace, monospace;
+    --font-body:     'JetBrains Mono', ui-monospace, monospace;
+    --font-mono:     'JetBrains Mono', ui-monospace, monospace;
+
+    --slide-gap:     26px;
+    --slide-pad:     4% 5%;
+
+    /* DARK: override reveal's own vars (specificity (0,2,1) beats ours). */
+    --r-background-color: #0e0e12;
+    --r-main-color:       #e0f7f4;
+    --r-heading-color:    #00f5d4;
+    --r-link-color:       #00f5d4;
+
+    /* Title band: dark teal surface, cyan glowing text */
+    --heading-color:        #00f5d4;
+    --heading-bg:           #10201e;
+    --heading-radius:       4px;
+    --heading-pad:          0.4em 0.7em;
+    --heading-align:        left;
+    --heading-font-weight:  700;
+    --heading-letter-spacing: -0.02em;
+    --heading-shadow:       0 0 20px rgba(0, 245, 212, 0.18),
+                            inset 0 0 30px rgba(0, 245, 212, 0.03);
+
+    /* Callouts: explicit dark surfaces, full colored borders, faint glow */
+    --box-radius:        4px;
+    --box-border-width:  2px;
+    --box-shadow:        0 0 12px rgba(0, 245, 212, 0.12);
+    --box-info:     #00f5d4;  --box-info-bg:    #0c1b1a;
+    --box-warning:  #ffc828;  --box-warning-bg: #1a1700;
+    --box-danger:   #ff5050;  --box-danger-bg:  #1a0c0c;
+    --box-success:  #32e678;  --box-success-bg: #0c1a0e;
+
+    --table-head-bg:    #0e1c1b;
+    --table-head-color: #00f5d4;
+    --row-highlight:    #14311b;
+
+    --surface:    #10201e;
+    --muted:      #7bbab5;       /* ~7:1 on bg */
+    --rule:       #1e3432;
+    --code-bg:    #0e1c1b;
+    --code-color: #00f5d4;
+    --link-color: #00f5d4;
+}
+
+/* Near-black background + a very subtle scanline */
+.reveal-viewport,
+body { background-color: #0e0e12; }
+body {
+    background-image: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0, 245, 212, 0.012) 3px, rgba(0, 245, 212, 0.012) 4px);
+}
+
+/* Glowing title text */
+.reveal .orz-title h2 {
+    text-shadow: 0 0 18px rgba(0, 245, 212, 0.7), 0 0 40px rgba(0, 245, 212, 0.3);
+    border: 1px solid #1e4d47;
+}
+
+/* Glowing accent sub-headings + strong */
+.reveal .markdown-body h3,
+.reveal .markdown-body h4,
+.reveal .markdown-body strong {
+    text-shadow: 0 0 12px rgba(0, 245, 212, 0.45);
+}
+
+/* Terminal-style code + uppercase table headers */
+.reveal .markdown-body th {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.66em;
+}
+.reveal .markdown-body a {
+    text-decoration: none;
+    border-bottom: 1px dashed #1e6b63;
+}

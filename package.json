@@ -1,0 +1,49 @@
+{
+  "name": "orz-slides",
+  "version": "0.0.0",
+  "description": "Self-contained, editable HTML slide decks (.slides.html) authored in orz-markdown with a layout syntax. Sibling of orz-mdhtml.",
+  "type": "module",
+  "bin": {
+    "orz-slides": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "orz-slides-skills"
+  ],
+  "scripts": {
+    "build": "tsc && npm run bundle",
+    "bundle": "tsx build/bundle.ts",
+    "gen": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "slides",
+    "reveal.js",
+    "orz-markdown",
+    "markdown",
+    "presentation",
+    "self-contained",
+    "single-file"
+  ],
+  "author": "Yu Wang <yuwang@orz.how>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wangyu16/orz-slides"
+  },
+  "dependencies": {
+    "orz-markdown": "^1.2.2",
+    "reveal.js": "^5.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "esbuild": "^0.21.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

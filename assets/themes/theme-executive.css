@@ -1,0 +1,65 @@
+/* ==========================================================
+   THEME: Executive · dark navy, gold accents, authoritative
+   Personality: professional, confident, boardroom-ready.
+   Font: Barlow. White slide, navy title band with a gold under-rule,
+   navy/gold tables. A DARK title band on a light slide — reveal vars
+   are kept light so body text stays navy on white.
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #c9a84c;   /* gold */
+    --ink:           #12202e;   /* dark navy */
+    --bg:            #ffffff;
+
+    --font-heading:  'Barlow', 'Segoe UI', sans-serif;
+    --font-body:     'Barlow', 'Segoe UI', sans-serif;
+
+    --slide-gap:     28px;
+    --slide-pad:     4% 5%;
+
+    /* Title band: navy bar, white text, gold bottom rule */
+    --heading-color:        #ffffff;
+    --heading-bg:           #12202e;
+    --heading-radius:       3px;
+    --heading-pad:          0.4em 0.7em;
+    --heading-align:        left;
+    --heading-font-weight:  700;
+    --heading-letter-spacing: -0.01em;
+    --heading-shadow:       0 3px 0 0 #c9a84c;
+
+    /* Callouts: gold-accented borders on tinted whites */
+    --box-radius:        3px;
+    --box-border-width:  3px;
+    --box-shadow:        2px 3px 6px rgba(18, 32, 46, 0.14);
+    --box-info:     #2b6cb0;  --box-info-bg:    #f0f4fa;
+    --box-warning:  #c9a84c;  --box-warning-bg: #fdf6e4;
+    --box-danger:   #c0392b;  --box-danger-bg:  #fdf0f0;
+    --box-success:  #27ae60;  --box-success-bg: #f0faf4;
+
+    --table-head-bg:    #12202e;
+    --table-head-color: #ffffff;
+    --row-highlight:    #fbf4df;
+
+    --surface:    #ffffff;
+    --muted:      #5b6b7a;
+    --rule:       #dde3ec;
+    --code-bg:    #f4f5f8;
+    --code-color: #12202e;
+    --link-color: #2b6cb0;
+
+    /* Slide is light; keep reveal's own vars light so default text/headings
+       elsewhere don't pick up a dark cascade. */
+    --r-background-color: #ffffff;
+    --r-main-color:       #12202e;
+    --r-heading-color:    #12202e;
+    --r-link-color:       #2b6cb0;
+}
+
+/* Uppercase, tracked table headers — boardroom polish */
+.reveal .markdown-body th {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.66em;
+}

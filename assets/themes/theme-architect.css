@@ -1,0 +1,64 @@
+/* ==========================================================
+   THEME: Architect · blueprint / technical-drawing style
+   Personality: precise, structural, grid-based, monochromatic.
+   Font: Source Code Pro. Blueprint-grid background, sharp corners,
+   transparent slate title band with a heavy left bracket rule.
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #2c3e50;   /* deep slate blue-grey */
+    --ink:           #2c3e50;
+    --bg:            #fcfcfc;
+
+    --font-heading:  'Source Code Pro', ui-monospace, monospace;
+    --font-body:     'Source Code Pro', ui-monospace, monospace;
+    --font-mono:     'Source Code Pro', ui-monospace, monospace;
+
+    --slide-gap:     26px;
+    --slide-pad:     4% 5%;
+
+    /* Title band: raw text on white, hard bracket-style left border */
+    --heading-color:        #2c3e50;
+    --heading-bg:           #ffffff;
+    --heading-radius:       0;
+    --heading-pad:          0.45em 0.7em;
+    --heading-align:        left;
+    --heading-font-weight:  700;
+    --heading-letter-spacing: -0.02em;
+    --heading-shadow:       inset 10px 0 0 0 var(--accent),
+                            inset 0 0 0 2px var(--accent);
+
+    /* Callouts: white surfaces, thin colored outlines, hard offset shadow */
+    --box-radius:        0;
+    --box-border-width:  2px;
+    --box-shadow:        4px 4px 0 rgba(44, 62, 80, 0.15);
+    --box-info:     #3498db;  --box-info-bg:    #ffffff;
+    --box-warning:  #c79a2e;  --box-warning-bg: #ffffff;
+    --box-danger:   #e74c3c;  --box-danger-bg:  #ffffff;
+    --box-success:  #27ae60;  --box-success-bg: #ffffff;
+
+    --table-head-bg:    #ecf0f1;
+    --table-head-color: #2c3e50;
+    --row-highlight:    #eef3f6;
+
+    --surface:    #ffffff;
+    --muted:      #6a7d8d;
+    --rule:       #bdc3c7;
+    --code-bg:    #eef1f3;
+    --code-color: #2c3e50;
+    --link-color: #2c3e50;
+}
+
+/* Blueprint grid behind the deck */
+.reveal-viewport,
+body {
+    background-color: #fcfcfc;
+    background-image:
+        linear-gradient(#e5e5e5 1px, transparent 1px),
+        linear-gradient(90deg, #e5e5e5 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+/* Regions sit on the grid; floats get an opaque white card from base */
+.reveal .orz-region > .markdown-body { position: relative; }

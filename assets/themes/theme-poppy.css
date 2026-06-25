@@ -1,0 +1,53 @@
+/* ==========================================================
+   THEME: Poppy · warm cream, coral red, playful energy
+   Personality: energetic, fun, creative, consumer-facing.
+   Font: Nunito (rounded). Cream slide, bold coral title band with big
+   rounded corners, colorful fully-filled callouts (no border).
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #ff4848;   /* coral red */
+    --ink:           #2d1f1f;   /* warm dark */
+    --bg:            #fffbf5;    /* warm cream */
+
+    --font-heading:  'Nunito', 'Segoe UI', sans-serif;
+    --font-body:     'Nunito', 'Segoe UI', sans-serif;
+
+    --slide-gap:     26px;
+    --slide-pad:     4% 5%;
+
+    /* Title band: bold coral strip, bubbly corners, glow shadow */
+    --heading-color:        #ffffff;
+    --heading-bg:           #ff4848;
+    --heading-radius:       14px;
+    --heading-pad:          0.45em 0.8em;
+    --heading-align:        center;
+    --heading-font-weight:  800;
+    --heading-letter-spacing: 0.01em;
+    --heading-shadow:       0 4px 14px rgba(255, 72, 72, 0.35);
+
+    /* Callouts: colorful filled tiles, no border, big radius */
+    --box-radius:        12px;
+    --box-border-width:  0px;
+    --box-shadow:        0 4px 14px rgba(0, 0, 0, 0.10);
+    --box-info:     #2196f3;  --box-info-bg:    #dceeff;
+    --box-warning:  #ffb300;  --box-warning-bg: #fff3cd;
+    --box-danger:   #ff4848;  --box-danger-bg:  #ffe0e0;
+    --box-success:  #2ecc71;  --box-success-bg: #d6f5e3;
+
+    --table-head-bg:    #ff4848;
+    --table-head-color: #ffffff;
+    --row-highlight:    #ffe5e5;
+
+    --surface:    #fff3ee;
+    --muted:      #8a6f6f;
+    --rule:       #f5e4dc;
+    --code-bg:    #ffe8e8;
+    --code-color: #c0392b;
+    --link-color: #ff4848;
+}
+
+/* Code reads as a friendly pill rather than a slab */
+.reveal .markdown-body code { font-weight: 700; }

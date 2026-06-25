@@ -1,0 +1,50 @@
+/* ==========================================================
+   THEME: Paper · book-like, typographic, warm
+   Personality: traditional, sophisticated, readable, literary.
+   Font: EB Garamond. Light warm-paper background, ink headings with
+   a double-rule under the title band, hand-printed highlighter callouts.
+   ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,700&display=swap');
+@import url('./base.css');
+
+:root {
+    --accent:        #8d6e63;   /* warm brown / taupe */
+    --ink:           #3e2723;   /* deep brown-black ink */
+    --bg:            #fcfbf7;    /* warm off-white paper */
+
+    --font-heading:  'EB Garamond', Georgia, serif;
+    --font-body:     'EB Garamond', Georgia, serif;
+
+    --slide-gap:     30px;
+    --slide-pad:     4% 6%;
+
+    /* Title band: ink text on a faint blush tint, double bottom rule */
+    --heading-color:        #3e2723;
+    --heading-bg:           #f5ede9;
+    --heading-radius:       2px;
+    --heading-pad:          0.35em 0.6em;
+    --heading-align:        left;
+    --heading-font-weight:  600;
+    --heading-letter-spacing: 0.02em;
+    --heading-shadow:       inset 0 -3px 0 0 var(--accent);
+
+    /* Callouts: highlighter fills, hard-printed offset shadow */
+    --box-radius:        3px;
+    --box-border-width:  2px;
+    --box-shadow:        2px 3px 0 rgba(62, 39, 35, 0.10);
+    --box-info:     #0288d1;  --box-info-bg:    #e1f5fe;
+    --box-warning:  #fbc02d;  --box-warning-bg: #fff9c4;
+    --box-danger:   #d32f2f;  --box-danger-bg:  #ffcdd2;
+    --box-success:  #689f38;  --box-success-bg: #dcedc8;
+
+    --table-head-bg:    #efebe9;
+    --table-head-color: #3e2723;
+    --row-highlight:    #f3e9dc;
+
+    --surface:    #f5ede9;
+    --muted:      #8a766f;
+    --rule:       #d8ccc4;
+    --code-bg:    #f1e9e3;
+    --code-color: #5b3f37;
+    --link-color: #8d6e63;
+}
