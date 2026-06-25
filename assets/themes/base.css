@@ -245,8 +245,32 @@ body {
 .reveal .markdown-body li > ul li,
 .reveal .markdown-body li > ol li { font-size: 1em; }
 
-/* ---------- Inline emphasis / links ---------- */
-.reveal .markdown-body strong { color: var(--accent, #345); }
+/* ---------- Inline emphasis / links ----------
+   reveal's reset.css applies `font: inherit; font-size: 100%; vertical-align:
+   baseline` to strong/em/b/i/sub/sup/small, wiping their semantics — so restore
+   them here. Bold is BOLD (not recolored — a color hack disappears when it
+   matches the background); italic is italic; sub/sup raise and lower. */
+.reveal .markdown-body strong,
+.reveal .markdown-body b { font-weight: 700; }
+.reveal .markdown-body em,
+.reveal .markdown-body i { font-style: italic; }
+.reveal .markdown-body em strong,
+.reveal .markdown-body strong em { font-weight: 700; font-style: italic; }
+.reveal .markdown-body s,
+.reveal .markdown-body del { text-decoration: line-through; }
+.reveal .markdown-body ins,
+.reveal .markdown-body u { text-decoration: underline; }
+.reveal .markdown-body small { font-size: 0.82em; }
+.reveal .markdown-body sub,
+.reveal .markdown-body sup { font-size: 0.75em; line-height: 0; position: relative; vertical-align: baseline; }
+.reveal .markdown-body sub { bottom: -0.3em; }
+.reveal .markdown-body sup { top: -0.5em; }
+.reveal .markdown-body mark {
+    background: var(--mark-bg, #fde68a);
+    color: #3a2f00;
+    padding: 0 0.18em;
+    border-radius: 2px;
+}
 .reveal .markdown-body a {
     color: var(--link-color, var(--accent, #345));
     text-decoration: underline;
@@ -491,7 +515,7 @@ body {
 .reveal .orz-slide:has(.orz-template-title.orz-v4) {
     background: linear-gradient(90deg, var(--accent, #345) 0 34%, var(--bg, #fff) 34%);
 }
-.reveal .orz-template-title.orz-v4 { text-align: left; align-items: flex-start; padding-left: 33%; }
+.reveal .orz-template-title.orz-v4 { text-align: left; align-items: flex-start; padding-left: 40%; }
 .reveal .orz-template-title.orz-v4 .orz-title-main { font-size: 3em; }
 .reveal .orz-template-title.orz-v4 .orz-title-main::after { margin-left: 0; }
 
