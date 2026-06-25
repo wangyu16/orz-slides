@@ -57,7 +57,7 @@ body {
     box-sizing: border-box;
     width: 100%;
     height: 100%;
-    padding: var(--slide-pad, 2.3% 2.3% 2.6% 2.3%);
+    padding: var(--slide-pad, 1% 2% 2% 2%);
     /* floats are positioned against this box; content is clipped to the slide */
     position: relative;
     overflow: hidden;
