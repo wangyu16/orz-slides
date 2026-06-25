@@ -216,8 +216,8 @@ export function buildHtml(o: BuildOptions): string {
 
   const rendererTag =
     o.renderer.mode === 'inline'
-      ? `<script>${escapeForScript(o.renderer.js)}</script>`
-      : `<script src="${escapeHtml(o.renderer.src)}"></script>`;
+      ? `<script data-orz-asset="engine">${escapeForScript(o.renderer.js)}</script>`
+      : `<script data-orz-asset="engine" src="${escapeHtml(o.renderer.src)}"></script>`;
 
   const revealCssTag =
     o.revealCss.mode === 'inline'
@@ -231,6 +231,9 @@ export function buildHtml(o: BuildOptions): string {
     filename: o.filename,
     rendererVersion: o.rendererVersion,
     versionManifest: o.versionManifest,
+    enginePkg: 'orz-slides-browser',
+    engineFile: 'orz-slides.browser.js',
+    appPkg: 'orz-slides',
     defaultTheme: o.defaultTheme,
     themes: o.themes,
     ratio: o.ratio,
@@ -279,7 +282,7 @@ ${themeTag}
   <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
 </div>
 
-<div id="orz-update" class="orz-banner"><span class="upd-text"></span><button id="orz-upd-dismiss">Dismiss</button></div>
+<div id="orz-update" class="orz-banner"><span class="upd-text"></span><button id="orz-upd-apply" class="upd-primary">Update</button><button id="orz-upd-dismiss">Dismiss</button></div>
 <div id="orz-served-note" class="orz-banner"><span>This is a published page &mdash; edits can&rsquo;t be saved back to the server.</span><button id="orz-served-download">Download copy</button><button id="orz-served-dismiss">Dismiss</button></div>
 <div id="orz-toast"></div>
 
@@ -288,7 +291,7 @@ ${escapeForScript(o.source)}
 </script>
 
 ${rendererTag}
-<script>window.__ORZ_SLIDES__ = ${JSON.stringify(config)};</script>
+<script data-orz-asset="config">window.__ORZ_SLIDES__ = ${JSON.stringify(config)};</script>
 <script>
   (function () {
     function boot() { if (window.orzslides) window.orzslides.mount(); }
@@ -297,7 +300,7 @@ ${rendererTag}
   })();
 </script>
 <script>${o.runtime}</script>
-<script>${o.appJs}</script>
+<script data-orz-asset="app">${o.appJs}</script>
 </body>
 </html>
 `;

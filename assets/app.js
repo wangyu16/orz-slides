@@ -183,6 +183,7 @@
     editing = true;
     editingDeck = false;
     root.setAttribute('data-mode', 'edit');
+    checkVersion(); // edit view only — broad viewers never see the update banner
     initEditor().then(function () {
       curIndex = curH();
       loadSlideIntoEditor(curIndex);
@@ -286,6 +287,8 @@
     clone.setAttribute('data-mode', 'present');
     clone.setAttribute('data-theme', currentTheme);
     clone.removeAttribute('data-dirty');
+    // never bake in the (edit-only) update banner so a viewer can't see it
+    var ub = clone.querySelector('#orz-update'); if (ub) { ub.classList.remove('show'); ub.removeAttribute('data-latest'); }
     // Reset reveal's rendered DOM so the reopened file re-renders from #orz-deck.
     var reveal = clone.querySelector('.reveal');
     if (reveal) { reveal.className = 'reveal'; reveal.innerHTML = '<div class="slides"></div>'; }
@@ -398,8 +401,39 @@
   }
   function showUpdate(latest) {
     var bar = document.getElementById('orz-update'); if (!bar) return;
-    bar.querySelector('.upd-text').textContent = 'Engine ' + latest + ' available (file uses ' + CFG.rendererVersion + ').';
+    bar.querySelector('.upd-text').textContent = 'Framework ' + latest + ' available (file uses ' + CFG.rendererVersion + ').';
+    bar.setAttribute('data-latest', latest);
     bar.classList.add('show');
+  }
+  /** One-click update: re-fetch the engine bundle + app.js at the latest version,
+   *  re-inline them, bump the version, save in place, and reload. */
+  function applyUpdate() {
+    var bar = document.getElementById('orz-update'); var latest = bar && bar.getAttribute('data-latest'); if (!latest) return;
+    var base = 'https://cdn.jsdelivr.net/npm/';
+    var engineUrl = base + CFG.enginePkg + '@' + latest + '/' + CFG.engineFile;
+    var appUrl = base + CFG.appPkg + '@' + latest + '/assets/app.js';
+    toast('Downloading framework ' + latest + '…');
+    Promise.all([
+      fetch(engineUrl).then(function (r) { if (!r.ok) throw new Error('engine'); return r.text(); }),
+      fetch(appUrl).then(function (r) { if (!r.ok) throw new Error('app'); return r.text(); }),
+    ]).then(function (res) {
+      var es = document.querySelector('script[data-orz-asset="engine"]');
+      if (es) { if (es.getAttribute('src')) es.setAttribute('src', engineUrl); else es.textContent = res[0]; }
+      var as = document.querySelector('script[data-orz-asset="app"]');
+      if (as) as.textContent = res[1];
+      var cs = document.querySelector('script[data-orz-asset="config"]');
+      if (cs) { CFG.version = latest; CFG.rendererVersion = latest; cs.textContent = 'window.__ORZ_SLIDES__ = ' + JSON.stringify(CFG) + ';'; }
+      bar.classList.remove('show');
+      var html = serializeDoc();
+      if (isServed() && !fileHandle) { showServedNote(); return; }
+      if (window.showSaveFilePicker) {
+        return acquireHandle()
+          .then(function (h) { return h.createWritable(); })
+          .then(function (w) { return Promise.resolve(w.write(html)).then(function () { return w.close(); }); })
+          .then(function () { toast('Updated to ' + latest + ' — reloading…'); setTimeout(function () { location.reload(); }, 700); });
+      }
+      downloadFile(html); toast('Updated copy downloaded — reopen it to use the new framework.');
+    }).catch(function () { toast('Update failed — check your connection.'); });
   }
 
   // ---- toast ---------------------------------------------------------------
@@ -449,6 +483,7 @@
     on('orz-served-download', 'click', function () { exportCopy(); var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
     on('orz-served-dismiss', 'click', function () { var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
     on('orz-upd-dismiss', 'click', function () { var u = document.getElementById('orz-update'); if (u) u.classList.remove('show'); });
+    on('orz-upd-apply', 'click', applyUpdate);
     var sel = document.getElementById('orz-theme');
     if (sel) sel.addEventListener('change', function () { setTheme(this.value); });
 
@@ -498,7 +533,7 @@
       }, 30);
     }
     wireUi();
-    checkVersion();
+    // version check runs on entering edit (edit view only), not on load
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
