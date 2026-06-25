@@ -117,27 +117,45 @@ function fitCurrent(): void {
 
 /* ---------- mount ---------- */
 
+/** Read the embedded deck source (single source of truth). */
+function deckSource(): string {
+  const srcEl = document.getElementById('orz-deck');
+  return (srcEl ? srcEl.textContent || '' : '').replace(/^\n/, '').replace(/\n\s*$/, '');
+}
+
+/** Assemble a deck source into `.reveal .slides`. */
+function assemble(source: string): void {
+  const slidesEl = document.querySelector('.reveal .slides');
+  if (slidesEl) slidesEl.innerHTML = renderDeck(parseDeck(source), md);
+}
+
+const refresh = () => { enhance(); fitCurrent(); };
+
+/** Re-render the whole deck from a (possibly edited) source, then re-sync reveal.
+ *  Used by the in-file editor after structural edits. */
+function renderAll(source: string): void {
+  assemble(source);
+  try { Reveal.sync(); } catch (e) { /* ignore */ }
+  loadEnhancers((window as any).__ORZ_SLIDES__ || {}).then(refresh);
+}
+
 function mount(): void {
   const cfg: OrzSlidesConfig = (window as any).__ORZ_SLIDES__ || {};
-  const srcEl = document.getElementById('orz-deck');
-  const source = (srcEl ? srcEl.textContent || '' : '').replace(/^\n/, '').replace(/\n\s*$/, '');
-  const deck = parseDeck(source);
-
-  const slidesEl = document.querySelector('.reveal .slides');
-  if (slidesEl) slidesEl.innerHTML = renderDeck(deck, md);
+  const deck = parseDeck(deckSource());
+  assemble(deckSource());
 
   const ratio = (deck.config.ratio || cfg.ratio || '16:9').split(':').map(Number);
   const W = 960;
   const H = Math.round((W * (ratio[1] || 9)) / (ratio[0] || 16));
 
   Reveal.initialize({ width: W, height: H, margin: 0.04, hash: true, controls: true, progress: true });
+  window.orzslides.reveal = Reveal;
 
-  const run = () => { enhance(); fitCurrent(); };
-  loadEnhancers(cfg).then(run);
+  loadEnhancers(cfg).then(refresh);
   // Run twice per change: once immediately, once after the slide is laid out so
   // responsive charts size to a real container and fit measures correctly.
-  Reveal.on('slidechanged', () => { enhance(); setTimeout(run, 60); });
-  [200, 800].forEach((t) => setTimeout(run, t));
+  Reveal.on('slidechanged', () => { enhance(); setTimeout(refresh, 60); });
+  [200, 800].forEach((t) => setTimeout(refresh, t));
   window.addEventListener('resize', () => setTimeout(fitCurrent, 60));
 }
 
@@ -148,4 +166,7 @@ window.orzslides = {
   renderDeck,
   renderSlide,
   mount,
+  renderAll,
+  refresh,
+  reveal: null,
 };

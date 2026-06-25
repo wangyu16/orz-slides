@@ -1,0 +1,433 @@
+/*
+ * orz-slides in-file runtime — present + edit.
+ *
+ * Present mode is reveal.js (driven by the bundled engine, window.orzslides).
+ * Edit mode docks a CodeMirror panel under the deck: it shows the CURRENT
+ * slide's source, and the live preview is the real reveal slide, re-rendered as
+ * you type. The embedded #orz-deck source is the single source of truth; Save
+ * re-serialises the whole document with the updated source (self-reproducing).
+ *
+ * Ported from orz-mdhtml's app.js (save / IndexedDB handle / version check /
+ * served-page notice), adapted to the per-slide deck model.
+ */
+(function () {
+  var CFG = window.__ORZ_SLIDES__ || {};
+  var root = document.documentElement;
+  var API = window.orzslides;
+
+  var dirty = false;
+  var fileHandle = null;
+  var editing = false;
+  var cm = null;
+  var curIndex = 0;
+  var suppressChange = false;
+  var rerenderTimer = null;
+  var currentTheme = CFG.defaultTheme;
+
+  // Deck source split into preamble (the <!-- deck --> block) + per-slide chunks.
+  var preamble = '';
+  var slides = [];
+
+  // ---- source helpers ------------------------------------------------------
+  function escapeSource(s) { return String(s).replace(/<\/(script)/gi, '<\\/$1'); }
+  function unescapeSource(s) { return String(s).replace(/<\\\/(script)/gi, '</$1'); }
+
+  function embeddedSource() {
+    var el = document.getElementById('orz-deck');
+    var raw = el ? el.textContent || '' : '';
+    return unescapeSource(raw).replace(/^\n/, '').replace(/\n\s*$/, '');
+  }
+
+  // Split on the slide markers, keeping each marker with its slide.
+  function splitDeck(src) {
+    var i = src.search(/<!--\s*slide\b/);
+    var pre = i >= 0 ? src.slice(0, i) : src;
+    var rest = i >= 0 ? src.slice(i) : '';
+    var parts = rest ? rest.split(/(?=<!--\s*slide\b)/) : [];
+    return { preamble: pre, slides: parts };
+  }
+  function fullSource() { return preamble + slides.join(''); }
+
+  function loadParts() {
+    var p = splitDeck(embeddedSource());
+    preamble = p.preamble;
+    slides = p.slides.length ? p.slides : ['<!-- slide -->\n## New slide\n'];
+  }
+  function writeDeck() {
+    var el = document.getElementById('orz-deck');
+    if (el) el.textContent = '\n' + escapeSource(fullSource()) + '\n';
+  }
+
+  function themeById(id) {
+    var list = CFG.themes || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return list[0] || { id: id, scheme: 'light', href: '' };
+  }
+
+  // ---- live rendering ------------------------------------------------------
+  function sections() { return document.querySelectorAll('.reveal .slides > section.orz-slide'); }
+
+  function renderCurrentSlide() {
+    var src = fullSource();
+    var deck = API.parseDeck(src);
+    var secs = sections();
+    // structural change (a slide added/removed in-place) → full re-render
+    if (deck.slides.length !== secs.length) { API.renderAll(src); return; }
+    var section = secs[curIndex];
+    var slide = deck.slides[curIndex];
+    if (!section || !slide) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = API.renderSlide(slide, API.md, deck.config);
+    var fresh = tmp.firstElementChild;
+    if (!fresh) return;
+    // Update the existing <section> in place — replacing the element would
+    // orphan reveal.js's reference to the current slide (it would lose its
+    // `present` class). Copy the rendered content + render-time attributes; let
+    // reveal keep managing the state classes (present/past/future).
+    section.innerHTML = fresh.innerHTML;
+    ['data-fit', 'data-kind', 'data-template', 'data-background-color', 'data-transition'].forEach(function (a) {
+      if (fresh.hasAttribute(a)) section.setAttribute(a, fresh.getAttribute(a));
+      else section.removeAttribute(a);
+    });
+    try { API.reveal.sync(); } catch (e) {}
+    API.refresh();
+  }
+  function scheduleRerender() {
+    if (rerenderTimer) clearTimeout(rerenderTimer);
+    rerenderTimer = setTimeout(renderCurrentSlide, 160);
+  }
+
+  function curH() { return (API.reveal && API.reveal.getIndices) ? API.reveal.getIndices().h : 0; }
+  function gotoSlide(i) { if (API.reveal) API.reveal.slide(Math.max(0, Math.min(slides.length - 1, i)), 0); }
+
+  // ---- editor --------------------------------------------------------------
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      if (!src || document.querySelector('script[data-lib="' + src + '"]')) return res();
+      var s = document.createElement('script');
+      s.src = src; s.async = true; s.setAttribute('data-lib', src);
+      s.onload = function () { res(); }; s.onerror = function () { rej(); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadCss(href) {
+    if (!href || document.querySelector('link[data-lib="' + href + '"]')) return;
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href; l.setAttribute('data-lib', href);
+    document.head.appendChild(l);
+  }
+  function ensureEditorLibs() {
+    var L = CFG.editorLibs || {};
+    loadCss(L.codemirrorCss);
+    loadCss(themeById(currentTheme).scheme === 'dark' ? L.codemirrorDarkThemeCss : L.codemirrorLightThemeCss);
+    return loadScript(L.codemirrorJs)
+      .then(function () { return loadScript(L.codemirrorMarkdownJs); })
+      .then(function () { return loadScript(L.codemirrorContinuelistJs); });
+  }
+  function cmTheme() { return themeById(currentTheme).scheme === 'dark' ? 'material-darker' : 'eclipse'; }
+
+  function initEditor() {
+    return ensureEditorLibs().then(function () {
+      if (cm || !window.CodeMirror) return;
+      var ta = document.getElementById('orz-ta');
+      cm = window.CodeMirror.fromTextArea(ta, {
+        mode: 'markdown', theme: cmTheme(), lineNumbers: true, lineWrapping: true,
+        viewportMargin: Infinity,
+        extraKeys: { Enter: 'newlineAndIndentContinueMarkdownList' },
+      });
+      cm.on('change', function () {
+        if (suppressChange) return;
+        markDirty();
+        slides[curIndex] = cm.getValue();
+        writeDeck();
+        scheduleRerender();
+      });
+    });
+  }
+
+  function loadSlideIntoEditor(i) {
+    curIndex = i;
+    if (!cm) return;
+    suppressChange = true;
+    cm.setValue(slides[i] != null ? slides[i] : '');
+    suppressChange = false;
+    updatePos();
+    setTimeout(function () { cm.refresh(); }, 0);
+  }
+  function updatePos() {
+    var el = document.getElementById('orz-pos');
+    if (el) el.textContent = (curIndex + 1) + ' / ' + slides.length;
+  }
+
+  function enterEdit() {
+    editing = true;
+    root.setAttribute('data-mode', 'edit');
+    initEditor().then(function () {
+      curIndex = curH();
+      loadSlideIntoEditor(curIndex);
+      if (API.reveal) API.reveal.layout();
+    });
+  }
+  function done() {
+    editing = false;
+    root.setAttribute('data-mode', 'present');
+    if (API.reveal) { API.reveal.layout(); API.refresh(); }
+  }
+
+  // ---- deck ops ------------------------------------------------------------
+  function rebuildFrom(newSlides, focus) {
+    slides = newSlides;
+    writeDeck();
+    API.renderAll(fullSource());
+    markDirty();
+    setTimeout(function () {
+      gotoSlide(focus);
+      curIndex = focus;
+      if (editing) loadSlideIntoEditor(focus);
+      updatePos();
+    }, 30);
+  }
+  function addSlide() {
+    var s = slides.slice();
+    s.splice(curIndex + 1, 0, '<!-- slide -->\n## New slide\n\n');
+    rebuildFrom(s, curIndex + 1);
+  }
+  function dupSlide() {
+    var s = slides.slice();
+    s.splice(curIndex + 1, 0, slides[curIndex]);
+    rebuildFrom(s, curIndex + 1);
+  }
+  function delSlide() {
+    if (slides.length <= 1) { toast('Cannot delete the only slide'); return; }
+    var s = slides.slice();
+    s.splice(curIndex, 1);
+    rebuildFrom(s, Math.max(0, curIndex - 1));
+  }
+  function moveSlide(dir) {
+    var j = curIndex + dir;
+    if (j < 0 || j >= slides.length) return;
+    var s = slides.slice();
+    var tmp = s[curIndex]; s[curIndex] = s[j]; s[j] = tmp;
+    rebuildFrom(s, j);
+  }
+
+  // ---- theme ---------------------------------------------------------------
+  function setTheme(id) {
+    currentTheme = id;
+    root.setAttribute('data-theme', id);
+    var t = themeById(id);
+    var link = document.getElementById('orz-theme-override');
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'orz-theme-override'; link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    link.href = t.href;
+    if (cm) cm.setOption('theme', cmTheme());
+    markDirty();
+    if (API.reveal) setTimeout(function () { API.reveal.layout(); API.refresh(); }, 60);
+  }
+
+  // ---- dirty / save (self-reproducing) -------------------------------------
+  function markDirty() { if (!dirty) { dirty = true; root.setAttribute('data-dirty', '1'); } }
+  function clearDirty() { dirty = false; root.setAttribute('data-dirty', '0'); }
+
+  function serializeDoc() {
+    var clone = root.cloneNode(true);
+    var deckEl = clone.querySelector('#orz-deck');
+    if (deckEl) deckEl.textContent = '\n' + escapeSource(fullSource()) + '\n';
+    clone.setAttribute('data-mode', 'present');
+    clone.setAttribute('data-theme', currentTheme);
+    clone.removeAttribute('data-dirty');
+    // Reset reveal's rendered DOM so the reopened file re-renders from #orz-deck.
+    var reveal = clone.querySelector('.reveal');
+    if (reveal) { reveal.className = 'reveal'; reveal.innerHTML = '<div class="slides"></div>'; }
+    // Reset the live editor back to a clean textarea.
+    var ed = clone.querySelector('#orz-editor-host');
+    if (ed) ed.innerHTML = '<textarea id="orz-ta" spellcheck="false"></textarea>';
+    return '<!DOCTYPE html>\n' + clone.outerHTML + '\n';
+  }
+
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open('orz-slides', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('handles'); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbGet(key) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var t = db.transaction('handles', 'readonly');
+        var g = t.objectStore('handles').get(key);
+        g.onsuccess = function () { res(g.result || null); };
+        g.onerror = function () { rej(g.error); };
+      });
+    }).catch(function () { return null; });
+  }
+  function idbPut(key, val) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var t = db.transaction('handles', 'readwrite');
+        var p = t.objectStore('handles').put(val, key);
+        p.onsuccess = function () { res(); };
+        p.onerror = function () { rej(p.error); };
+      });
+    }).catch(function () {});
+  }
+  function pickAndStore() {
+    return window.showSaveFilePicker({
+      suggestedName: (CFG.filename || 'deck') + '.slides.html',
+      types: [{ description: 'Slides HTML', accept: { 'text/html': ['.slides.html', '.html'] } }],
+    }).then(function (h) { fileHandle = h; if (CFG.docId) idbPut(CFG.docId, h); return h; });
+  }
+  function acquireHandle() {
+    if (fileHandle) return Promise.resolve(fileHandle);
+    if (!CFG.docId) return pickAndStore();
+    return idbGet(CFG.docId).then(function (saved) {
+      if (!saved || !saved.queryPermission) return pickAndStore();
+      return saved.queryPermission({ mode: 'readwrite' }).then(function (p) {
+        if (p === 'granted') return saved;
+        return saved.requestPermission({ mode: 'readwrite' }).then(function (p2) {
+          return p2 === 'granted' ? saved : null;
+        });
+      }).then(function (h) { if (h) { fileHandle = h; return h; } return pickAndStore(); });
+    }).catch(function () { return pickAndStore(); });
+  }
+  function isServed() { return location.protocol === 'http:' || location.protocol === 'https:'; }
+
+  function save() {
+    if (cm) { slides[curIndex] = cm.getValue(); writeDeck(); }
+    var html = serializeDoc();
+    if (isServed() && !fileHandle) { if (dirty) showServedNote(); return; }
+    if (window.showSaveFilePicker) {
+      acquireHandle()
+        .then(function (h) { return h.createWritable(); })
+        .then(function (w) { return Promise.resolve(w.write(html)).then(function () { return w.close(); }); })
+        .then(function () { clearDirty(); toast('Saved'); })
+        .catch(function (err) { if (err && err.name === 'AbortError') return; downloadFile(html); clearDirty(); toast('Saved a local copy'); });
+    } else {
+      downloadFile(html); clearDirty(); toast('Saved a local copy');
+    }
+  }
+  function downloadFile(text) {
+    var blob = new Blob([text], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = (CFG.filename || 'deck') + '.slides.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportCopy() {
+    if (cm) { slides[curIndex] = cm.getValue(); writeDeck(); }
+    downloadFile(serializeDoc()); toast('Downloaded a local copy');
+  }
+  function showServedNote() { var n = document.getElementById('orz-served-note'); if (n) n.classList.add('show'); }
+
+  // ---- version check -------------------------------------------------------
+  function isNewer(a, b) {
+    var pa = String(a).split('.'), pb = String(b).split('.');
+    for (var i = 0; i < 3; i++) {
+      var x = parseInt(pa[i], 10) || 0, y = parseInt(pb[i], 10) || 0;
+      if (x > y) return true; if (x < y) return false;
+    }
+    return false;
+  }
+  function checkVersion() {
+    if (!CFG.versionManifest || !CFG.rendererVersion) return;
+    try {
+      var cached = JSON.parse(localStorage.getItem('orz-slides:vercheck') || 'null');
+      if (cached && (Date.now() - cached.t) < 86400000) {
+        if (cached.v && isNewer(cached.v, CFG.rendererVersion)) showUpdate(cached.v);
+        return;
+      }
+    } catch (e) {}
+    fetch(CFG.versionManifest).then(function (r) { return r.json(); }).then(function (j) {
+      var latest = j && j.version;
+      try { localStorage.setItem('orz-slides:vercheck', JSON.stringify({ t: Date.now(), v: latest })); } catch (e) {}
+      if (latest && isNewer(latest, CFG.rendererVersion)) showUpdate(latest);
+    }).catch(function () {});
+  }
+  function showUpdate(latest) {
+    var bar = document.getElementById('orz-update'); if (!bar) return;
+    bar.querySelector('.upd-text').textContent = 'Engine ' + latest + ' available (file uses ' + CFG.rendererVersion + ').';
+    bar.classList.add('show');
+  }
+
+  // ---- toast ---------------------------------------------------------------
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById('orz-toast'); if (!t) return;
+    t.textContent = msg; t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  // ---- wiring --------------------------------------------------------------
+  function on(id, ev, fn) { var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
+  function wireUi() {
+    on('orz-edit-fab', 'click', enterEdit);
+    on('orz-done', 'click', done);
+    on('orz-save', 'click', save);
+    on('orz-download', 'click', exportCopy);
+    on('orz-add', 'click', addSlide);
+    on('orz-dup', 'click', dupSlide);
+    on('orz-del', 'click', delSlide);
+    on('orz-up', 'click', function () { moveSlide(-1); });
+    on('orz-down', 'click', function () { moveSlide(1); });
+    on('orz-prev', 'click', function () { gotoSlide(curIndex - 1); });
+    on('orz-next', 'click', function () { gotoSlide(curIndex + 1); });
+    on('orz-served-download', 'click', function () { exportCopy(); var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
+    on('orz-served-dismiss', 'click', function () { var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
+    on('orz-upd-dismiss', 'click', function () { var u = document.getElementById('orz-update'); if (u) u.classList.remove('show'); });
+    var sel = document.getElementById('orz-theme');
+    if (sel) sel.addEventListener('change', function () { setTheme(this.value); });
+
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 's') { e.preventDefault(); save(); }
+      else if (e.key === 'Escape' && editing) { done(); }
+    });
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
+  // ---- boot ----------------------------------------------------------------
+  function boot() {
+    if (!API) return; // engine bundle missing
+    currentTheme = root.getAttribute('data-theme') || CFG.defaultTheme;
+    var sel = document.getElementById('orz-theme');
+    if (sel) {
+      var opts = (CFG.themes || []).map(function (t) { return '<option value="' + t.id + '">' + t.name + '</option>'; }).join('');
+      sel.innerHTML = opts; sel.value = currentTheme;
+    }
+    // The deck's <!-- deck theme: --> may differ from the file's data-theme; if a
+    // saved override link exists it already wins. Keep currentTheme in sync.
+    if (root.getAttribute('data-theme') && root.getAttribute('data-theme') !== currentTheme) currentTheme = root.getAttribute('data-theme');
+
+    function start() {
+      loadParts();
+      writeDeck();
+      updatePos();
+      if (API.reveal && API.reveal.on) {
+        API.reveal.on('slidechanged', function () {
+          curIndex = curH();
+          if (editing) loadSlideIntoEditor(curIndex);
+          updatePos();
+        });
+      }
+    }
+    // The engine mounts on DOMContentLoaded too; wait until reveal exists.
+    if (API.reveal) start();
+    else {
+      var tries = 0;
+      var iv = setInterval(function () {
+        if (API.reveal || tries++ > 100) { clearInterval(iv); start(); }
+      }, 30);
+    }
+    wireUi();
+    checkVersion();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();

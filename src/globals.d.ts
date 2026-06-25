@@ -27,5 +27,8 @@ interface Window {
     renderDeck: typeof import('./render-slide.js').renderDeck;
     renderSlide: typeof import('./render-slide.js').renderSlide;
     mount(): void;
+    renderAll(source: string): void;
+    refresh(): void;
+    reveal: any;
   };
 }

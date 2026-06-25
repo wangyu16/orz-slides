@@ -1,12 +1,14 @@
 /**
  * Builds the self-contained `.slides.html` shell:
  *   <head>  reveal.js CSS + KaTeX CSS + the slide theme (inline or CDN link)
- *   <body>  an empty .reveal/.slides container, the embedded deck source in
+ *           + the editor chrome styles
+ *   <body>  an empty .reveal/.slides container, the editor chrome (FAB + docked
+ *           CodeMirror panel + banners), the embedded deck source in
  *           <script id="orz-deck">, the engine bundle (inline or CDN), a config
- *           object, and a boot call to orzslides.mount().
+ *           object, the boot call, and the in-file app (assets/app.js).
  *
  * The deck source in #orz-deck is the single source of truth: the engine renders
- * it on load, and (with the WP7 editor) re-serialises it on save.
+ * it on load, and the editor re-serialises it on save (self-reproducing).
  */
 
 export interface ThemeEntry {
@@ -24,6 +26,15 @@ export type ThemeSpec =
   | { mode: 'inline'; css: string }
   | { mode: 'cdn' };
 
+export interface EditorLibs {
+  codemirrorCss: string;
+  codemirrorLightThemeCss: string;
+  codemirrorDarkThemeCss: string;
+  codemirrorJs: string;
+  codemirrorMarkdownJs: string;
+  codemirrorContinuelistJs: string;
+}
+
 export interface BuildOptions {
   source: string;
   title: string;
@@ -36,6 +47,8 @@ export interface BuildOptions {
   themes: ThemeEntry[];
   ratio: string;
   versionManifest: string;
+  appJs: string;
+  editorLibs: EditorLibs;
   cdn: {
     revealResetCss: string;
     revealCss: string;
@@ -55,11 +68,64 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const CHROME_CSS = `
+  html, body { margin: 0; height: 100%; }
+  .reveal { height: 100%; }
+  [data-mode="edit"] .reveal { height: 58%; }
+
+  .orz-fab {
+    position: fixed; right: 16px; bottom: 16px; z-index: 50;
+    font: 600 14px/1 system-ui, sans-serif; color: #fff; background: #2b2f36;
+    border: 0; border-radius: 999px; padding: 11px 18px; cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0,0,0,.28);
+  }
+  [data-mode="edit"] .orz-fab { display: none; }
+
+  #orz-panel { display: none; }
+  [data-mode="edit"] #orz-panel {
+    display: flex; flex-direction: column;
+    position: fixed; left: 0; right: 0; bottom: 0; height: 42%; z-index: 40;
+    background: #1f2228; border-top: 1px solid #333; box-shadow: 0 -2px 16px rgba(0,0,0,.3);
+  }
+  #orz-toolbar {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 6px 8px; background: #2b2f36; border-bottom: 1px solid #383d45;
+  }
+  #orz-toolbar button, #orz-toolbar select {
+    font: 500 12.5px/1 system-ui, sans-serif; color: #e6e8ec; background: #3a3f48;
+    border: 1px solid #4a505a; border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  #orz-toolbar button:hover { background: #454b55; }
+  #orz-toolbar button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+  #orz-toolbar .orz-pos { color: #aab; font: 600 12.5px/1 system-ui, sans-serif; padding: 0 4px; }
+  #orz-toolbar .orz-spacer { flex: 1; }
+  #orz-editor-host { flex: 1; min-height: 0; overflow: hidden; }
+  #orz-editor-host .CodeMirror { height: 100%; font-size: 14px; }
+  #orz-ta { width: 100%; height: 100%; box-sizing: border-box; border: 0; padding: 10px;
+    font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+
+  .orz-banner {
+    position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 60;
+    display: none; align-items: center; gap: 10px;
+    background: #2b2f36; color: #eee; border: 1px solid #444; border-radius: 8px;
+    padding: 9px 14px; font: 13px/1.3 system-ui, sans-serif; box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  }
+  .orz-banner.show { display: flex; }
+  .orz-banner button { font: 500 12.5px system-ui, sans-serif; color: #e6e8ec; background: #3a3f48;
+    border: 1px solid #4a505a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  #orz-toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(20px);
+    z-index: 70; background: #111; color: #fff; padding: 9px 16px; border-radius: 8px;
+    font: 13px system-ui, sans-serif; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  }
+  #orz-toast.show { opacity: .95; transform: translateX(-50%) translateY(0); }
+`;
+
 export function buildHtml(o: BuildOptions): string {
   const themeTag =
     o.theme.mode === 'inline'
-      ? `<style id="orz-theme">\n${o.theme.css}\n</style>`
-      : `<link id="orz-theme" rel="stylesheet" href="${escapeHtml(
+      ? `<style id="orz-theme-base">\n${o.theme.css}\n</style>`
+      : `<link id="orz-theme-base" rel="stylesheet" href="${escapeHtml(
           (o.themes.find((t) => t.id === o.defaultTheme) || o.themes[0]).href
         )}">`;
 
@@ -77,11 +143,8 @@ export function buildHtml(o: BuildOptions): string {
     defaultTheme: o.defaultTheme,
     themes: o.themes,
     ratio: o.ratio,
-    enhancers: {
-      mermaidJs: o.cdn.mermaidJs,
-      smilesJs: o.cdn.smilesJs,
-      chartJs: o.cdn.chartJs,
-    },
+    enhancers: { mermaidJs: o.cdn.mermaidJs, smilesJs: o.cdn.smilesJs, chartJs: o.cdn.chartJs },
+    editorLibs: o.editorLibs,
   };
 
   return `<!DOCTYPE html>
@@ -95,13 +158,35 @@ export function buildHtml(o: BuildOptions): string {
 <link rel="stylesheet" href="${escapeHtml(o.cdn.revealCss)}">
 <link rel="stylesheet" href="${escapeHtml(o.cdn.katexCss)}">
 ${themeTag}
-<style>
-  html, body { margin: 0; height: 100%; }
-  .reveal { height: 100%; }
-</style>
+<style>${CHROME_CSS}</style>
 </head>
 <body>
 <div class="reveal"><div class="slides"></div></div>
+
+<button id="orz-edit-fab" class="orz-fab" title="Edit deck">&#9998; Edit</button>
+
+<div id="orz-panel">
+  <div id="orz-toolbar">
+    <button id="orz-done">Done</button>
+    <span id="orz-pos" class="orz-pos">1 / 1</span>
+    <button id="orz-prev" title="Previous slide">&#9664;</button>
+    <button id="orz-next" title="Next slide">&#9654;</button>
+    <button id="orz-add" title="Add a slide after this one">+ Slide</button>
+    <button id="orz-dup" title="Duplicate this slide">Duplicate</button>
+    <button id="orz-del" title="Delete this slide">Delete</button>
+    <button id="orz-up" title="Move slide earlier">Move &#8593;</button>
+    <button id="orz-down" title="Move slide later">Move &#8595;</button>
+    <span class="orz-spacer"></span>
+    <select id="orz-theme" title="Theme"></select>
+    <button id="orz-download">Download</button>
+    <button id="orz-save" class="primary">Save</button>
+  </div>
+  <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
+</div>
+
+<div id="orz-update" class="orz-banner"><span class="upd-text"></span><button id="orz-upd-dismiss">Dismiss</button></div>
+<div id="orz-served-note" class="orz-banner"><span>This is a published page &mdash; edits can&rsquo;t be saved back to the server.</span><button id="orz-served-download">Download copy</button><button id="orz-served-dismiss">Dismiss</button></div>
+<div id="orz-toast"></div>
 
 <script type="text/orz-slides" id="orz-deck">
 ${escapeForScript(o.source)}
@@ -116,6 +201,7 @@ ${rendererTag}
     else boot();
   })();
 </script>
+<script>${o.appJs}</script>
 </body>
 </html>
 `;

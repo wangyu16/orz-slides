@@ -136,6 +136,8 @@ function main(): void {
   }
 
   const revealVer = pkgVersion('reveal.js', '5.0.4');
+  const appJs = readFileSync(findAsset('app.js'), 'utf8');
+  const CM = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16';
   const html = buildHtml({
     source,
     title,
@@ -148,6 +150,15 @@ function main(): void {
     themes,
     ratio,
     versionManifest: 'https://data.jsdelivr.com/v1/packages/npm/orz-slides-browser/resolved',
+    appJs,
+    editorLibs: {
+      codemirrorCss: `${CM}/codemirror.min.css`,
+      codemirrorLightThemeCss: `${CM}/theme/eclipse.min.css`,
+      codemirrorDarkThemeCss: `${CM}/theme/material-darker.min.css`,
+      codemirrorJs: `${CM}/codemirror.min.js`,
+      codemirrorMarkdownJs: `${CM}/mode/markdown/markdown.min.js`,
+      codemirrorContinuelistJs: `${CM}/addon/edit/continuelist.min.js`,
+    },
     cdn: {
       revealResetCss: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reset.css`,
       revealCss: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reveal.css`,
