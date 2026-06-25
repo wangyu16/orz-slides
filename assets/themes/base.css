@@ -458,9 +458,26 @@ body {
     position: relative; width: 100%; max-width: 100%;
     aspect-ratio: 16 / 9; margin: 0 auto 0.6em;
 }
-.reveal .markdown-body .youtube-embed iframe {
+.reveal .markdown-body .youtube-embed iframe,
+.reveal .markdown-body .youtube-embed .youtube-facade {
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: 0; border-radius: 4px;
+}
+/* file:// fallback poster (see fixYouTube): thumbnail + play button, opens youtube.com */
+.reveal .markdown-body .youtube-embed .youtube-facade {
+    display: flex; align-items: center; justify-content: center;
+    background: #000 center / cover no-repeat; cursor: pointer;
+}
+.reveal .markdown-body .youtube-facade .youtube-facade-play {
+    width: 16%; aspect-ratio: 1; border-radius: 50%;
+    background: rgba(0,0,0,0.65); transition: background 0.15s;
+    position: relative;
+}
+.reveal .markdown-body .youtube-facade:hover .youtube-facade-play { background: #f00; }
+.reveal .markdown-body .youtube-facade .youtube-facade-play::after {
+    content: ''; position: absolute; top: 50%; left: 54%; transform: translate(-50%, -50%);
+    border-style: solid; border-width: 0.5em 0 0.5em 0.85em;
+    border-color: transparent transparent transparent #fff;
 }
 
 /* ---- task lists (- [ ] / - [x]): drop the bullet, keep the checkbox ---- */

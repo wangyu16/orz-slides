@@ -6,3 +6,4 @@ examples/*.slides.html
 tests/*.slides.html
 *.tgz
 .DS_Store
+.claude/

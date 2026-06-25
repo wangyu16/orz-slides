@@ -113,6 +113,36 @@ function enhance(): void {
   } catch (e) { /* ignore */ }
 
   initTabs();
+  fixYouTube();
+}
+
+/** YouTube embeds don't reliably play from a local `file://` page: YouTube
+ *  validates the embedding origin/referrer, which is null off the filesystem,
+ *  so embedding-restricted videos refuse to play. When the deck is opened as a
+ *  local file, swap each iframe for a clickable poster that opens the video on
+ *  youtube.com (which always plays). Served over http(s) the iframe — which
+ *  works there — is left untouched. The wrapper keeps its `data-md`, so
+ *  copy-as-Markdown still recovers `{{youtube ...}}`. */
+function fixYouTube(): void {
+  if (location.protocol !== 'file:') return;
+  document.querySelectorAll<HTMLElement>('.youtube-embed').forEach((box) => {
+    if ((box as any).__ytFacade) return;
+    const iframe = box.querySelector('iframe');
+    const src = iframe ? iframe.getAttribute('src') || '' : '';
+    const m = src.match(/embed\/([\w-]{6,})/);
+    if (!iframe || !m) return;
+    (box as any).__ytFacade = true;
+    const id = m[1];
+    const a = document.createElement('a');
+    a.href = 'https://www.youtube.com/watch?v=' + id;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.className = 'youtube-facade';
+    a.setAttribute('aria-label', 'Play video on YouTube');
+    a.style.backgroundImage = "url('https://i.ytimg.com/vi/" + id + "/hqdefault.jpg')";
+    a.innerHTML = '<span class="youtube-facade-play" aria-hidden="true"></span>';
+    iframe.replaceWith(a);
+  });
 }
 
 /** Wire up `::: tabs` blocks (build the button bar, toggle panels). The
