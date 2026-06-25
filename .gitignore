@@ -7,3 +7,4 @@ tests/*.slides.html
 *.tgz
 .DS_Store
 .claude/
+ideas/
