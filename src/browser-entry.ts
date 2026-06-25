@@ -97,9 +97,17 @@ function enhance(): void {
     if (w.Chart) {
       const present: any = (Reveal.getCurrentSlide && Reveal.getCurrentSlide()) || document;
       present.querySelectorAll('canvas.orz-chart[data-chart]').forEach((c: HTMLCanvasElement) => {
-        const existing = w.Chart.getChart(c);
-        if (existing) { existing.resize(); return; }
-        try { new w.Chart(c, JSON.parse(c.getAttribute('data-chart') || '{}')); } catch (e) { /* ignore */ }
+        if (w.Chart.getChart(c)) return; // sized by fitRegionGraphics
+        try {
+          const cfg = JSON.parse(c.getAttribute('data-chart') || '{}');
+          cfg.options = cfg.options || {};
+          // Not responsive: Chart.js can't get a definite height through the grid
+          // chain, so we size it explicitly to the region in fitRegionGraphics.
+          cfg.options.responsive = false;
+          cfg.options.maintainAspectRatio = false;
+          cfg.options.animation = false;
+          new w.Chart(c, cfg);
+        } catch (e) { /* ignore */ }
       });
     }
   } catch (e) { /* ignore */ }
@@ -151,11 +159,40 @@ function fitRegion(region: HTMLElement): void {
   region.setAttribute('data-scale', scale.toFixed(2));
 }
 
+/** Size mermaid SVGs to fit their region (both dimensions), keeping the diagram's
+ *  aspect ratio. Font scale-to-fit can't shrink an SVG, so a tall flowchart would
+ *  otherwise overflow the region. Charts fill the region via maintainAspectRatio. */
+function fitRegionGraphics(region: HTMLElement): void {
+  const aw = region.clientWidth;
+  const ah = region.clientHeight;
+  if (!aw || !ah) return;
+  region.querySelectorAll<SVGSVGElement>('.mermaid svg').forEach((svg) => {
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    const ar = vb && vb.height ? vb.width / vb.height : 1;
+    let w = aw;
+    let h = w / ar;
+    if (h > ah) { h = ah; w = h * ar; }
+    svg.style.maxWidth = 'none';
+    svg.style.width = Math.floor(w) + 'px';
+    svg.style.height = Math.floor(h) + 'px';
+  });
+  const Chart = (window as any).Chart;
+  if (Chart && Chart.getChart) {
+    region.querySelectorAll<HTMLCanvasElement>('canvas.orz-chart').forEach((c) => {
+      const inst = Chart.getChart(c);
+      if (inst) { try { inst.resize(aw, ah); } catch (e) { /* ignore */ } }
+    });
+  }
+}
+
 /** Fit every region on the currently-shown slide (only it is laid out). */
 function fitCurrent(): void {
   const slide: HTMLElement | null = (Reveal.getCurrentSlide && Reveal.getCurrentSlide()) || null;
   if (!slide || slide.getAttribute('data-fit') === 'off') return;
-  slide.querySelectorAll<HTMLElement>('.orz-region').forEach(fitRegion);
+  slide.querySelectorAll<HTMLElement>('.orz-region').forEach((region) => {
+    fitRegion(region);
+    fitRegionGraphics(region);
+  });
 }
 
 /* ---------- mount ---------- */
