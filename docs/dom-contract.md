@@ -13,22 +13,30 @@ grid produced by the layout engine; floats overlay the whole slide.
 ```html
 <section class="orz-slide" data-fit="fit|scroll|off" data-kind="normal">
 
-  <!-- title band: the slide's leading h2 (omitted if the slide has no title) -->
-  <header class="orz-title"><div class="markdown-body"><h2>…</h2></div></header>
+  <!-- inner flex frame: title · content · footer column.
+       REQUIRED — reveal.js forces inline display:block on the <section>, so the
+       flex frame cannot live on .orz-slide; it lives here where reveal won't
+       touch it. .orz-slide stays position:relative + overflow:hidden so floats
+       anchor to it and content is clipped to the slide. -->
+  <div class="orz-frame">
 
-  <!-- content area: the layout grid (from WP2 renderLayout) -->
-  <div class="orz-content">
-    <!-- nested grid containers; a leaf region cell looks like: -->
-    <div class="orz-region" data-region="left">
-      <div class="markdown-body"><!-- region's rendered orz-markdown --></div>
+    <!-- title band: the slide's leading h2 (omitted if the slide has no title) -->
+    <header class="orz-title"><div class="markdown-body"><h2>…</h2></div></header>
+
+    <!-- content area: the layout grid (from WP2 renderLayout) -->
+    <div class="orz-content">
+      <!-- nested grid containers; a leaf region cell looks like: -->
+      <div class="orz-region" data-region="left">
+        <div class="markdown-body"><!-- region's rendered orz-markdown --></div>
+      </div>
+      …
     </div>
-    …
+
+    <!-- footer band (omitted if no footer) -->
+    <footer class="orz-footer"><div class="markdown-body">…</div></footer>
   </div>
 
-  <!-- footer band (omitted if no footer) -->
-  <footer class="orz-footer"><div class="markdown-body">…</div></footer>
-
-  <!-- float overlays (zero or more), absolutely positioned -->
+  <!-- float overlays (zero or more), absolutely positioned to .orz-slide -->
   <div class="orz-float" style="left:58%;top:10%;width:36%;height:44%;z-index:1">
     <div class="markdown-body">…</div>
   </div>
@@ -37,6 +45,13 @@ grid produced by the layout engine; floats overlay the whole slide.
   <aside class="notes">…</aside>
 </section>
 ```
+
+**Flexbox bounding (critical for scale-to-fit):** every flex item in the
+`.orz-frame → .orz-content → .orz-region → .markdown-body` chain sets
+`min-height: 0`. The default `min-height: auto` would force a region to grow to
+its content's height, so overflow could never be detected and WP6 could never
+scale. A lone region (single-region slide) also sets `flex: 1 1 auto` so it
+fills the flex content area rather than collapsing to content height.
 
 **Template slides** (`title`/`section`/`outline`/`closing`) set
 `data-kind="template" data-template="title"` and use their own inner structure

@@ -58,13 +58,21 @@ body {
     width: 100%;
     height: 100%;
     padding: var(--slide-pad, 4% 5%);
-    display: flex;
-    flex-direction: column;
-    /* floats are positioned against this box */
+    /* floats are positioned against this box; content is clipped to the slide */
     position: relative;
+    overflow: hidden;
     text-align: left;
     color: var(--ink, #222);
     font-family: var(--font-body, 'Segoe UI', system-ui, sans-serif);
+}
+
+/* Inner flex frame. reveal.js forces `display:block` (inline) on the <section>,
+   which overrides any flex frame placed on .orz-slide — so the title/content/
+   footer column lives on this wrapper, where reveal won't touch it. */
+.reveal .orz-frame {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ---------- Title band: .orz-title h2 ---------- */
@@ -122,6 +130,9 @@ body {
     box-sizing: border-box;
     min-width: 0;
     min-height: 0;
+    /* Fill height in the single-region case (lone region in flex .orz-content);
+       harmless as a grid item (grid controls sizing). Lets WP6 detect overflow. */
+    flex: 1 1 auto;
     overflow: hidden;            /* fit=scroll flips this to auto */
     display: flex;
     flex-direction: column;
@@ -174,6 +185,10 @@ body {
 .reveal .orz-region > .markdown-body {
     margin: 0;
     height: 100%;
+    /* As a flex item, default min-height:auto would force the region to grow to
+       the content's height (breaking scale-to-fit). 0 lets the region clamp to
+       the slide; overflow is then detectable via scrollHeight and WP6 scales. */
+    min-height: 0;
 }
 .reveal .markdown-body > :first-child { margin-top: 0; }
 .reveal .markdown-body > :last-child { margin-bottom: 0; }
