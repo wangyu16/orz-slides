@@ -19,7 +19,7 @@
     --font-mono:     ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
     --slide-gap:     28px;
-    --slide-pad:     2.6% 3.5%;
+    --slide-pad:     2.3% 2.3% 2.6% 2.3%;
 
     /* DARK: override reveal's own vars. */
     --r-background-color: #1a2420;

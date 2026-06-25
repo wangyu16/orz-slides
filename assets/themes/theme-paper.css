@@ -16,7 +16,7 @@
     --font-body:     'EB Garamond', Georgia, serif;
 
     --slide-gap:     30px;
-    --slide-pad:     2.6% 3.5%;
+    --slide-pad:     2.3% 2.3% 2.6% 2.3%;
 
     /* Title band: ink text on a faint blush tint, double bottom rule */
     --heading-color:        #3e2723;

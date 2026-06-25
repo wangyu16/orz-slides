@@ -18,7 +18,7 @@
     --font-mono:     'JetBrains Mono', ui-monospace, monospace;
 
     --slide-gap:     26px;
-    --slide-pad:     2.6% 3.5%;
+    --slide-pad:     2.3% 2.3% 2.6% 2.3%;
 
     /* DARK: override reveal's own vars (specificity (0,2,1) beats ours). */
     --r-background-color: #0e0e12;

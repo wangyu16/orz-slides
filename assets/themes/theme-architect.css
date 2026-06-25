@@ -17,7 +17,7 @@
     --font-mono:     'Source Code Pro', ui-monospace, monospace;
 
     --slide-gap:     26px;
-    --slide-pad:     2.6% 3.5%;
+    --slide-pad:     2.3% 2.3% 2.6% 2.3%;
 
     /* Title band: raw text on white, hard bracket-style left border */
     --heading-color:        #2c3e50;
