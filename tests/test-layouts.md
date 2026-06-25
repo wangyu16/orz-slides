@@ -86,6 +86,55 @@ Mid bottom
 <!-- @c3 -->
 Column 3
 
+<!-- slide row 1/1/1 { top; col 1/1 { midL; midR }; bottom } -->
+## Three rows — middle row split into two columns
+<!-- @top -->
+Top row (full width)
+<!-- @midL -->
+Middle-left
+<!-- @midR -->
+Middle-right
+<!-- @bottom -->
+Bottom row (full width)
+
+<!-- slide col 1/1 { left; row 1/1 { rTop; rBottom } } -->
+## Two columns — right column split into two rows
+<!-- @left -->
+Left column (full height)
+<!-- @rTop -->
+Right-top
+<!-- @rBottom -->
+Right-bottom
+
+<!-- slide col 1/2 { side; row auto/1 { mainHead; mainBody } } -->
+## Sidebar + main with its own header
+<!-- @side -->
+Sidebar (1 part)
+<!-- @mainHead -->
+Main header (auto height)
+<!-- @mainBody -->
+Main body (fills the rest)
+
+<!-- slide row auto/1 { header; col 1/1/1 { k1; k2; k3 } } -->
+## Dashboard — header band over three cells
+<!-- @header -->
+Header band spanning the full width
+<!-- @k1 -->
+Metric 1
+<!-- @k2 -->
+Metric 2
+<!-- @k3 -->
+Metric 3
+
+<!-- slide row 1/auto { col 1/1 { contentL; contentR }; bar } -->
+## Two columns above a full-width bar
+<!-- @contentL -->
+Content left
+<!-- @contentR -->
+Content right
+<!-- @bar -->
+Full-width bar across the bottom (auto height)
+
 <!-- slide col 220px/1fr { sidebar; content } -->
 ## Track units — fixed px sidebar + 1fr
 <!-- @sidebar -->

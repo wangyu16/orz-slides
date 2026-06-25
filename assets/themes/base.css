@@ -480,3 +480,91 @@ body {
 .reveal .orz-template-outline .orz-outline { font-size: 1.2em; line-height: 1.8; }
 .reveal .orz-template-outline .orz-outline ol,
 .reveal .orz-template-outline .orz-outline ul { padding-left: 1.2em; }
+
+/* ==========================================================
+   EXTRA TEMPLATE VARIANTS (v=4…) — colored panels, borders, frames.
+   All use theme tokens (--accent / --surface / --rule / --ink) so they adapt
+   to light and dark themes.
+   ========================================================== */
+
+/* title v4 — surface card with an accent top edge */
+.reveal .orz-template-title.orz-v4 {
+    align-self: center; max-width: 82%;
+    padding: 0.9em 1.5em;
+    background: var(--surface, #f4f4f4);
+    border: 1px solid var(--rule, #ddd);
+    border-top: 5px solid var(--accent, #345);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+}
+.reveal .orz-template-title.orz-v4 .orz-title-main::after { display: none; }
+
+/* title v5 — framed by accent rules, top and bottom */
+.reveal .orz-template-title.orz-v5 {
+    align-self: center; max-width: 84%;
+    padding: 0.7em 0;
+    border-top: 3px solid var(--accent, #345);
+    border-bottom: 3px solid var(--accent, #345);
+}
+.reveal .orz-template-title.orz-v5 .orz-title-main::after { display: none; }
+
+/* title v6 — outlined box in the accent color */
+.reveal .orz-template-title.orz-v6 {
+    align-self: center; max-width: 80%;
+    padding: 0.9em 1.4em;
+    border: 3px solid var(--accent, #345);
+    border-radius: 10px;
+}
+.reveal .orz-template-title.orz-v6 .orz-title-main::after { display: none; }
+
+/* section v3 — surface band with a left accent bar */
+.reveal .orz-template-section.orz-v3 { text-align: left; align-items: stretch; }
+.reveal .orz-template-section.orz-v3 .orz-section-main {
+    background: var(--surface, #f4f4f4);
+    border: none;
+    border-left: 7px solid var(--accent, #345);
+    border-radius: 0 8px 8px 0;
+    padding: 0.45em 0.7em;
+}
+
+/* section v4 — outlined box */
+.reveal .orz-template-section.orz-v4 { text-align: center; align-items: center; }
+.reveal .orz-template-section.orz-v4 .orz-section-main {
+    border: 3px solid var(--accent, #345); border-bottom-width: 3px;
+    border-radius: 10px; padding: 0.4em 0.9em; background: transparent;
+}
+
+/* outline v2 — each item as a surface card with an accent left edge */
+.reveal .orz-template-outline.orz-v2 .orz-outline ol,
+.reveal .orz-template-outline.orz-v2 .orz-outline ul { list-style: none; padding-left: 0; }
+.reveal .orz-template-outline.orz-v2 .orz-outline li {
+    background: var(--surface, #f4f4f4);
+    border-left: 4px solid var(--accent, #345);
+    border-radius: 0 8px 8px 0;
+    padding: 0.35em 0.7em; margin: 0.35em 0;
+}
+
+/* outline v3 — two balanced columns */
+.reveal .orz-template-outline.orz-v3 .orz-outline ol,
+.reveal .orz-template-outline.orz-v3 .orz-outline ul {
+    column-count: 2; column-gap: 2em;
+}
+.reveal .orz-template-outline.orz-v3 .orz-outline li { break-inside: avoid; }
+
+/* closing v2 — surface card */
+.reveal .orz-template-closing.orz-v2 {
+    align-self: center; max-width: 72%;
+    padding: 1em 1.5em;
+    background: var(--surface, #f4f4f4);
+    border: 1px solid var(--rule, #ddd);
+    border-radius: 14px;
+}
+
+/* closing v3 — framed by accent rules */
+.reveal .orz-template-closing.orz-v3 {
+    align-self: center; max-width: 80%;
+    padding: 0.8em 0;
+    border-top: 3px solid var(--accent, #345);
+    border-bottom: 3px solid var(--accent, #345);
+}
+.reveal .orz-template-closing.orz-v3 .orz-title-main::after { display: none; }
