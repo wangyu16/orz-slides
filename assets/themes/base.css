@@ -487,35 +487,38 @@ body {
    to light and dark themes.
    ========================================================== */
 
-/* title v4 — surface card with an accent top edge */
-.reveal .orz-template-title.orz-v4 {
-    align-self: center; max-width: 82%;
-    padding: 0.9em 1.5em;
-    background: var(--surface, #f4f4f4);
-    border: 1px solid var(--rule, #ddd);
-    border-top: 5px solid var(--accent, #345);
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+/* title v4 — SPLIT: a bold full-height accent band on the left, title on the right */
+.reveal .orz-slide:has(.orz-template-title.orz-v4) {
+    background: linear-gradient(90deg, var(--accent, #345) 0 34%, var(--bg, #fff) 34%);
 }
-.reveal .orz-template-title.orz-v4 .orz-title-main::after { display: none; }
+.reveal .orz-template-title.orz-v4 { text-align: left; align-items: flex-start; padding-left: 33%; }
+.reveal .orz-template-title.orz-v4 .orz-title-main { font-size: 3em; }
+.reveal .orz-template-title.orz-v4 .orz-title-main::after { margin-left: 0; }
 
-/* title v5 — framed by accent rules, top and bottom */
-.reveal .orz-template-title.orz-v5 {
-    align-self: center; max-width: 84%;
-    padding: 0.7em 0;
-    border-top: 3px solid var(--accent, #345);
-    border-bottom: 3px solid var(--accent, #345);
+/* title v5 — FULL-COLOR COVER: bold background, title anchored bottom-left */
+.reveal .orz-slide:has(.orz-template-title.orz-v5) { background: var(--cover-bg, var(--ink, #1a1a1a)); }
+.reveal .orz-template-title.orz-v5 { text-align: left; align-items: flex-start; margin-top: auto; }
+.reveal .orz-template-title.orz-v5 .orz-title-main {
+    color: var(--cover-ink, var(--bg, #fff)); font-size: 3.6em; line-height: 1;
 }
-.reveal .orz-template-title.orz-v5 .orz-title-main::after { display: none; }
+.reveal .orz-template-title.orz-v5 .orz-title-main::after {
+    margin-left: 0; background: var(--cover-accent, var(--accent, #345));
+}
+.reveal .orz-template-title.orz-v5 .orz-title-sub { color: var(--cover-accent, var(--accent, #345)); }
+.reveal .orz-template-title.orz-v5 .orz-title-meta { color: var(--cover-ink, var(--bg, #fff)); opacity: 0.72; }
 
-/* title v6 — outlined box in the accent color */
-.reveal .orz-template-title.orz-v6 {
-    align-self: center; max-width: 80%;
-    padding: 0.9em 1.4em;
-    border: 3px solid var(--accent, #345);
-    border-radius: 10px;
+/* title v6 — OVERSIZED EDITORIAL: huge left title with a kicker, bottom-anchored */
+.reveal .orz-template-title.orz-v6 { text-align: left; align-items: flex-start; margin-top: auto; }
+.reveal .orz-template-title.orz-v6 .orz-title-main {
+    font-size: 4.4em; line-height: 0.96; letter-spacing: -0.03em; font-weight: 800;
 }
 .reveal .orz-template-title.orz-v6 .orz-title-main::after { display: none; }
+.reveal .orz-template-title.orz-v6 .orz-title-sub {
+    order: -1; margin: 0 0 0.35em;
+    text-transform: uppercase; letter-spacing: 0.22em; font-size: 0.62em;
+    font-weight: 700; font-style: normal; color: var(--accent, #345);
+}
+.reveal .orz-template-title.orz-v6 .orz-title-meta { margin-top: 0.9em; font-size: 0.8em; }
 
 /* section v3 — surface band with a left accent bar */
 .reveal .orz-template-section.orz-v3 { text-align: left; align-items: stretch; }
@@ -551,20 +554,19 @@ body {
 }
 .reveal .orz-template-outline.orz-v3 .orz-outline li { break-inside: avoid; }
 
-/* closing v2 — surface card */
-.reveal .orz-template-closing.orz-v2 {
-    align-self: center; max-width: 72%;
-    padding: 1em 1.5em;
-    background: var(--surface, #f4f4f4);
-    border: 1px solid var(--rule, #ddd);
-    border-radius: 14px;
-}
+/* closing v2 — FULL-COLOR COVER sign-off */
+.reveal .orz-slide:has(.orz-template-closing.orz-v2) { background: var(--cover-bg, var(--ink, #1a1a1a)); }
+.reveal .orz-template-closing.orz-v2 { text-align: center; align-items: center; }
+.reveal .orz-template-closing.orz-v2 .orz-title-main { color: var(--cover-ink, var(--bg, #fff)); font-size: 3em; }
+.reveal .orz-template-closing.orz-v2 .orz-title-main::after { background: var(--cover-accent, var(--accent, #345)); }
+.reveal .orz-template-closing.orz-v2 .orz-title-meta { color: var(--cover-ink, var(--bg, #fff)); opacity: 0.85; }
+.reveal .orz-template-closing.orz-v2 .orz-title-meta a,
+.reveal .orz-template-closing.orz-v2 a { color: var(--cover-accent, var(--accent, #345)); }
 
-/* closing v3 — framed by accent rules */
-.reveal .orz-template-closing.orz-v3 {
-    align-self: center; max-width: 80%;
-    padding: 0.8em 0;
-    border-top: 3px solid var(--accent, #345);
-    border-bottom: 3px solid var(--accent, #345);
+/* closing v3 — OVERSIZED: huge thanks, bottom-left */
+.reveal .orz-template-closing.orz-v3 { text-align: left; align-items: flex-start; margin-top: auto; }
+.reveal .orz-template-closing.orz-v3 .orz-title-main {
+    font-size: 4.2em; line-height: 0.97; letter-spacing: -0.03em; font-weight: 800;
 }
-.reveal .orz-template-closing.orz-v3 .orz-title-main::after { display: none; }
+.reveal .orz-template-closing.orz-v3 .orz-title-main::after { margin-left: 0; }
+.reveal .orz-template-closing.orz-v3 .orz-title-meta { margin-top: 0.8em; }

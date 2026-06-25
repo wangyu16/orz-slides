@@ -226,10 +226,10 @@ layout with `v=` (e.g. `template=title v=2`):
 
 | Template | Write | Layouts (`v=`) |
 |---|---|---|
-| `title` | `#` title, `##` subtitle, author/date line | **v1** centered + accent rule (default) · **v2** left accent bar · **v3** uppercase kicker · **v4** surface card · **v5** framed by accent rules · **v6** outlined box |
+| `title` | `#` title, `##` subtitle, author/date line | **v1** centered + accent rule (default) · **v2** left accent bar · **v3** uppercase kicker · **v4** split (bold accent band beside the title) · **v5** full-color cover (title bottom-left) · **v6** oversized editorial (huge type) |
 | `section` | `#` section title (rest = meta) | **v1** underline rule (default) · **v2** centered accent · **v3** surface band + left bar · **v4** outlined box |
 | `outline` | an agenda list | **v1** plain (default) · **v2** cards · **v3** two columns |
-| `closing` | thanks / contact / a `{{qr}}` | **v1** centered (default) · **v2** surface card · **v3** framed by accent rules |
+| `closing` | thanks / contact / a `{{qr}}` | **v1** centered (default) · **v2** full-color cover · **v3** oversized |
 
 All template styling adapts to the active theme (via `--accent` / `--ink` /
 `--muted`), light or dark.

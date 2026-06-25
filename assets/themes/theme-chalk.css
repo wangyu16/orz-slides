@@ -14,6 +14,11 @@
     --ink:           #f2ede2;   /* warm chalk white, >14:1 on bg */
     --bg:            #1a2420;    /* blackboard green */
 
+    /* cover / full-color slides (title v5, closing v2) — warm amber */
+    --cover-bg:      #ffd663;
+    --cover-ink:     #1a2420;
+    --cover-accent:  #3a5440;
+
     --font-heading:  'Caveat', 'Comic Sans MS', cursive;
     --font-body:     'Caveat', 'Comic Sans MS', cursive;
     --font-mono:     ui-monospace, 'SFMono-Regular', Menlo, monospace;

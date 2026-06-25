@@ -5,7 +5,7 @@
    navy/gold tables. A DARK title band on a light slide — reveal vars
    are kept light so body text stays navy on white.
    ========================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import url('./base.css');
 
 :root {
@@ -13,7 +13,7 @@
     --ink:           #12202e;   /* dark navy */
     --bg:            #ffffff;
 
-    --font-heading:  'Barlow', 'Segoe UI', sans-serif;
+    --font-heading:  'Space Grotesk', 'Barlow', 'Segoe UI', sans-serif;
     --font-body:     'Barlow', 'Segoe UI', sans-serif;
 
     --slide-gap:     28px;

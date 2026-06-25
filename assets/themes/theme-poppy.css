@@ -4,7 +4,7 @@
    Font: Nunito (rounded). Cream slide, bold coral title band with big
    rounded corners, colorful fully-filled callouts (no border).
    ========================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Fredoka:wght@500;600;700&display=swap');
 @import url('./base.css');
 
 :root {
@@ -12,7 +12,12 @@
     --ink:           #2d1f1f;   /* warm dark */
     --bg:            #fffbf5;    /* warm cream */
 
-    --font-heading:  'Nunito', 'Segoe UI', sans-serif;
+    /* cover / full-color slides (title v5, closing v2) — bold red */
+    --cover-bg:      #ff4848;
+    --cover-ink:     #fffbf5;
+    --cover-accent:  #ffe08a;
+
+    --font-heading:  'Fredoka', 'Nunito', 'Segoe UI', sans-serif;
     --font-body:     'Nunito', 'Segoe UI', sans-serif;
 
     --slide-gap:     26px;

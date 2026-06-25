@@ -21,17 +21,17 @@ footer: template tests · chalk (dark)
 
 <!-- slide template=title v=4 -->
 # Title — v4
-## surface card with an accent top edge
+## split: a bold accent band beside the title
 **Dr. Yu Wang** · 2026
 
 <!-- slide template=title v=5 -->
 # Title — v5
-## framed by accent rules, top and bottom
+## full-color cover, title anchored bottom-left
 **Dr. Yu Wang** · 2026
 
 <!-- slide template=title v=6 -->
 # Title — v6
-## outlined box in the accent color
+## oversized editorial — huge type, kicker on top
 **Dr. Yu Wang** · 2026
 
 <!-- slide template=section -->
@@ -80,11 +80,11 @@ Left-aligned with an underline rule.
 Questions? · **orz.how**
 
 <!-- slide template=closing v=2 -->
-# Closing — v2 (card)
+# Closing — v2 (full-color cover)
 Questions? · **orz.how**
 
 <!-- slide template=closing v=3 -->
-# Closing — v3 (framed)
+# Closing — v3 (oversized)
 Questions? · **orz.how**
 
 <!-- slide -->

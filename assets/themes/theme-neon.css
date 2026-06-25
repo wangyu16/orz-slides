@@ -13,6 +13,11 @@
     --ink:           #e0f7f4;   /* soft cyan-white, >12:1 on bg */
     --bg:            #0e0e12;    /* near-black, cyan-tinted */
 
+    /* cover / full-color slides (title v5, closing v2) — inverted: bright cyan */
+    --cover-bg:      #00f5d4;
+    --cover-ink:     #07120f;
+    --cover-accent:  #0a2e2a;
+
     --font-heading:  'JetBrains Mono', ui-monospace, monospace;
     --font-body:     'JetBrains Mono', ui-monospace, monospace;
     --font-mono:     'JetBrains Mono', ui-monospace, monospace;
