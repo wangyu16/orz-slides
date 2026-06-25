@@ -141,7 +141,14 @@ decks; match its terminology in any doc change.
 ## Sibling projects
 
 - `../orz-markdown` — the renderer. The `{{chart}}` plugin (WP4) lands there, and
-  region bodies are rendered through it.
+  region bodies are rendered through it. **This project is a host app that brings
+  its own CSS (`assets/themes/`), JS runtime, and copy — so it must follow
+  `../orz-markdown/orz-markdown-skills/references/embedding.md`.** That guide is
+  the contract for content styling (every plugin/container class; restoring
+  inline semantics that reveal's reset strips), the embedded runtime + drawing
+  mermaid/smiles/chart, and copy-as-Markdown (`data-md` + plugin classes). Most
+  of this project's content bugs were violations of it — consult it before
+  touching `base.css`, the enhancers, or copy.
 - `../orz-mdhtml` — the document-first sibling. The in-file app (WP7) and
   packaging (WP8) are ported from it; keep the editor/save/theme stack in sync.
 
