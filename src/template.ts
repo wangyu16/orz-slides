@@ -76,18 +76,25 @@ const CHROME_CSS = `
   .reveal { height: 100%; }
   [data-mode="edit"] .reveal { height: 58%; }
 
-  /* Small edit control — app.js positions it in the middle of reveal's arrow
-     cluster and keeps it in sync; it adapts to the active theme via --accent. */
+  /* Edit control — a circular, theme-tinted button (color = --accent) that
+     app.js positions just above reveal's left/right arrows, reading as part of
+     the control cluster. The unused up/down arrows are hidden to make room. */
+  .reveal .controls .navigate-up, .reveal .controls .navigate-down { display: none; }
   .orz-edit-ctrl {
-    position: fixed; right: 16px; bottom: 16px; z-index: 30;
-    width: 22px; height: 22px; padding: 0; box-sizing: border-box;
-    border: 0; border-radius: 50%; background: transparent;
+    position: fixed; right: 18px; bottom: 64px; z-index: 30;
+    width: 40px; height: 40px; padding: 0; box-sizing: border-box;
+    border: 0; border-radius: 50%;
+    background: rgba(130,130,130,.16);
+    background: color-mix(in srgb, var(--accent, #888) 16%, transparent);
     color: var(--accent, #888); cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    font-size: 13px; line-height: 1; opacity: .5;
-    transition: opacity .15s, transform .15s;
+    font-size: 19px; line-height: 1; opacity: .85;
+    transition: opacity .15s, transform .15s, background .15s;
   }
-  .orz-edit-ctrl:hover { opacity: 1; transform: scale(1.18); }
+  .orz-edit-ctrl:hover {
+    opacity: 1; transform: scale(1.1);
+    background: color-mix(in srgb, var(--accent, #888) 30%, transparent);
+  }
   [data-mode="edit"] .orz-edit-ctrl { display: none; }
 
   #orz-panel { display: none; }
@@ -97,17 +104,27 @@ const CHROME_CSS = `
     background: #1f2228; border-top: 1px solid #333; box-shadow: 0 -2px 16px rgba(0,0,0,.3);
   }
   #orz-toolbar {
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    padding: 6px 8px; background: #2b2f36; border-bottom: 1px solid #383d45;
+    display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+    padding: 7px 10px; background: #23262c; border-bottom: 1px solid #34383f;
   }
-  #orz-toolbar button, #orz-toolbar select {
-    font: 500 12.5px/1 system-ui, sans-serif; color: #e6e8ec; background: #3a3f48;
-    border: 1px solid #4a505a; border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  #orz-toolbar .ic {
+    width: 32px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 0; border-radius: 7px; color: #c2c8d0; cursor: pointer;
+    transition: background .12s, color .12s;
   }
-  #orz-toolbar button:hover { background: #454b55; }
-  #orz-toolbar button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-  #orz-toolbar button.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-  #orz-toolbar .orz-pos { color: #aab; font: 600 12.5px/1 system-ui, sans-serif; padding: 0 4px; }
+  #orz-toolbar .ic:hover { background: #383d45; color: #fff; }
+  #orz-toolbar .ic:active { transform: translateY(1px); }
+  #orz-toolbar .ic svg { width: 17px; height: 17px; display: block; }
+  #orz-toolbar .ic.primary { background: #3b82f6; color: #fff; }
+  #orz-toolbar .ic.primary:hover { background: #2f6fe0; }
+  #orz-toolbar .ic.active { background: #3b82f6; color: #fff; }
+  #orz-toolbar .ic.danger:hover { background: #b4434333; color: #ff8a8a; }
+  #orz-toolbar select {
+    font: 500 12.5px/1 system-ui, sans-serif; color: #e6e8ec; background: #34383f;
+    border: 1px solid #454b55; border-radius: 7px; padding: 6px 8px; cursor: pointer; margin: 0 2px;
+  }
+  #orz-toolbar .orz-sep { width: 1px; height: 20px; background: #3c414a; margin: 0 5px; }
+  #orz-toolbar .orz-pos { color: #9aa3b2; font: 600 12px/1 system-ui, sans-serif; padding: 0 4px; min-width: 40px; text-align: center; }
   #orz-toolbar .orz-spacer { flex: 1; }
   #orz-editor-host { flex: 1; min-height: 0; overflow: hidden; }
   #orz-editor-host .CodeMirror { height: 100%; font-size: 14px; }
@@ -130,6 +147,24 @@ const CHROME_CSS = `
   }
   #orz-toast.show { opacity: .95; transform: translateX(-50%) translateY(0); }
 `;
+
+/** Inline line-icons (stroke = currentColor) for the editor toolbar. */
+function svg(path: string): string {
+  return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+}
+const ICON = {
+  done: svg('<path d="M3 8.4l3.2 3.2L13 4.8"/>'),
+  deck: svg('<path d="M2.5 5h6M2.5 11h2.5M8 11h5.5"/><circle cx="10" cy="5" r="1.7"/><circle cx="5.5" cy="11" r="1.7"/>'),
+  prev: svg('<path d="M10 3.5L5.5 8l4.5 4.5"/>'),
+  next: svg('<path d="M6 3.5L10.5 8 6 12.5"/>'),
+  add: svg('<path d="M8 3.2v9.6M3.2 8h9.6"/>'),
+  dup: svg('<rect x="5.5" y="5.5" width="7.3" height="7.3" rx="1.3"/><path d="M3.2 10V4.3A1.1 1.1 0 0 1 4.3 3.2h5.7"/>'),
+  del: svg('<path d="M3 4.5h10M6.2 4.5V3.3a.8.8 0 0 1 .8-.8h2a.8.8 0 0 1 .8.8v1.2M4.9 4.5l.5 8a1 1 0 0 0 1 .95h3.2a1 1 0 0 0 1-.95l.5-8"/>'),
+  up: svg('<path d="M8 13V3.4M4 7.2l4-4 4 4"/>'),
+  down: svg('<path d="M8 3v9.6M4 8.8l4 4 4-4"/>'),
+  download: svg('<path d="M8 2.6v7.6M4.6 6.9 8 10.3l3.4-3.4M3 13.2h10"/>'),
+  save: svg('<path d="M3.4 3.2h7L13 5.6v7.2H3.4z"/><path d="M5.6 3.2v3.2h4V3.2M5.6 12.8V9.4h4.8v3.4"/>'),
+};
 
 export function buildHtml(o: BuildOptions): string {
   // Inline mode embeds base.css once + every theme as a toggleable <style>
@@ -193,20 +228,22 @@ ${themeTag}
 
 <div id="orz-panel">
   <div id="orz-toolbar">
-    <button id="orz-done">Done</button>
-    <button id="orz-deck-btn" title="Edit deck settings: theme, footer, ratio, title">Deck&hellip;</button>
+    <button id="orz-done" class="ic" title="Done — back to presenting">${ICON.done}</button>
+    <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)">${ICON.deck}</button>
+    <span class="orz-sep"></span>
+    <button id="orz-prev" class="ic" title="Previous slide">${ICON.prev}</button>
     <span id="orz-pos" class="orz-pos">1 / 1</span>
-    <button id="orz-prev" title="Previous slide">&#9664;</button>
-    <button id="orz-next" title="Next slide">&#9654;</button>
-    <button id="orz-add" title="Add a slide after this one">+ Slide</button>
-    <button id="orz-dup" title="Duplicate this slide">Duplicate</button>
-    <button id="orz-del" title="Delete this slide">Delete</button>
-    <button id="orz-up" title="Move slide earlier">Move &#8593;</button>
-    <button id="orz-down" title="Move slide later">Move &#8595;</button>
+    <button id="orz-next" class="ic" title="Next slide">${ICON.next}</button>
+    <span class="orz-sep"></span>
+    <button id="orz-add" class="ic" title="Add a slide after this one">${ICON.add}</button>
+    <button id="orz-dup" class="ic" title="Duplicate this slide">${ICON.dup}</button>
+    <button id="orz-del" class="ic danger" title="Delete this slide">${ICON.del}</button>
+    <button id="orz-up" class="ic" title="Move slide earlier">${ICON.up}</button>
+    <button id="orz-down" class="ic" title="Move slide later">${ICON.down}</button>
     <span class="orz-spacer"></span>
     <select id="orz-theme" title="Theme"></select>
-    <button id="orz-download">Download</button>
-    <button id="orz-save" class="primary">Save</button>
+    <button id="orz-download" class="ic" title="Download a copy">${ICON.download}</button>
+    <button id="orz-save" class="ic primary" title="Save (Ctrl/Cmd+S)">${ICON.save}</button>
   </div>
   <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
 </div>

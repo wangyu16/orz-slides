@@ -148,14 +148,17 @@ function mount(): void {
   const W = 960;
   const H = Math.round((W * (ratio[1] || 9)) / (ratio[0] || 16));
 
-  Reveal.initialize({ width: W, height: H, margin: 0.04, hash: true, controls: true, progress: true });
+  Reveal.initialize({ width: W, height: H, margin: 0.03, minScale: 0.2, maxScale: 4, hash: true, controls: true, progress: true });
   window.orzslides.reveal = Reveal;
 
-  loadEnhancers(cfg).then(refresh);
+  const relayout = () => { try { Reveal.layout(); } catch (e) { /* ignore */ } };
+  loadEnhancers(cfg).then(() => { relayout(); refresh(); });
   // Run twice per change: once immediately, once after the slide is laid out so
   // responsive charts size to a real container and fit measures correctly.
   Reveal.on('slidechanged', () => { enhance(); setTimeout(refresh, 60); });
-  [200, 800].forEach((t) => setTimeout(refresh, t));
+  // Recompute reveal's scale once the inlined CSS/fonts have settled, so the
+  // deck fills the screen even if the first layout ran before they loaded.
+  [200, 800].forEach((t) => setTimeout(() => { relayout(); refresh(); }, t));
   window.addEventListener('resize', () => setTimeout(fitCurrent, 60));
 }
 

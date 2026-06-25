@@ -64,6 +64,12 @@ body {
     text-align: left;
     color: var(--ink, #222);
     font-family: var(--font-body, 'Segoe UI', system-ui, sans-serif);
+    /* Presentation-scale base font in slide (960×H) coordinates — reveal then
+       scales the whole slide to the screen. Without this the deck inherits the
+       16px document default and content looks tiny inside a full-size slide.
+       Em-based content sizes (title band, bullets, code…) all derive from it. */
+    font-size: 32px;
+    line-height: 1.45;
 }
 
 /* Inner flex frame. reveal.js forces `display:block` (inline) on the <section>,

@@ -408,10 +408,9 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
   }
 
-  // Position the small edit control at the midpoint between reveal's left/right
-  // arrows, so it reads as part of the control cluster. Kept in sync on
-  // nav/resize. (reveal's .controls box is a 0-size anchor, so we measure the
-  // arrows directly.)
+  // Position the edit control just above reveal's left/right arrows, centered on
+  // the cluster — it reads as part of the controls. Kept in sync on nav/resize.
+  // (reveal's .controls box is a 0-size anchor, so we measure the arrows.)
   function positionEditCtrl() {
     var btn = document.getElementById('orz-edit-fab');
     if (!btn) return;
@@ -421,9 +420,10 @@
     var lr = left.getBoundingClientRect(), rr = right.getBoundingClientRect();
     if (!lr.width && !rr.width) return; // controls hidden → keep the corner default
     var cx = (lr.left + lr.width / 2 + rr.left + rr.width / 2) / 2;
-    var cy = (lr.top + lr.height / 2 + rr.top + rr.height / 2) / 2;
+    var rowTop = Math.min(lr.top, rr.top);
+    var top = rowTop - btn.offsetHeight - 10; // sit cleanly above the arrow row
     btn.style.left = (cx - btn.offsetWidth / 2) + 'px';
-    btn.style.top = (cy - btn.offsetHeight / 2) + 'px';
+    btn.style.top = top + 'px';
     btn.style.right = 'auto';
     btn.style.bottom = 'auto';
   }
