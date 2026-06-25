@@ -463,6 +463,26 @@ body {
     border: 0; border-radius: 4px;
 }
 
+/* ---- task lists (- [ ] / - [x]): drop the bullet, keep the checkbox ---- */
+.reveal .markdown-body ul.contains-task-list { list-style: none; padding-left: 0.2em; }
+.reveal .markdown-body li.task-list-item { list-style: none; }
+.reveal .markdown-body .task-list-item-checkbox {
+    margin-right: 0.45em; vertical-align: middle; pointer-events: none;
+}
+
+/* ---- table of contents ({{toc}}) ---- */
+.reveal .markdown-body .toc-list { list-style: none; padding-left: 0; }
+.reveal .markdown-body .toc-list a { text-decoration: none; }
+.reveal .markdown-body .toc-list a:hover { text-decoration: underline; }
+
+/* ---- footnotes ---- */
+.reveal .markdown-body .footnotes {
+    margin-top: 0.8em; padding-top: 0.4em; font-size: 0.8em;
+    border-top: 1px solid var(--rule, #ddd); color: var(--muted, #777);
+}
+.reveal .markdown-body .footnote-ref a,
+.reveal .markdown-body .footnote-backref { text-decoration: none; }
+
 /* ==========================================================
    TEMPLATE SLIDES (title / section / outline / closing)
    Generic helpers; themes restyle via the same tokens.

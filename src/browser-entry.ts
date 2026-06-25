@@ -254,14 +254,18 @@ function mount(): void {
   [200, 700, 1500, 2600].forEach((t) => setTimeout(() => { relayout(); refresh(); }, t));
   window.addEventListener('resize', () => setTimeout(() => { relayout(); fitCurrent(); }, 60));
 
-  // QR code → click to view fullscreen (the orz-markdown runtime that normally
-  // wires this isn't bundled into slides).
+  // QR code → click to view fullscreen. Capture phase + stopPropagation so this
+  // runs BEFORE the embedded orz-markdown runtime's own qr-expand handler (whose
+  // .qrcode-overlay geometry lives in common.css, which slides doesn't ship) —
+  // otherwise the runtime intercepts the click and opens an unstyled overlay.
   document.addEventListener('click', (e) => {
     const el = e.target as Element;
     const qr = el && el.closest ? el.closest('.qrcode') : null;
     if (!qr) return;
     const svg = qr.querySelector('svg');
     if (!svg) return;
+    e.stopPropagation();
+    e.preventDefault();
     const overlay = document.createElement('div');
     overlay.className = 'orz-qr-overlay';
     overlay.appendChild(svg.cloneNode(true));
@@ -270,7 +274,7 @@ function mount(): void {
     overlay.addEventListener('click', close);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
-  });
+  }, true);
 }
 
 window.orzslides = {
