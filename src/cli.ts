@@ -64,11 +64,10 @@ function findAsset(rel: string): string {
   throw new Error(`asset not found: ${rel}`);
 }
 
-/** Inline a theme: splice base.css in for its `@import url('./base.css')`. */
-function inlineTheme(id: string): string {
-  const themeCss = readFileSync(findAsset(`themes/theme-${id}.css`), 'utf8');
-  const baseCss = readFileSync(findAsset('themes/base.css'), 'utf8');
-  return themeCss.replace(/@import\s+url\(\s*['"]?\.\/base\.css['"]?\s*\)\s*;/, '\n' + baseCss + '\n');
+/** A theme's CSS without its `@import url('./base.css')` (base is inlined once). */
+function themeOnly(id: string): string {
+  const css = readFileSync(findAsset(`themes/theme-${id}.css`), 'utf8');
+  return css.replace(/@import\s+url\(\s*['"]?\.\/base\.css['"]?\s*\)\s*;/, '');
 }
 
 interface Args {
@@ -129,7 +128,11 @@ function main(): void {
       process.exit(1);
     }
     renderer = { mode: 'inline', js: readFileSync(bundlePath, 'utf8') };
-    theme = { mode: 'inline', css: inlineTheme(defaultTheme) };
+    theme = {
+      mode: 'inline',
+      base: readFileSync(findAsset('themes/base.css'), 'utf8'),
+      themes: THEME_DEFS.map((t) => ({ id: t.id, css: themeOnly(t.id) })),
+    };
   } else {
     renderer = { mode: 'cdn', src: `https://cdn.jsdelivr.net/npm/orz-slides-browser@${ver}/orz-slides.browser.js` };
     theme = { mode: 'cdn' };

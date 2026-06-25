@@ -23,7 +23,7 @@ export type RendererSpec =
   | { mode: 'cdn'; src: string };
 
 export type ThemeSpec =
-  | { mode: 'inline'; css: string }
+  | { mode: 'inline'; base: string; themes: Array<{ id: string; css: string }> }
   | { mode: 'cdn' };
 
 export interface EditorLibs {
@@ -122,9 +122,20 @@ const CHROME_CSS = `
 `;
 
 export function buildHtml(o: BuildOptions): string {
+  // Inline mode embeds base.css once + every theme as a toggleable <style>
+  // (only the active one matches media), so the editor can switch themes with
+  // no network. CDN mode links the default theme; the editor swaps the link.
   const themeTag =
     o.theme.mode === 'inline'
-      ? `<style id="orz-theme-base">\n${o.theme.css}\n</style>`
+      ? `<style id="orz-theme-base">\n${o.theme.base}\n</style>\n`
+        + o.theme.themes
+            .map(
+              (t) =>
+                `<style class="orz-theme-css" data-theme-css="${escapeHtml(t.id)}" media="${
+                  t.id === o.defaultTheme ? 'all' : 'not all'
+                }">\n${t.css}\n</style>`
+            )
+            .join('\n')
       : `<link id="orz-theme-base" rel="stylesheet" href="${escapeHtml(
           (o.themes.find((t) => t.id === o.defaultTheme) || o.themes[0]).href
         )}">`;

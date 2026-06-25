@@ -212,17 +212,29 @@
   }
 
   // ---- theme ---------------------------------------------------------------
+  // Inline mode embeds every theme as a <style data-theme-css>; activate one by
+  // matching media. Returns false if no inline themes (CDN mode).
+  function applyInlineTheme(id) {
+    var blocks = document.querySelectorAll('style[data-theme-css]');
+    if (!blocks.length) return false;
+    for (var i = 0; i < blocks.length; i++) {
+      blocks[i].media = blocks[i].getAttribute('data-theme-css') === id ? 'all' : 'not all';
+    }
+    return true;
+  }
   function setTheme(id) {
     currentTheme = id;
     root.setAttribute('data-theme', id);
-    var t = themeById(id);
-    var link = document.getElementById('orz-theme-override');
-    if (!link) {
-      link = document.createElement('link');
-      link.id = 'orz-theme-override'; link.rel = 'stylesheet';
-      document.head.appendChild(link);
+    if (!applyInlineTheme(id)) {
+      // CDN mode: swap the theme link (loads from jsDelivr).
+      var link = document.getElementById('orz-theme-override');
+      if (!link) {
+        link = document.createElement('link');
+        link.id = 'orz-theme-override'; link.rel = 'stylesheet';
+        document.head.appendChild(link);
+      }
+      link.href = themeById(id).href;
     }
-    link.href = t.href;
     if (cm) cm.setOption('theme', cmTheme());
     markDirty();
     if (API.reveal) setTimeout(function () { API.reveal.layout(); API.refresh(); }, 60);
@@ -403,6 +415,7 @@
     // The deck's <!-- deck theme: --> may differ from the file's data-theme; if a
     // saved override link exists it already wins. Keep currentTheme in sync.
     if (root.getAttribute('data-theme') && root.getAttribute('data-theme') !== currentTheme) currentTheme = root.getAttribute('data-theme');
+    applyInlineTheme(currentTheme); // assert the active inline theme on load
 
     function start() {
       loadParts();

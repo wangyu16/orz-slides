@@ -344,10 +344,11 @@ orz-markdown skill at `node_modules/orz-markdown/orz-markdown-skills/SKILL.md`.
 ## What the generated file needs at view time
 
 "Self-contained" means *one file*, **not** *offline*. By default the CLI
-**inlines** the engine and the chosen theme, so the deck presents even offline —
+**inlines** the engine and all seven themes, so the deck presents even offline —
 **except** the libraries that always load from CDN: reveal.js core CSS, KaTeX,
 Mermaid, SmilesDrawer, and Chart.js (cached after first load). `--cdn` instead
 references the engine + theme from jsDelivr (smaller files, needs network).
-Switching themes in the editor loads other themes from the orz-slides CDN.
+With `--inline`, **all seven themes are embedded**, so switching themes in the
+editor works with no network.
 Editing/Save in place needs a Chromium browser (File System Access API);
 presenting works in all modern browsers.
