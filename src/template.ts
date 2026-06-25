@@ -81,7 +81,7 @@ const CHROME_CSS = `
      the control cluster. The unused up/down arrows are hidden to make room. */
   .reveal .controls .navigate-up, .reveal .controls .navigate-down { display: none; }
   .orz-edit-ctrl {
-    position: fixed; right: 18px; bottom: 64px; z-index: 30;
+    position: fixed; left: 24px; bottom: 18px; z-index: 30;
     width: 40px; height: 40px; padding: 0; box-sizing: border-box;
     border: 0; border-radius: 50%;
     background: rgba(130,130,130,.16);

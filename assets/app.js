@@ -419,11 +419,10 @@
     if (!left || !right) return;
     var lr = left.getBoundingClientRect(), rr = right.getBoundingClientRect();
     if (!lr.width && !rr.width) return; // controls hidden → keep the corner default
-    var cx = (lr.left + lr.width / 2 + rr.left + rr.width / 2) / 2;
-    var rowTop = Math.min(lr.top, rr.top);
-    var top = rowTop - btn.offsetHeight - 10; // sit cleanly above the arrow row
-    btn.style.left = (cx - btn.offsetWidth / 2) + 'px';
-    btn.style.top = top + 'px';
+    // Bottom-left corner, vertically centered on the arrow row.
+    var rowCenterY = (lr.top + lr.height / 2 + rr.top + rr.height / 2) / 2;
+    btn.style.left = '24px';
+    btn.style.top = (rowCenterY - btn.offsetHeight / 2) + 'px';
     btn.style.right = 'auto';
     btn.style.bottom = 'auto';
   }

@@ -57,7 +57,7 @@ body {
     box-sizing: border-box;
     width: 100%;
     height: 100%;
-    padding: var(--slide-pad, 4% 5%);
+    padding: var(--slide-pad, 2.6% 3.5%);
     /* floats are positioned against this box; content is clipped to the slide */
     position: relative;
     overflow: hidden;
@@ -68,7 +68,7 @@ body {
        scales the whole slide to the screen. Without this the deck inherits the
        16px document default and content looks tiny inside a full-size slide.
        Em-based content sizes (title band, bullets, code…) all derive from it. */
-    font-size: 32px;
+    font-size: 24px;
     line-height: 1.45;
 }
 
