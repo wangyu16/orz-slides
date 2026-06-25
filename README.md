@@ -9,15 +9,16 @@ syntax, and stays *quietly editable*. Built on
 One file. Open it in a browser to present. Pop out a per-slide editor to change
 a slide. Save it back in place. Nothing to install for the audience.
 
-> **Status: in active development.** Nothing is published yet. The authoring
-> syntax is settled (see [DESIGN.md](./DESIGN.md) §5/§14); tooling, CLI flags,
-> and the runtime are still being built.
+> **Status: functional, not yet published.** The authoring syntax, CLI, engine,
+> and in-file editor all work (see [DESIGN.md](./DESIGN.md)); the npm packages
+> aren't published yet. A few presenter extras (speaker-view window, PDF export)
+> are planned, not yet wired.
 
 ## What a `.slides.html` does
 
 1. **Presents in any browser.** The deck is a reveal.js presentation —
-   keyboard/touch navigation, slide overview (ESC), speaker notes + timer (S),
-   fullscreen (F), and PDF export — with no install for the viewer.
+   keyboard/touch navigation, slide overview (ESC), fullscreen (F) — with no
+   install for the viewer.
 2. **Authored in orz-markdown.** Every slide is Markdown (math, mermaid, smiles,
    qr, charts, tabs, containers) — never hand-written HTML — divided into
    regions by a small **comment-based layout syntax**.
@@ -26,9 +27,11 @@ a slide. Save it back in place. Nothing to install for the audience.
    in-place on Chromium, or as a downloaded copy elsewhere.
 4. **Template-driven structure pages.** Title, section, outline, and closing
    slides come from a small gallery of templates.
-5. **Self-contained, CDN-delivered.** The deck source is embedded in the file as
-   the single source of truth; everything else (reveal.js, the orz-markdown
-   renderer, themes, libraries) loads from jsDelivr, cached after first open.
+5. **Self-contained.** The deck source is embedded in the file as the single
+   source of truth. By default the CLI **inlines** the engine and the chosen
+   theme, so the deck presents even offline — only reveal's core CSS, KaTeX,
+   Mermaid, SmilesDrawer, and Chart.js load from CDN (cached after first open).
+   `--cdn` references the engine + theme from jsDelivr instead.
 
 The deck source lives in the file as the single source of truth; Save
 re-serializes the whole document around it:
@@ -39,20 +42,19 @@ re-serializes the whole document around it:
 </script>
 ```
 
-> "Self-contained" means *works as one file*, **not** *zero network*. The engine
-> (`orz-slides-browser` from jsDelivr by default), theme CSS, and libraries
-> (KaTeX, Mermaid, SmilesDrawer, Chart.js) load from CDN, so **viewing needs
-> internet**. Presenting, themes, and PDF export work in all modern browsers;
-> in-place Save needs a Chromium browser.
+> "Self-contained" means *works as one file*. With the default `--inline`, the
+> engine and theme are embedded; the libraries (KaTeX, Mermaid, SmilesDrawer,
+> Chart.js) and reveal's core CSS still load from CDN, so a deck using them needs
+> internet. With `--cdn`, the engine + theme load from jsDelivr too. Presenting
+> works in all modern browsers; in-place Save needs a Chromium browser.
 
 ## Its place in the orz family
 
 orz-slides is the slide-deck sibling of
 [orz-mdhtml](https://www.npmjs.com/package/orz-mdhtml), sharing the same
 philosophy — deck-first, quietly editable, self-contained, CDN-delivered
-renderer — and the same in-file editor stack (CodeMirror, morphdom live preview,
-File System Access save, theme picker, copy-as-markdown). Both render content
-through **orz-markdown**:
+renderer — and the same in-file editor stack (CodeMirror, live preview, File
+System Access save, theme picker). Both render content through **orz-markdown**:
 
 - **orz-markdown** — the Markdown renderer (parser, plugins, themes) that turns
   region bodies into HTML.
@@ -115,11 +117,11 @@ grammar, templates, and per-container capacity budgets.
 - **Layout by space division** — a recursive `row`/`col` split grammar, with
   terse preset aliases for the common cases.
 - **In-browser per-slide editor** — pop-out CodeMirror + live preview; deck ops
-  (add / duplicate / delete / reorder / theme / ratio).
-- **Structure templates** — title / section / outline / closing pages from a
-  small gallery.
-- **Presenter-grade** — navigation, overview, speaker notes + timer, and PDF
-  export inherited from reveal.js.
+  (add / duplicate / delete / reorder / theme).
+- **Structure templates** — `title` / `section` / `outline` / `closing` pages
+  (`title` is fully styled; the others are evolving).
+- **Presenter basics** — navigation, slide overview, and fullscreen from
+  reveal.js. Speaker notes are authored (`@notes`) and stored per slide.
 - **Overflow that behaves** — scale-to-fit per region (with `fit=scroll|off`),
   backed by agent capacity budgets so slides are authored within their bounds.
 
@@ -127,12 +129,13 @@ grammar, templates, and per-container capacity budgets.
 
 | Feature | Support |
 |---|---|
-| Present, navigation, overview, speaker notes, theme switch, PDF export | All modern browsers |
+| Present, navigation, overview, fullscreen, theme switch | All modern browsers |
 | Per-slide pop-out editor (CodeMirror, live preview) | All modern browsers |
 | **Save in place** (File System Access API) | Chromium (Chrome/Edge); others fall back to download a copy |
 
-Viewing requires internet (engine, themes, and libraries load from CDN, cached
-after first open).
+A deck that uses math/diagrams/charts needs internet for those libraries (and
+reveal's core CSS), cached after first open. With `--inline` (default) the engine
+and theme are embedded.
 
 ## License
 

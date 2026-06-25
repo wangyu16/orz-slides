@@ -16,8 +16,10 @@ authoring syntax §5, pipeline §6, overflow §7, packaging §13).
 [BUILD-PLAN.md](./BUILD-PLAN.md) is the **module map** — work packages (WPs),
 their owned files, interfaces, and the build order.
 
-> **Status: in active development** — nothing published yet. Some modules below
-> are built (WP0–WP4); others are stubs/not-yet-written (the Wave-2 modules).
+> **Status: functional, not yet published.** All work packages (WP0–WP10) are
+> built and verified — `orz-slides deck.md` generates a working, self-editing
+> `.slides.html`. The npm packages aren't published yet; a few presenter extras
+> (speaker-view window, PDF export) are planned, not yet wired.
 
 Two npm packages will live here, **versioned in lockstep** (mirroring
 orz-mdhtml):
@@ -30,14 +32,19 @@ orz-mdhtml):
 
 ```bash
 npm run build            # tsc && npm run bundle
-npm run bundle           # esbuild: reveal.js + orz-markdown + parser/layout/runtime → orz-slides-browser
-npm test                 # vitest run (parser + layout unit tests)
+npm run bundle           # esbuild: reveal.js + orz-markdown + parser/layout/assembler → orz-slides-browser
+npm test                 # vitest run (parser + layout + assembler unit tests)
 npm run gen -- deck.md   # generate deck.slides.html (dev; same as the CLI)
+npx tsx scripts/spike.ts # regenerate the WP6 fit spike harness (out/spike.html)
 ```
 
-Pure modules (parser, layout, `{{chart}}`) are unit-tested with vitest; the
-in-browser app and the assembled deck must be **verified in a real browser**
-(presenting works anywhere; editing and Save need Chromium).
+The CLI is `orz-slides <input.md> [-o out] [--theme id] [--inline|--cdn] [--title t]`;
+`--inline` (default) embeds the engine + theme, `--cdn` references jsDelivr. The
+deck's `<!-- deck -->` config (theme/title/ratio) overrides the flags.
+
+Pure modules (parser, layout, assembler, `{{chart}}`) are unit-tested with
+vitest; the in-browser app and the assembled deck must be **verified in a real
+browser** (presenting works anywhere; editing and Save need Chromium).
 
 ## Architecture (by work package — see BUILD-PLAN.md)
 
@@ -72,23 +79,29 @@ then the Wave-2 modules (WP5–WP8, WP10) integrate them.
   chart.ts`), not here; emits a `data-md` breadcrumb so it round-trips through
   copy-as-markdown.
 
-**Wave 2 — integration (sequential; not yet built):**
+**Wave 2 — integration (built):**
 - `src/render-slide.ts` *(WP5)* — the assembler: `renderSlide(slide, md,
-  deckConfig)` → a reveal `<section>` (title band + layout grid with each
-  region's body rendered by orz-markdown + floats + footer + `@notes` →
-  `<aside class="notes">`).
-- overflow / scale-to-fit *(WP6)* — per-region measure-and-scale (`--region-
-  scale`), `fit=scroll|off`, editor overflow signal. The Phase-0 spike / make-
-  or-break.
+  deckConfig)` → a reveal `<section>` = `.orz-slide` > `.orz-frame` (title band +
+  `.orz-content` layout grid with each region's body rendered by orz-markdown +
+  footer) + floats + `@notes` → `<aside class="notes">`. The **`.orz-frame`**
+  wrapper is required: reveal forces inline `display:block` on the `<section>`,
+  which would kill a flex frame placed on `.orz-slide`.
+- overflow / scale-to-fit *(WP6, in browser-entry.ts)* — per-region
+  measure-and-scale (`--region-scale`, floor 0.6) on the visible slide;
+  `fit=scroll|off`. Needs `min-height:0` down the frame→region→markdown-body
+  chain (see dom-contract.md) so regions clamp and overflow is detectable.
 - `assets/app.js` *(WP7)* — the in-file runtime, plain JS, inlined into every
-  `.slides.html`: present mode (reveal nav/overview/speaker), the per-slide
-  pop-out editor (CodeMirror + morphdom single-slide preview), deck ops, and
+  `.slides.html`: present mode (reveal nav/overview), the per-slide pop-out
+  editor (CodeMirror; the live preview is the real reveal slide, re-rendered in
+  place by setting the section's `innerHTML` — replacing the element would orphan
+  reveal's `present` state), deck ops (add/dup/delete/move/theme), and
   self-reproducing save (FS-Access + IndexedDB + download + served-notice).
-  **Port heavily from orz-mdhtml.**
+  **Ported from orz-mdhtml.**
 - `src/cli.ts`, `src/template.ts`, `src/browser-entry.ts`, `build/bundle.ts`
   *(WP8)* — the CLI, the `.slides.html` shell (reveal scaffold + `#orz-deck` +
-  app), `window.orzslides` (parse + assemble + reveal-init), and the esbuild
-  bundle. Mirror orz-mdhtml packaging exactly.
+  editor chrome + app), `window.orzslides` (parse + assemble + reveal-init +
+  enhancers + fit, plus `renderAll`/`refresh`/`reveal` for the editor), and the
+  esbuild bundle. Mirror orz-mdhtml packaging exactly.
 
 `orz-slides-skills/SKILL.md` *(WP9)* is the agent skill for authoring/editing
 decks; match its terminology in any doc change.
@@ -114,9 +127,13 @@ decks; match its terminology in any doc change.
   them.
 - **The browser bundle embeds orz-markdown.** To pick up parser/runtime changes,
   bump the `orz-markdown` dep, `npm install`, then `npm run bundle`.
-- A generated file needs internet to view (engine/themes/libs from CDN);
-  presenting and PDF export work in all modern browsers, **editing/Save only in
-  Chromium**.
+- **Charts (and any responsive canvas) draw per visible slide.** A chart drawn in
+  a hidden (`display:none`) slide sizes to 0 — `browser-entry.ts` draws/resizes
+  charts only on the current slide. Smiles/mermaid are fixed-size, so they're
+  fine drawn anytime.
+- Default `--inline` embeds the engine + theme; a deck that uses math/diagrams/
+  charts still pulls those libs (and reveal's core CSS) from CDN at view time.
+  Presenting works in all modern browsers, **editing/Save only in Chromium**.
 
 ## Sibling projects
 

@@ -7,7 +7,7 @@ description: Author and edit self-contained .slides.html presentation decks (orz
 
 `orz-slides` turns a **deck source** into **one `.slides.html` file** that:
 
-- presents in any modern browser (reveal.js: nav, overview, speaker notes, PDF),
+- presents in any modern browser (reveal.js: keyboard/touch nav, slide overview),
 - is authored entirely in **orz-markdown** (math, mermaid, smiles, qr, charts,
   tabs, containers) with a small **layout syntax**,
 - can be **edited in the browser** (per-slide pop-out CodeMirror editor + live
@@ -26,8 +26,10 @@ You write only the **deck source**. Never hand-write the surrounding HTML
 edit the deck source (in a `.md`-ish file fed to the CLI, or in-browser) and let
 the tool re-serialize.
 
-> Status: orz-slides is **in development**. This skill describes the settled
-> authoring syntax (DESIGN.md §5/§14). Tooling/CLI flags may still move.
+> Status: orz-slides is **functional but not yet published to npm**. The
+> authoring syntax below is implemented; generate decks with the CLI
+> (`orz-slides deck.md`). A few presenter features (speaker-view window, PDF
+> export) are planned, not yet wired.
 
 ## When to use it
 
@@ -153,7 +155,7 @@ These names have fixed meaning in **every** layout:
 
 | Marker | Meaning |
 |---|---|
-| `<!-- @notes -->` | Speaker notes → reveal's `<aside class="notes">`. **Never shown** on the slide; visible in speaker view. |
+| `<!-- @notes -->` | Speaker notes → reveal's `<aside class="notes">`. **Never shown** on the slide; stored in the deck and round-tripped on save (the presenter-view window is a planned addition). |
 | `<!-- @footer -->` | This slide's footer band. Overrides the deck-wide footer (set once via `<!-- deck footer: … -->`). |
 | `<!-- @float … -->` | A **free-positioned overlay**, outside the grid (see below). |
 
@@ -217,15 +219,17 @@ freely. An optional `[a/b]` sets the track ratio.
 
 ## Structure-page templates (`template=`)
 
-Templates are special presets with fixed semantics and dedicated styling. They
-read a few markdown fields rather than free regions. A `v=` picks a visual
-variant from the gallery.
+Templates are structure pages: a `template=` slide renders its markdown body in a
+centered template container (with `data-template="<name>"` for styling) instead of
+the region grid. `title` has dedicated centered styling today; `section` /
+`outline` / `closing` render their markdown the same way and are gaining bespoke
+styling. A `v=` records a visual variant (`data-vN`).
 
-| Template | Reads | Use |
+| Template | Write | Use |
 |---|---|---|
 | `title` | title (`#`), subtitle (`##`), an author/date line | the opening slide |
-| `section` | a section number + big section title | a divider between parts |
-| `outline` | an agenda list; the current item can be highlighted (`<!-- @here -->` or a marker on the item) | a table of contents |
+| `section` | a big section title (`#`) | a divider between parts |
+| `outline` | an agenda list | a table of contents |
 | `closing` | thanks / contact / a `{{qr}}` to a link | the final slide |
 
 ---
@@ -290,7 +294,11 @@ split with `budget ≈ baseline × region-area-fraction`.
 - Latency under **40 ms**
 - Zero regressions in CI
 <!-- @right -->
-{{chart bar { "A": 92, "B": 81, "C": 76 }}}
+{{chart
+type: bar
+labels: A, B, C
+series: Score = 92, 81, 76
+}}
 <!-- @notes -->
 Lead with accuracy; the latency number is the surprise — pause here.
 ```
@@ -325,17 +333,21 @@ graph LR; A[Ingest]-->B[Transform]-->C[Serve]
 
 ## Special content & enhancers
 
-Region bodies are full orz-markdown. The deck runs client enhancers that re-run
-per slide on edit: **KaTeX** (math/mhchem), **Mermaid**, **SmilesDrawer**
-(chemistry), **`{{qr}}`**, and **`{{chart}}`** (simple bar/line/pie via
-Chart.js). For the full orz-markdown syntax (containers `::: name`, `{{name
-body}}` plugins, `{{attrs[#id .class]}}`, tabs), read the orz-markdown skill at
-`node_modules/orz-markdown/orz-markdown-skills/SKILL.md`.
+Region bodies are full orz-markdown. The deck runs client enhancers, drawn per
+visible slide (and re-run on edit): **KaTeX** (math/mhchem, pre-rendered),
+**Mermaid**, **SmilesDrawer** (chemistry), and **`{{chart}}`** (simple
+bar/line/pie/doughnut via Chart.js — the line-based `type:` / `labels:` /
+`series:` config shown above). For the full orz-markdown syntax (containers
+`::: name`, `{{name body}}` plugins, `{{attrs[#id .class]}}`, tabs), read the
+orz-markdown skill at `node_modules/orz-markdown/orz-markdown-skills/SKILL.md`.
 
 ## What the generated file needs at view time
 
-"Self-contained" means *one file*, **not** *offline*. **Viewing requires
-internet**: the engine (`orz-slides-browser` from jsDelivr by default), theme
-CSS, and libs (KaTeX, Mermaid, SmilesDrawer, Chart.js) load from CDN, cached
-after first load. Editing/Save in place needs a Chromium browser (File System
-Access API); presenting, themes, and PDF export work in all modern browsers.
+"Self-contained" means *one file*, **not** *offline*. By default the CLI
+**inlines** the engine and the chosen theme, so the deck presents even offline —
+**except** the libraries that always load from CDN: reveal.js core CSS, KaTeX,
+Mermaid, SmilesDrawer, and Chart.js (cached after first load). `--cdn` instead
+references the engine + theme from jsDelivr (smaller files, needs network).
+Switching themes in the editor loads other themes from the orz-slides CDN.
+Editing/Save in place needs a Chromium browser (File System Access API);
+presenting works in all modern browsers.
