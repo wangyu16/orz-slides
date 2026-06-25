@@ -113,7 +113,7 @@ Centered text block.
 :::
 
 <!-- slide -->
-## Tabs container (needs tab JS — falls back to stacked panels)
+## Tabs container (interactive — click to switch)
 :::: tabs
 ::: tab Python
 ```python

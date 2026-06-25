@@ -594,3 +594,88 @@ body {
 }
 .reveal .orz-template-closing.orz-v3 .orz-title-main::after { margin-left: 0; }
 .reveal .orz-template-closing.orz-v3 .orz-title-meta { margin-top: 0.8em; }
+
+/* ==========================================================
+   orz-markdown CONTAINERS & INLINE PLUGINS
+   The slide base styled only plain markdown; these restore the
+   ::: admonitions / cols / tabs / spoiler and {{sp[...]}} spans,
+   using the theme's --box-* / --rule / --surface / --accent tokens.
+   ========================================================== */
+
+/* ---- admonition callouts: ::: info | success | warning | danger ---- */
+.reveal .markdown-body div.info,
+.reveal .markdown-body div.success,
+.reveal .markdown-body div.warning,
+.reveal .markdown-body div.danger {
+    border-radius: var(--box-radius, 6px);
+    border-left: var(--box-border-width, 4px) solid;
+    box-shadow: var(--box-shadow, none);
+    padding: 0.5em 0.8em;
+    margin: 0.5em 0;
+}
+.reveal .markdown-body div.info    { background: var(--box-info-bg, #eef4fb);    border-left-color: var(--box-info, #2b6cb0); }
+.reveal .markdown-body div.success { background: var(--box-success-bg, #effaf3); border-left-color: var(--box-success, #2f9e44); }
+.reveal .markdown-body div.warning { background: var(--box-warning-bg, #fdf6e3); border-left-color: var(--box-warning, #d9a300); }
+.reveal .markdown-body div.danger  { background: var(--box-danger-bg, #fdecec);  border-left-color: var(--box-danger, #e03131); }
+.reveal .markdown-body div.info > :last-child,
+.reveal .markdown-body div.success > :last-child,
+.reveal .markdown-body div.warning > :last-child,
+.reveal .markdown-body div.danger > :last-child { margin-bottom: 0; }
+
+/* ---- inline colour spans: {{sp[red|green|blue|yellow] …}} ---- */
+.reveal .markdown-body span.red    { color: var(--span-red, #e03131); }
+.reveal .markdown-body span.green  { color: var(--span-green, #2f9e44); }
+.reveal .markdown-body span.blue   { color: var(--span-blue, #1971c2); }
+.reveal .markdown-body span.yellow { color: var(--span-yellow, #d9a300); }
+
+/* ---- inline badges: {{sp[success|info|warning|danger] …}} ---- */
+.reveal .markdown-body span.info,
+.reveal .markdown-body span.success,
+.reveal .markdown-body span.warning,
+.reveal .markdown-body span.danger {
+    display: inline-flex; align-items: center; line-height: 1; white-space: nowrap;
+    padding: 0.15em 0.55em; border-radius: 999px; font-size: 0.82em; font-weight: 600;
+    border: 1px solid;
+}
+.reveal .markdown-body span.info    { color: var(--box-info, #2b6cb0);    background: var(--box-info-bg, #eef4fb);    border-color: var(--box-info, #2b6cb0); }
+.reveal .markdown-body span.success { color: var(--box-success, #2f9e44); background: var(--box-success-bg, #effaf3); border-color: var(--box-success, #2f9e44); }
+.reveal .markdown-body span.warning { color: var(--box-warning, #d9a300); background: var(--box-warning-bg, #fdf6e3); border-color: var(--box-warning, #d9a300); }
+.reveal .markdown-body span.danger  { color: var(--box-danger, #e03131);  background: var(--box-danger-bg, #fdecec);  border-color: var(--box-danger, #e03131); }
+
+/* ---- column container: ::: cols / ::: col ---- */
+.reveal .markdown-body .cols {
+    display: grid; gap: 0.8em; margin: 0.5em 0;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+.reveal .markdown-body .cols > .col > :last-child { margin-bottom: 0; }
+
+/* ---- tabs: ::: tabs / ::: tab Label (JS in browser-entry adds the bar) ---- */
+.reveal .markdown-body .tabs { margin: 0.5em 0; }
+.reveal .markdown-body .tabs-bar {
+    display: flex; flex-wrap: wrap; gap: 0.3em;
+    margin-bottom: 0.5em; border-bottom: 1px solid var(--rule, #ddd);
+}
+.reveal .markdown-body .tabs-bar-btn {
+    font: inherit; font-size: 0.85em; cursor: pointer;
+    background: transparent; border: 0; border-bottom: 2px solid transparent;
+    padding: 0.3em 0.7em; color: var(--muted, #777);
+}
+.reveal .markdown-body .tabs-bar-btn.active {
+    color: var(--accent, #345); border-bottom-color: var(--accent, #345); font-weight: 600;
+}
+.reveal .markdown-body .tabs[data-js] > .tab { display: none; }
+.reveal .markdown-body .tabs[data-js] > .tab.active { display: block; }
+.reveal .markdown-body .tabs:not([data-js]) > .tab { display: block; }
+.reveal .markdown-body .tabs:not([data-js]) > .tab::before {
+    content: attr(data-label); display: block;
+    font-weight: 700; color: var(--accent, #345); font-size: 0.85em; margin: 0.3em 0 0.2em;
+}
+.reveal .markdown-body .tabs > .tab > :last-child { margin-bottom: 0; }
+
+/* ---- spoiler: ::: spoil Title ---- */
+.reveal .markdown-body details.spoil {
+    border: 1px solid var(--rule, #ddd); border-radius: var(--box-radius, 6px);
+    padding: 0.35em 0.7em; margin: 0.5em 0; background: var(--surface, #f6f6f6);
+}
+.reveal .markdown-body details.spoil > summary { cursor: pointer; font-weight: 600; color: var(--accent, #345); }
+.reveal .markdown-body details.spoil > :not(summary) { margin-top: 0.4em; }

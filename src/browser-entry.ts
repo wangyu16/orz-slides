@@ -88,6 +88,34 @@ function enhance(): void {
       });
     }
   } catch (e) { /* ignore */ }
+
+  initTabs();
+}
+
+/** Wire up `::: tabs` blocks (build the button bar, toggle panels). The
+ *  orz-markdown runtime that normally does this isn't bundled into slides. */
+function initTabs(): void {
+  document.querySelectorAll('.tabs:not([data-js])').forEach((tabs) => {
+    const panels = Array.from(tabs.querySelectorAll<HTMLElement>(':scope > .tab'));
+    if (!panels.length) return;
+    const bar = document.createElement('div');
+    bar.className = 'tabs-bar';
+    panels.forEach((panel, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'tabs-bar-btn' + (i === 0 ? ' active' : '');
+      btn.textContent = panel.getAttribute('data-label') || 'Tab ' + (i + 1);
+      btn.addEventListener('click', () => {
+        bar.querySelectorAll('.tabs-bar-btn').forEach((b) => b.classList.remove('active'));
+        panels.forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        panel.classList.add('active');
+      });
+      bar.appendChild(btn);
+      if (i === 0) panel.classList.add('active');
+    });
+    tabs.insertBefore(bar, panels[0]);
+    tabs.setAttribute('data-js', '');
+  });
 }
 
 /* ---------- WP6 scale-to-fit ---------- */
