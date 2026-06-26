@@ -374,3 +374,13 @@ load) are only: KaTeX (math), Mermaid, SmilesDrawer, Chart.js, and CodeMirror
 needs internet. `--cdn` instead references the engine + theme from jsDelivr
 (smaller files, needs network). Editing/Save in place needs a Chromium browser
 (File System Access API); presenting works in all modern browsers.
+
+## Security
+
+`.slides.html` files are **self-contained executable HTML** — opening one runs its
+embedded JavaScript. Treat them like programs: only open or edit files from a
+trusted source, and advise users the same. The one-click framework update is
+opt-in (edit view only, explicit confirm) and always fetches from the hardcoded
+canonical jsDelivr packages — a tampered file can't redirect it. A file's
+integrity can't be verified from inside it; for authenticity, verify out-of-band.
+See the README "Security" section.

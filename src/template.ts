@@ -230,10 +230,8 @@ export function buildHtml(o: BuildOptions): string {
     docId: o.docId,
     filename: o.filename,
     rendererVersion: o.rendererVersion,
-    versionManifest: o.versionManifest,
-    enginePkg: 'orz-slides-browser',
-    engineFile: 'orz-slides.browser.js',
-    appPkg: 'orz-slides',
+    // NB: the update SOURCE (manifest/packages/host) is hardcoded in app.js, not
+    // here — a config field must never be able to redirect the self-update.
     defaultTheme: o.defaultTheme,
     themes: o.themes,
     ratio: o.ratio,

@@ -150,6 +150,30 @@ A deck that uses math/diagrams/charts needs internet for those libraries (and
 reveal's core CSS), cached after first open. With `--inline` (default) the engine
 and theme are embedded.
 
+## Security — treat these as programs, not documents
+
+A `.slides.html` is **self-contained executable HTML**: opening one runs the
+JavaScript embedded in it (the engine, the editor, and — because the parser allows
+raw HTML in the source — potentially anything in the content). The trust model is
+the same as **running a downloaded program**, not opening a PDF.
+
+- **Only open or edit files from sources you trust.** Anyone can craft a file that
+  looks authentic (same chrome, logo, layout) but contains hostile code. The
+  format has no built-in authenticity — appearance proves nothing.
+- **What the browser limits.** A page can't run native code or read your disk
+  silently (Save uses the File System Access prompt and is scoped to the file you
+  pick). Realistic harm from a hostile file is web-context — phishing, exfiltrating
+  what you type or paste, beaconing — within the browser sandbox.
+- **The one-click update is opt-in and fixed-source.** It only checks for and
+  fetches a new framework after you enter edit mode and click **Update**, always
+  from the canonical jsDelivr packages over HTTPS (the source is hardcoded in the
+  engine — a tampered file cannot redirect it), and it shows the exact URLs for
+  confirmation first. Clicking Update places trust in npm + jsDelivr for those
+  packages.
+- **Integrity can't be self-verified.** A file cannot prove its own integrity (a
+  forgery would just lie). If you need authenticity, verify it out-of-band — a
+  checksum or signature from the publisher over a trusted channel.
+
 ## License
 
 MIT

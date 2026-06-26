@@ -384,8 +384,18 @@
     }
     return false;
   }
+  // SECURITY: the update source is HARDCODED here, never read from the file's
+  // config — a tampered/forged file cannot redirect "Update" to attacker code.
+  // Host is fixed to jsDelivr/HTTPS; the exact URLs are confirmed with the user.
+  // (Protects genuine files; a wholly-malicious file controls this code too — see
+  // the README security note. Clicking Update trusts npm + jsDelivr.)
+  var UPD = {
+    host: 'https://cdn.jsdelivr.net/npm/',
+    manifest: 'https://data.jsdelivr.com/v1/packages/npm/orz-slides-browser/resolved',
+    enginePkg: 'orz-slides-browser', engineFile: 'orz-slides.browser.js', appPkg: 'orz-slides'
+  };
   function checkVersion() {
-    if (!CFG.versionManifest || !CFG.rendererVersion) return;
+    if (!CFG.rendererVersion) return;
     try {
       var cached = JSON.parse(localStorage.getItem('orz-slides:vercheck') || 'null');
       if (cached && (Date.now() - cached.t) < 86400000) {
@@ -393,7 +403,7 @@
         return;
       }
     } catch (e) {}
-    fetch(CFG.versionManifest).then(function (r) { return r.json(); }).then(function (j) {
+    fetch(UPD.manifest).then(function (r) { return r.json(); }).then(function (j) {
       var latest = j && j.version;
       try { localStorage.setItem('orz-slides:vercheck', JSON.stringify({ t: Date.now(), v: latest })); } catch (e) {}
       if (latest && isNewer(latest, CFG.rendererVersion)) showUpdate(latest);
@@ -409,9 +419,9 @@
    *  re-inline them, bump the version, save in place, and reload. */
   function applyUpdate() {
     var bar = document.getElementById('orz-update'); var latest = bar && bar.getAttribute('data-latest'); if (!latest) return;
-    var base = 'https://cdn.jsdelivr.net/npm/';
-    var engineUrl = base + CFG.enginePkg + '@' + latest + '/' + CFG.engineFile;
-    var appUrl = base + CFG.appPkg + '@' + latest + '/assets/app.js';
+    var engineUrl = UPD.host + UPD.enginePkg + '@' + latest + '/' + UPD.engineFile;
+    var appUrl = UPD.host + UPD.appPkg + '@' + latest + '/assets/app.js';
+    if (!window.confirm('Update the framework to ' + latest + '?\n\nThis downloads and runs code from:\n  ' + engineUrl + '\n  ' + appUrl + '\n\nOnly proceed if you trust this document and its publisher.')) return;
     toast('Downloading framework ' + latest + '…');
     Promise.all([
       fetch(engineUrl).then(function (r) { if (!r.ok) throw new Error('engine'); return r.text(); }),
