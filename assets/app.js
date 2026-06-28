@@ -210,6 +210,28 @@
     if (API.reveal) { API.reveal.layout(); API.refresh(); }
   }
 
+  // Drag the panel's top edge to set the editor/deck height split (--orz-vsplit);
+  // the deck refits live (rAF-throttled) and on release.
+  function wireVDivider() {
+    var d = document.getElementById('orz-vdivider'); if (!d || d.__wired) return; d.__wired = true;
+    var dragging = false, rafPending = false;
+    d.addEventListener('mousedown', function (e) {
+      dragging = true; d.classList.add('dragging'); e.preventDefault();
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      var pct = Math.max(20, Math.min(80, ((window.innerHeight - e.clientY) / window.innerHeight) * 100));
+      root.style.setProperty('--orz-vsplit', pct + '%');
+      if (!rafPending) { rafPending = true; requestAnimationFrame(function () { rafPending = false; if (API.reveal) API.reveal.layout(); }); }
+    });
+    document.addEventListener('mouseup', function () {
+      if (!dragging) return;
+      dragging = false; d.classList.remove('dragging'); document.body.style.userSelect = '';
+      if (cm) cm.refresh(); if (API.reveal) API.reveal.layout();
+    });
+  }
+
   // ---- deck ops ------------------------------------------------------------
   function rebuildFrom(newSlides, focus) {
     slides = newSlides;
@@ -480,6 +502,7 @@
   function wireUi() {
     on('orz-edit-fab', 'click', enterEdit);
     on('orz-close', 'click', done);
+    wireVDivider();
     on('orz-deck-btn', 'click', function () { if (editingDeck) loadSlideIntoEditor(curH()); else editDeck(); });
     on('orz-save', 'click', save);
     on('orz-download', 'click', exportCopy);

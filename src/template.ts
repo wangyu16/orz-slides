@@ -74,8 +74,9 @@ function escapeHtml(s: string): string {
 
 const CHROME_CSS = `
   html, body { margin: 0; height: 100%; }
+  html { --orz-vsplit: 42%; }
   .reveal { height: 100%; }
-  [data-mode="edit"] .reveal { height: 58%; }
+  [data-mode="edit"] .reveal { height: calc(100% - var(--orz-vsplit)); }
 
   /* Edit control — a circular, theme-tinted button (color = --accent) that
      app.js positions just above reveal's left/right arrows, reading as part of
@@ -101,11 +102,14 @@ const CHROME_CSS = `
 
   #orz-panel {
     display: flex; flex-direction: column;
-    position: fixed; left: 0; right: 0; bottom: 0; height: 42%; z-index: 40;
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--orz-vsplit); z-index: 40;
     background: #1f2228; border-top: 1px solid #333; box-shadow: 0 -2px 16px rgba(0,0,0,.3);
     transform: translateY(calc(100% + 28px)); transition: transform .22s ease;
   }
   [data-mode="edit"] #orz-panel { transform: translateY(0); }
+  /* vertical resize handle on the panel's top edge (drag to set editor/deck split) */
+  #orz-vdivider { position: absolute; top: 0; left: 0; right: 0; height: 6px; z-index: 44; cursor: row-resize; }
+  #orz-vdivider:hover, #orz-vdivider.dragging { background: #3b82f6; }
   /* close tab — a small handle on the editor's top edge that slides it away */
   #orz-close {
     position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
@@ -136,6 +140,9 @@ const CHROME_CSS = `
     font: 500 12.5px/1 system-ui, sans-serif; color: #e6e8ec; background: #34383f;
     border: 1px solid #454b55; border-radius: 7px; padding: 6px 8px; cursor: pointer; margin: 0 2px;
   }
+  #orz-toolbar #orz-copy { font: 500 11px/1 system-ui, sans-serif; color: #6b7480; text-decoration: none;
+    padding: 0 4px; white-space: nowrap; }
+  #orz-toolbar #orz-copy:hover { color: #cdd3df; }
   #orz-toolbar .orz-sep { width: 1px; height: 20px; background: #3c414a; margin: 0 5px; }
   #orz-toolbar .orz-pos { color: #9aa3b2; font: 600 12px/1 system-ui, sans-serif; padding: 0 4px; min-width: 40px; text-align: center; }
   #orz-toolbar .orz-spacer { flex: 1; }
@@ -276,6 +283,7 @@ ${themeTag}
 <button id="orz-edit-fab" class="orz-edit-ctrl" title="Edit this deck">${ICON.pencil}</button>
 
 <div id="orz-panel">
+  <div id="orz-vdivider" title="Drag to resize"></div>
   <button id="orz-close" title="Close editor — back to presenting">${ICON.collapseDown}</button>
   <div id="orz-toolbar">
     ${BRAND}
@@ -295,6 +303,7 @@ ${themeTag}
     <span class="orz-spacer"></span>
     <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)">${ICON.deck}</button>
     <select id="orz-theme" title="Theme"></select>
+    <a id="orz-copy" href="https://markdown.orz.how" target="_blank" rel="noopener noreferrer" title="orz-markdown">© orz-markdown</a>
   </div>
   <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
 </div>
