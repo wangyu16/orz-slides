@@ -97,13 +97,25 @@ const CHROME_CSS = `
     background: color-mix(in srgb, var(--accent, #888) 30%, transparent);
   }
   [data-mode="edit"] .orz-edit-ctrl { display: none; }
+  .orz-edit-ctrl svg { width: 19px; height: 19px; display: block; }
 
-  #orz-panel { display: none; }
-  [data-mode="edit"] #orz-panel {
+  #orz-panel {
     display: flex; flex-direction: column;
     position: fixed; left: 0; right: 0; bottom: 0; height: 42%; z-index: 40;
     background: #1f2228; border-top: 1px solid #333; box-shadow: 0 -2px 16px rgba(0,0,0,.3);
+    transform: translateY(calc(100% + 28px)); transition: transform .22s ease;
   }
+  [data-mode="edit"] #orz-panel { transform: translateY(0); }
+  /* close tab — a small handle on the editor's top edge that slides it away */
+  #orz-close {
+    position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
+    width: 50px; height: 19px; z-index: 46; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 8px 8px 0 0; background: #23262c; color: #c2c8d0;
+    cursor: pointer; box-shadow: 0 -2px 8px rgba(0,0,0,.18);
+  }
+  #orz-close:hover { background: #383d45; color: #fff; }
+  #orz-close svg { width: 15px; height: 15px; display: block; }
   #orz-toolbar {
     display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
     padding: 7px 10px; background: #23262c; border-bottom: 1px solid #34383f;
@@ -163,6 +175,11 @@ const CHROME_CSS = `
 function svg(path: string): string {
   return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 }
+/** Canonical 24-viewBox icons (shared across the orz family) for functions that
+ *  exist on every surface, so the same function shows the same glyph. */
+function ic24(path: string): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+}
 const ICON = {
   done: svg('<path d="M3 8.4l3.2 3.2L13 4.8"/>'),
   deck: svg('<path d="M2.5 5h6M2.5 11h2.5M8 11h5.5"/><circle cx="10" cy="5" r="1.7"/><circle cx="5.5" cy="11" r="1.7"/>'),
@@ -173,8 +190,10 @@ const ICON = {
   del: svg('<path d="M3 4.5h10M6.2 4.5V3.3a.8.8 0 0 1 .8-.8h2a.8.8 0 0 1 .8.8v1.2M4.9 4.5l.5 8a1 1 0 0 0 1 .95h3.2a1 1 0 0 0 1-.95l.5-8"/>'),
   up: svg('<path d="M8 13V3.4M4 7.2l4-4 4 4"/>'),
   down: svg('<path d="M8 3v9.6M4 8.8l4 4 4-4"/>'),
-  download: svg('<path d="M8 2.6v7.6M4.6 6.9 8 10.3l3.4-3.4M3 13.2h10"/>'),
-  save: svg('<path d="M3.4 3.2h7L13 5.6v7.2H3.4z"/><path d="M5.6 3.2v3.2h4V3.2M5.6 12.8V9.4h4.8v3.4"/>'),
+  download: ic24('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'),
+  save: ic24('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>'),
+  pencil: ic24('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'),
+  collapseDown: ic24('<path d="M6 9l6 6 6-6"/>'),
 };
 
 /** The orz mark — the "orz" wordmark knocked out of a weathered green seal
@@ -254,14 +273,15 @@ ${themeTag}
 <body>
 <div class="reveal"><div class="slides"></div></div>
 
-<button id="orz-edit-fab" class="orz-edit-ctrl" title="Edit this deck">&#9998;</button>
+<button id="orz-edit-fab" class="orz-edit-ctrl" title="Edit this deck">${ICON.pencil}</button>
 
 <div id="orz-panel">
+  <button id="orz-close" title="Close editor — back to presenting">${ICON.collapseDown}</button>
   <div id="orz-toolbar">
     ${BRAND}
     <span class="orz-sep"></span>
-    <button id="orz-done" class="ic" title="Done — back to presenting">${ICON.done}</button>
-    <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)">${ICON.deck}</button>
+    <button id="orz-save" class="ic primary" title="Save (Ctrl/Cmd+S)">${ICON.save}</button>
+    <button id="orz-download" class="ic" title="Download a copy">${ICON.download}</button>
     <span class="orz-sep"></span>
     <button id="orz-prev" class="ic" title="Previous slide">${ICON.prev}</button>
     <span id="orz-pos" class="orz-pos">1 / 1</span>
@@ -273,9 +293,8 @@ ${themeTag}
     <button id="orz-up" class="ic" title="Move slide earlier">${ICON.up}</button>
     <button id="orz-down" class="ic" title="Move slide later">${ICON.down}</button>
     <span class="orz-spacer"></span>
+    <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)">${ICON.deck}</button>
     <select id="orz-theme" title="Theme"></select>
-    <button id="orz-download" class="ic" title="Download a copy">${ICON.download}</button>
-    <button id="orz-save" class="ic primary" title="Save (Ctrl/Cmd+S)">${ICON.save}</button>
   </div>
   <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
 </div>

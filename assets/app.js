@@ -479,7 +479,7 @@
   function navTo(i) { editingDeck = false; gotoSlide(i); }
   function wireUi() {
     on('orz-edit-fab', 'click', enterEdit);
-    on('orz-done', 'click', done);
+    on('orz-close', 'click', done);
     on('orz-deck-btn', 'click', function () { if (editingDeck) loadSlideIntoEditor(curH()); else editDeck(); });
     on('orz-save', 'click', save);
     on('orz-download', 'click', exportCopy);
