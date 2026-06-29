@@ -95,3 +95,13 @@ body {
     text-decoration: none;
     border-bottom: 1px dashed #1e6b63;
 }
+
+/* Mermaid + charts render with light defaults; on this dark theme give them a soft
+   translucent light panel so they stay legible (matches the orz-markdown fix). */
+.reveal .markdown-body .mermaid,
+.reveal .markdown-body canvas.orz-chart {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 0.5rem;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}

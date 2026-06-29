@@ -140,7 +140,7 @@ function renderTemplate(slide: Slide, md: Renderer, deck: DeckConfig): string {
 
   return `<section ${sectionAttrs(slide, 'template', name)}>`
     + `<div class="orz-frame">`
-    + `<div class="orz-template orz-template-${escapeAttr(name)}${v}">${inner}</div>`
+    + `<div class="orz-template orz-template-${escapeAttr(name)}${v}" data-orz-copy>${inner}</div>`
     + footerBand(slide, deck, md)
     + `</div>`
     + floatBoxes(slide.floats, md)
