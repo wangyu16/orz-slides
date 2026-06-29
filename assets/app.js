@@ -496,6 +496,99 @@
     btn.style.bottom = 'auto';
   }
 
+  // ---- layout picker -------------------------------------------------------
+  // Tiny SVG thumbnails (currentColor) + the markdown skeleton each layout inserts.
+  function lsvg(inner) {
+    return '<svg viewBox="0 0 64 40" fill="none" aria-hidden="true">' +
+      '<rect x="1.5" y="1.5" width="61" height="37" rx="3" stroke="currentColor" stroke-opacity="0.4"/>' + inner + '</svg>';
+  }
+  function lbox(x, y, w, h) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-opacity="0.3"/>';
+  }
+  function lbar(x, y, w, h, op) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1" fill="currentColor" fill-opacity="' + (op == null ? 0.5 : op) + '"/>';
+  }
+  function lrow(y, w) { return '<circle cx="9" cy="' + (y + 1.5) + '" r="1.4" fill="currentColor" fill-opacity="0.5"/>' + lbar(13, y, w, 3, 0.3); }
+
+  var LAYOUTS = [
+    { key: 'title', name: 'Title', thumb: lsvg(lbar(16, 15, 32, 6) + lbar(22, 25, 20, 3, 0.28)),
+      md: '<!-- slide template=title -->\n# Title\n## Subtitle\nAuthor · Date\n' },
+    { key: 'section', name: 'Section', thumb: lsvg(lbar(8, 16, 32, 7) + lbar(8, 27, 16, 3, 0.28)),
+      md: '<!-- slide template=section -->\n# Section title\nOptional subtitle\n' },
+    { key: 'bullets', name: 'Bullets', thumb: lsvg(lbar(7, 7, 24, 4) + lrow(16, 44) + lrow(23, 44) + lrow(30, 34)),
+      md: '<!-- slide -->\n## Slide title\n\n- Point one\n- Point two\n- Point three\n' },
+    { key: '2col', name: 'Two columns', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 25, 21) + lbox(33, 13, 25, 21)),
+      md: '<!-- slide 2col -->\n## Slide title\n\n<!-- @left -->\n\n\n<!-- @right -->\n\n' },
+    { key: 'main-side', name: 'Main + side', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 34, 21) + lbox(42, 13, 16, 21)),
+      md: '<!-- slide main-side -->\n## Slide title\n\n<!-- @main -->\n\n\n<!-- @side -->\n\n' },
+    { key: '3col', name: 'Three columns', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 16, 21) + lbox(24, 13, 16, 21) + lbox(42, 13, 16, 21)),
+      md: '<!-- slide 3col -->\n## Slide title\n\n<!-- @left -->\n\n\n<!-- @mid -->\n\n\n<!-- @right -->\n\n' },
+    { key: '2row', name: 'Two rows', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 52, 10) + lbox(6, 25, 52, 10)),
+      md: '<!-- slide 2row -->\n## Slide title\n\n<!-- @top -->\n\n\n<!-- @bottom -->\n\n' },
+    { key: 'quad', name: 'Quad (2×2)', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 25, 10) + lbox(33, 13, 25, 10) + lbox(6, 25, 25, 10) + lbox(33, 25, 25, 10)),
+      md: '<!-- slide quad -->\n## Slide title\n\n<!-- @tl -->\n\n\n<!-- @tr -->\n\n\n<!-- @bl -->\n\n\n<!-- @br -->\n\n' },
+    { key: 'outline', name: 'Outline', thumb: lsvg(lbar(8, 7, 22, 4) + lbar(10, 16, 40, 3, 0.32) + lbar(10, 23, 40, 3, 0.32) + lbar(10, 30, 30, 3, 0.32)),
+      md: '<!-- slide template=outline -->\n## Outline\n\n1. First topic\n2. Second topic\n3. Third topic\n' },
+    { key: 'closing', name: 'Closing', thumb: lsvg(lbar(18, 16, 28, 6) + lbar(24, 26, 16, 3, 0.28)),
+      md: '<!-- slide template=closing -->\n# Thank you\nQuestions? · your.contact\n' },
+  ];
+  function layoutByKey(k) { for (var i = 0; i < LAYOUTS.length; i++) if (LAYOUTS[i].key === k) return LAYOUTS[i]; return null; }
+
+  function buildLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu'); if (!menu) return;
+    menu.innerHTML = LAYOUTS.map(function (l) {
+      return '<button class="orz-layout-tile" type="button" role="menuitem" data-layout="' + l.key + '" title="' + l.name + '">' + l.thumb + '<span class="lname">' + l.name + '</span></button>';
+    }).join('');
+    menu.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('.orz-layout-tile') : null;
+      if (!t) return;
+      applyLayout(t.getAttribute('data-layout'));
+      closeLayoutMenu();
+    });
+  }
+  function openLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu'), btn = document.getElementById('orz-layout-btn');
+    if (!menu || !btn) return;
+    menu.hidden = false;
+    var r = btn.getBoundingClientRect(), w = menu.offsetWidth || 320, h = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+    menu.style.top = (r.bottom + h + 8 <= window.innerHeight ? r.bottom + 4 : Math.max(8, r.top - h - 4)) + 'px';
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  function closeLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu'), btn = document.getElementById('orz-layout-btn');
+    if (menu) menu.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu');
+    if (menu && menu.hidden) openLayoutMenu(); else closeLayoutMenu();
+  }
+  // Apply a layout to the current slide. New/empty slide → drop the skeleton in;
+  // a slide with content → keep the skeleton and tuck the old content into an
+  // HTML comment (with any nested "-->" neutralised) so it can be copy-pasted.
+  function applyLayout(key) {
+    var l = layoutByKey(key); if (!l || !cm) return;
+    if (editingDeck) { toast('Switch to a slide to apply a layout'); return; }
+    var src = cm.getValue();
+    var m = src.match(/^[ \t]*<!--\s*slide\b[^]*?-->[ \t]*\r?\n?/);
+    var body = m ? src.slice(m[0].length) : src;
+    var trimmed = body.replace(/^\s+|\s+$/g, '');
+    var isEmpty = trimmed === '' || /^##\s+new slide$/i.test(trimmed);
+    var next;
+    if (isEmpty) {
+      next = l.md;
+    } else {
+      var safe = body.replace(/-->/g, '--​>').replace(/\s+$/, '');
+      next = l.md.replace(/\s+$/, '') +
+        '\n\n<!--\nPrevious content — move it into the regions above, then delete this block.\n\n' +
+        safe + '\n-->\n';
+    }
+    cm.setValue(next);
+    cm.focus();
+    markDirty();
+  }
+
   // ---- wiring --------------------------------------------------------------
   function on(id, ev, fn) { var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
   function navTo(i) { editingDeck = false; gotoSlide(i); }
@@ -520,9 +613,23 @@
     var sel = document.getElementById('orz-theme');
     if (sel) sel.addEventListener('change', function () { setTheme(this.value); });
 
+    buildLayoutMenu();
+    on('orz-layout-btn', 'click', function (e) { e.stopPropagation(); toggleLayoutMenu(); });
+    document.addEventListener('click', function (e) {
+      var menu = document.getElementById('orz-layout-menu');
+      if (!menu || menu.hidden || menu.contains(e.target)) return;
+      var btn = document.getElementById('orz-layout-btn');
+      if (btn && (e.target === btn || btn.contains(e.target))) return;
+      closeLayoutMenu();
+    });
+
     document.addEventListener('keydown', function (e) {
       if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 's') { e.preventDefault(); save(); }
-      else if (e.key === 'Escape' && editing) { done(); }
+      else if (e.key === 'Escape') {
+        var menu = document.getElementById('orz-layout-menu');
+        if (menu && !menu.hidden) closeLayoutMenu();
+        else if (editing) done();
+      }
     });
     window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
   }

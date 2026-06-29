@@ -176,6 +176,17 @@ const CHROME_CSS = `
     font: 13px system-ui, sans-serif; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
   }
   #orz-toast.show { opacity: .95; transform: translateX(-50%) translateY(0); }
+
+  /* layout picker popover */
+  #orz-layout-menu { position: fixed; z-index: 75; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    width: 320px; max-height: 64vh; overflow: auto; padding: 8px; box-sizing: border-box;
+    background: #23262c; border: 1px solid #3c414a; border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+  #orz-layout-menu[hidden] { display: none; }
+  .orz-layout-tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px;
+    background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer; color: #c2c8d0; }
+  .orz-layout-tile:hover { background: #2f343c; border-color: #454b55; color: #fff; }
+  .orz-layout-tile svg { width: 74px; height: 46px; display: block; }
+  .orz-layout-tile .lname { font: 500 11px/1.15 system-ui, sans-serif; text-align: center; }
 `;
 
 /** Inline line-icons (stroke = currentColor) for the editor toolbar. */
@@ -201,6 +212,7 @@ const ICON = {
   save: ic24('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>'),
   pencil: ic24('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'),
   collapseDown: ic24('<path d="M6 9l6 6 6-6"/>'),
+  layout: ic24('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
 };
 
 /** The orz mark — the "orz" wordmark knocked out of a weathered green seal
@@ -301,12 +313,15 @@ ${themeTag}
     <button id="orz-up" class="ic" title="Move slide earlier">${ICON.up}</button>
     <button id="orz-down" class="ic" title="Move slide later">${ICON.down}</button>
     <span class="orz-spacer"></span>
+    <button id="orz-layout-btn" class="ic" title="Slide layout" aria-haspopup="true" aria-expanded="false">${ICON.layout}</button>
     <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)">${ICON.deck}</button>
     <select id="orz-theme" title="Theme"></select>
     <a id="orz-copy" href="https://markdown.orz.how" target="_blank" rel="noopener noreferrer" title="orz-markdown">© orz-markdown</a>
   </div>
   <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
 </div>
+
+<div id="orz-layout-menu" hidden role="menu" aria-label="Slide layouts"></div>
 
 <div id="orz-update" class="orz-banner"><span class="upd-text"></span><button id="orz-upd-apply" class="upd-primary">Update</button><button id="orz-upd-dismiss">Dismiss</button></div>
 <div id="orz-served-note" class="orz-banner"><span>This is a published page &mdash; edits can&rsquo;t be saved back to the server.</span><button id="orz-served-download">Download copy</button><button id="orz-served-dismiss">Dismiss</button></div>
