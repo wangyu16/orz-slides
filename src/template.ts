@@ -187,6 +187,10 @@ const CHROME_CSS = `
   .orz-layout-tile:hover { background: #2f343c; border-color: #454b55; color: #fff; }
   .orz-layout-tile svg { width: 74px; height: 46px; display: block; }
   .orz-layout-tile .lname { font: 500 11px/1.15 system-ui, sans-serif; text-align: center; }
+  .orz-layout-more { grid-column: 1 / -1; display: block; text-align: center; padding: 9px 8px 4px;
+    margin-top: 3px; border-top: 1px solid #3c414a; color: #9aa3b2; text-decoration: none;
+    font: 600 12px/1 system-ui, sans-serif; }
+  .orz-layout-more:hover { color: #fff; }
 `;
 
 /** Inline line-icons (stroke = currentColor) for the editor toolbar. */

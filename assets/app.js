@@ -538,8 +538,10 @@
     var menu = document.getElementById('orz-layout-menu'); if (!menu) return;
     menu.innerHTML = LAYOUTS.map(function (l) {
       return '<button class="orz-layout-tile" type="button" role="menuitem" data-layout="' + l.key + '" title="' + l.name + '">' + l.thumb + '<span class="lname">' + l.name + '</span></button>';
-    }).join('');
+    }).join('') +
+      '<a class="orz-layout-more" href="https://markdown.orz.how/slides.html" target="_blank" rel="noopener noreferrer">More layouts &amp; syntax →</a>';
     menu.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('.orz-layout-more')) { closeLayoutMenu(); return; }
       var t = e.target.closest ? e.target.closest('.orz-layout-tile') : null;
       if (!t) return;
       applyLayout(t.getAttribute('data-layout'));
