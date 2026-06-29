@@ -16,14 +16,14 @@ authoring syntax §5, pipeline §6, overflow §7, packaging §13).
 [BUILD-PLAN.md](./BUILD-PLAN.md) is the **module map** — work packages (WPs),
 their owned files, interfaces, and the build order.
 
-> **Status: functional, not yet published.** All work packages (WP0–WP10) are
-> built and verified — `orz-slides deck.md` generates a working, self-editing
+> **Status: published (v0.1.0).** All work packages (WP0–WP10) are built and
+> verified — `orz-slides deck.md` generates a working, self-editing
 > `.slides.html`. Presenter tools are wired: speaker view (**S**), step-reveal
 > fragments (`step` flag / `{{attrs[.fragment]}}`), on-deck clock/timer (**T**),
-> slide numbers + progress bar. The npm packages aren't published yet; **PDF
-> export** is the remaining planned presenter extra.
+> slide numbers + progress bar. Both npm packages are published in lockstep at
+> v0.1.0; **PDF export** is the remaining planned presenter extra.
 
-Two npm packages will live here, **versioned in lockstep** (mirroring
+Two npm packages live here, **versioned in lockstep** (mirroring
 orz-mdhtml):
 - `orz-slides` — the CLI (this package).
 - `orz-slides-browser` — the prebuilt in-browser engine (`browser/`,

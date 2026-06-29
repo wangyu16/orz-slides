@@ -9,10 +9,25 @@ syntax, and stays *quietly editable*. Built on
 One file. Open it in a browser to present. Pop out a per-slide editor to change
 a slide. Save it back in place. Nothing to install for the audience.
 
-> **Status: functional, not yet published.** The authoring syntax, CLI, engine,
-> and in-file editor all work (see [DESIGN.md](./DESIGN.md)); the npm packages
-> aren't published yet. Speaker view, step-reveal fragments, an on-deck timer,
-> and slide numbers are wired; **PDF export** is the remaining planned extra.
+> **Status: published (v0.1.0).** The authoring syntax, CLI, engine, and in-file
+> editor all work (see [DESIGN.md](./DESIGN.md)). Two packages publish in
+> lockstep: the [`orz-slides`](https://www.npmjs.com/package/orz-slides) CLI and
+> the [`orz-slides-browser`](https://www.npmjs.com/package/orz-slides-browser)
+> engine. Speaker view, step-reveal fragments, an on-deck timer, and slide
+> numbers are wired; **PDF export** is the remaining planned extra.
+
+## Install & generate
+
+```bash
+npm install -g orz-slides          # or: npx orz-slides <deck.md>
+orz-slides deck.md                 # → deck.slides.html (inline engine + all 7 themes)
+orz-slides deck.md --cdn           # reference the engine + theme from jsDelivr instead
+orz-slides deck.md -o talk.slides.html --theme executive
+```
+
+The `--inline` default embeds the engine, reveal's core CSS, and all seven themes,
+so a text deck presents (and switches themes) offline. `--cdn` keeps the file
+small by loading the engine + theme from jsDelivr.
 
 ## What a `.slides.html` does
 
