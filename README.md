@@ -114,6 +114,19 @@ the content area into named regions filled by `<!-- @name -->`. See
 [orz-slides-skills/SKILL.md](./orz-slides-skills/SKILL.md) for the full layout
 grammar, templates, and per-container capacity budgets.
 
+## Use with an AI agent
+
+The package ships an **agent skill** that teaches an AI agent the deck format — the
+layout grammar, structure templates, regions, and floats. The quickest way to build a
+deck is to let an agent do it:
+
+- **Any agent** — point it at the skill, then describe what you want:
+  `https://cdn.jsdelivr.net/npm/orz-slides/orz-slides-skills/SKILL.md`
+- **Claude Code** — copy `orz-slides-skills/` into `~/.claude/skills/orz-slides/`.
+
+More install routes: <https://markdown.orz.how/agents.html> · layout reference:
+<https://markdown.orz.how/slides.html>
+
 ## Key features
 
 - **Portable & self-contained** — one `.slides.html` opens and presents in any
