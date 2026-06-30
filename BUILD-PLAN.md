@@ -107,7 +107,8 @@ Each WP lists: **owns** (files it may write — disjoint, so concurrency is safe
 
 ### WP10 — End-to-end validation  *(lead, last)*
 - A real example deck exercising every preset, template, float, math/mermaid/
-  smiles/chart, overflow; browser-verified; PDF export check.
+  smiles/chart, overflow; browser-verified. PDF export remains a planned
+  presenter extra.
 
 ## Parallelization
 
@@ -130,4 +131,5 @@ Each WP lists: **owns** (files it may write — disjoint, so concurrency is safe
 
 Overflow/fit (M4 is the gate); editing inside reveal's DOM (regenerate one
 section + `reveal.sync()`); theme↔markdown reconciliation (DOM contract is the
-shared truth); bundle size (lazy-load editor libs, `--cdn` default).
+shared truth); bundle size (default `--inline`, optional `--cdn`, lazy-load editor
+libs).

@@ -174,9 +174,9 @@ More install routes: <https://markdown.orz.how/agents.html> · layout reference:
 | Per-slide pop-out editor (CodeMirror, live preview) | All modern browsers |
 | **Save in place** (File System Access API) | Chromium (Chrome/Edge); others fall back to download a copy |
 
-A deck that uses math/diagrams/charts needs internet for those libraries (and
-reveal's core CSS), cached after first open. With `--inline` (default) the engine
-and theme are embedded.
+A deck that uses math/diagrams/charts needs internet for those content
+libraries, cached after first open. With `--inline` (default), the engine,
+reveal's core CSS, and all themes are embedded.
 
 ## Security — treat these as programs, not documents
 

@@ -136,8 +136,9 @@ decks; match its terminology in any doc change.
   a hidden (`display:none`) slide sizes to 0 — `browser-entry.ts` draws/resizes
   charts only on the current slide. Smiles/mermaid are fixed-size, so they're
   fine drawn anytime.
-- Default `--inline` embeds the engine + theme; a deck that uses math/diagrams/
-  charts still pulls those libs (and reveal's core CSS) from CDN at view time.
+- Default `--inline` embeds the engine, reveal's core CSS, and all seven themes;
+  a deck that uses math/diagrams/charts still pulls those content libraries from
+  CDN at view time.
   Presenting works in all modern browsers, **editing/Save only in Chromium**.
 
 ## Sibling projects

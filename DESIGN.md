@@ -1,22 +1,25 @@
-# orz-slides — design spec (draft for review)
+# orz-slides — design spec
 
 A `.slides.html` is **one portable file** that opens in any browser as a
 presentation, is authored in **orz-markdown** with a **layout syntax**, and
 carries a **pop-out per-slide editor** so it can be edited and saved without any
 tooling. It is the slide-deck sibling of
 [orz-mdhtml](../orz-mdhtml) — same philosophy (deck-first, quietly editable,
-self-contained, CDN-delivered renderer), built on **reveal.js** for the deck
+self-contained, browser-delivered engine), built on **reveal.js** for the deck
 mechanics and **orz-markdown** for content.
 
-> Status: **plan only** — for review before any code is written. Decisions
-> locked so far: reveal.js engine; presets + region-marker layout syntax.
+> Status: **published MVP** (`orz-slides` + `orz-slides-browser` v0.1.0). The
+> authoring syntax, engine, themes, editor, speaker view, fragments, timer, slide
+> numbers, progress bar, and npm packaging are built. PDF export is the remaining
+> planned presenter extra.
 
 ---
 
 ## 1. Goals
 
 - **Portable & self-contained.** One `.slides.html` opens and presents in any
-  modern browser. Renderer / engine / themes load from CDN (cached); no install.
+  modern browser. The default `--inline` embeds the engine, reveal's core CSS,
+  and all themes; `--cdn` keeps files smaller by using jsDelivr.
 - **Authored in orz-markdown.** Slides are markdown (math, mermaid, smiles, qr,
   tabs, containers) — never hand-written HTML.
 - **Layout by space division.** A small comment-based syntax divides each slide
@@ -25,8 +28,8 @@ mechanics and **orz-markdown** for content.
   preview) edits the slide source and saves back into the file.
 - **Template-driven structure slides.** Title / section / outline / closing
   pages come from a small gallery of templates.
-- **Presenter-grade.** Navigation, overview, speaker notes + timer, PDF export —
-  inherited from reveal.js.
+- **Presenter-grade.** Navigation, overview, speaker notes + timer are built;
+  browser-print PDF export remains planned.
 
 ## 2. Non-goals (at least initially)
 
@@ -43,8 +46,9 @@ mechanics and **orz-markdown** for content.
 |---|---|---|
 | In-file runtime; CodeMirror; morphdom live preview; FS-Access + IndexedDB save; theme picker; copy-as-markdown; CDN delivery + version check; served-page notice; CLI generator + lockstep browser bundle | reveal.js integration; the 7 slide themes (CSS); library set (KaTeX/mhchem/SmilesDrawer/Mermaid/Chart.js); `<aside class="notes">` for speaker notes; "valid standalone HTML" principle; agent-skill structure | Layout syntax + parser; deck source format; per-slide pop-out editor; slide nav / overview / reorder UI; template gallery; **overflow/fit handling** |
 
-orz-markdown rendering comes from the published `orz-mdhtml-browser` bundle (or a
-dedicated `orz-slides-browser` bundle that also embeds the slide engine).
+orz-markdown rendering comes from the dedicated `orz-slides-browser` bundle,
+which embeds reveal.js, orz-markdown, the slide parser/layout engine, and the
+runtime.
 
 ---
 
@@ -343,13 +347,15 @@ theme & ratio; edit title/outline pages through their template fields.
 
 Identical model to orz-mdhtml:
 
-- **Delivery:** default `--cdn` — the engine (`orz-slides-browser`: reveal.js +
-  orz-markdown renderer + slide runtime) loads from jsDelivr (versioned,
-  cached); `--inline` embeds it. Themes & libs (KaTeX/mermaid/smiles/Chart.js)
-  from CDN.
+- **Delivery:** default `--inline` embeds the engine (`orz-slides-browser`),
+  reveal's core CSS, and all seven themes so text decks present and switch
+  themes offline. `--cdn` loads the engine, reveal CSS, and active theme from
+  jsDelivr for smaller files. Math/diagram/chart/editor libraries still load
+  from CDN on demand.
 - **Save:** self-reproducing; Chromium in-place via File System Access API +
   persisted handle; download elsewhere; served pages prompt to download a copy.
-- **Viewing needs internet** (CDN assets), unless a future `--inline-all`.
+- **Viewing text-only inline decks works offline.** Decks using math, diagrams,
+  charts, or the in-browser editor need internet for those libraries.
 
 ---
 
@@ -455,7 +461,7 @@ about any nested split.
 | Theme reconciliation (reveal vs markdown content) | Per-theme CSS that styles both; port + adapt the 7 |
 | Self-contained + reveal PDF/speaker plugins from one file | Verify print-pdf + notes plugin from `file://`/served early |
 | Layout syntax ergonomics | Lock the preset/region grammar in this spec; user-test with real decks |
-| Bundle size (reveal + orz-markdown) | `--cdn` default; lazy-load editor libs; measure |
+| Bundle size (reveal + orz-markdown) | `--inline` default for portability, optional `--cdn` for small files; lazy-load editor libs |
 
 ## 16. Phased roadmap
 
@@ -470,7 +476,7 @@ about any nested split.
 - **Phase 3:** ~~speaker view~~ ✅; ~~charts~~ ✅; ~~qr~~ ✅; ~~fragments~~ ✅
   (slide-level `step` flag + `{{attrs[.fragment]}}`); ~~slide numbers + progress
   + timer~~ ✅; transitions (per-slide `t=`, deck `transition:`); ~~CLI + npm
-  (lockstep browser bundle)~~ ✅ (built, not yet published); ~~agent skill~~ ✅;
+  (lockstep browser bundle)~~ ✅ (published v0.1.0); ~~agent skill~~ ✅;
   ~~CLAUDE.md~~ ✅. **Remaining: PDF export.**
 
 ---

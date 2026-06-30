@@ -79,7 +79,7 @@ const html = `<!DOCTYPE html>
 <title>${deck.config.title || 'spike'}</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reset.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/katex.min.css">
 <link id="presentation-theme" rel="stylesheet" href="../assets/themes/theme-${deck.config.theme || 'paper'}.css">
 </head>
 <body>

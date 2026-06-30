@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { getBrowserRuntimeScript } from 'orz-markdown/runtime';
+import { PREVIEW_CDN } from 'orz-markdown/preview-frame';
 import { parseDeck } from './slide-parser.js';
 import { buildHtml, type ThemeEntry, type RendererSpec, type ThemeSpec } from './template.js';
 
@@ -183,10 +184,10 @@ function main(): void {
     },
     revealCss,
     cdn: {
-      katexCss: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css',
-      mermaidJs: 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js',
-      smilesJs: 'https://cdn.jsdelivr.net/npm/smiles-drawer@1.0.10/dist/smiles-drawer.min.js',
-      chartJs: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js',
+      katexCss: PREVIEW_CDN.katexCss,
+      mermaidJs: PREVIEW_CDN.mermaidJs,
+      smilesJs: PREVIEW_CDN.smilesJs,
+      chartJs: PREVIEW_CDN.chartJs,
     },
   });
 
