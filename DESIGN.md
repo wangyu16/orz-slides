@@ -8,7 +8,7 @@ tooling. It is the slide-deck sibling of
 self-contained, browser-delivered engine), built on **reveal.js** for the deck
 mechanics and **orz-markdown** for content.
 
-> Status: **published MVP** (`orz-slides` + `orz-slides-browser` v0.1.0). The
+> Status: **published MVP** (`orz-slides` + `orz-slides-browser` v0.1.1). The
 > authoring syntax, engine, themes, editor, speaker view, fragments, timer, slide
 > numbers, progress bar, and npm packaging are built. PDF export is the remaining
 > planned presenter extra.
@@ -476,7 +476,7 @@ about any nested split.
 - **Phase 3:** ~~speaker view~~ ✅; ~~charts~~ ✅; ~~qr~~ ✅; ~~fragments~~ ✅
   (slide-level `step` flag + `{{attrs[.fragment]}}`); ~~slide numbers + progress
   + timer~~ ✅; transitions (per-slide `t=`, deck `transition:`); ~~CLI + npm
-  (lockstep browser bundle)~~ ✅ (published v0.1.0); ~~agent skill~~ ✅;
+  (lockstep browser bundle)~~ ✅ (published v0.1.1); ~~agent skill~~ ✅;
   ~~CLAUDE.md~~ ✅. **Remaining: PDF export.**
 
 ---

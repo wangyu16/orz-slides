@@ -26,7 +26,7 @@ You write only the **deck source**. Never hand-write the surrounding HTML
 edit the deck source (in a `.md`-ish file fed to the CLI, or in-browser) and let
 the tool re-serialize.
 
-> Status: orz-slides is **published to npm** (v0.1.0) as two lockstep packages —
+> Status: orz-slides is **published to npm** (v0.1.1) as two lockstep packages —
 > the `orz-slides` CLI and the `orz-slides-browser` engine. Generate decks with
 > the CLI (`npx orz-slides deck.md`, or install it globally). Speaker view
 > (**S**), step-reveal fragments, an on-deck timer (**T**), and slide numbers are
