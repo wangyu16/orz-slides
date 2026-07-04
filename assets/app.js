@@ -299,8 +299,59 @@
   }
 
   // ---- dirty / save (self-reproducing) -------------------------------------
-  function markDirty() { if (!dirty) { dirty = true; root.setAttribute('data-dirty', '1'); } }
-  function clearDirty() { dirty = false; root.setAttribute('data-dirty', '0'); }
+  function markDirty() { if (!dirty) { dirty = true; root.setAttribute('data-dirty', '1'); hostPostDirty(true); } }
+  function clearDirty() { if (dirty) hostPostDirty(false); dirty = false; root.setAttribute('data-dirty', '0'); }
+
+  // ---- host embedding (orz-host-save@1) -------------------------------------
+  // When a platform embeds this file in an iframe and announces the
+  // orz-host-save protocol (spec: PROTOCOL.md in the orz-mdhtml repo), Save
+  // posts the document to the host instead of touching the file system. Never
+  // enabled without the host's hello; protocol messages are accepted only from
+  // window.parent, and after the handshake only from the recorded host origin.
+  // Message content is read as data, never evaluated. Export keeps working.
+  var HOST_PROTOCOL = 'orz-host-save';
+  var HOST_VERSION = 1;
+  var hostOrigin = null;    // recorded at handshake; null = unhosted
+  var hostSaveTimer = null; // watchdog for a save awaiting acknowledgement
+
+  function isHosted() { return hostOrigin !== null; }
+  // An opaque embedder (sandboxed/srcdoc host) serializes as the string 'null',
+  // which postMessage rejects as a targetOrigin — fall back to '*' (the payload
+  // contains nothing the host doesn't already have).
+  function hostTarget() { return hostOrigin && hostOrigin !== 'null' ? hostOrigin : '*'; }
+  function hostPost(msg) { try { window.parent.postMessage(msg, hostTarget()); } catch (e) {} }
+  function hostPostDirty(d) {
+    if (!isHosted()) return;
+    hostPost({ type: 'orz-host-dirty', protocol: HOST_PROTOCOL, version: HOST_VERSION, dirty: !!d });
+  }
+  function hostSave(src, html) {
+    if (hostSaveTimer) return; // one save in flight at a time
+    hostSaveTimer = setTimeout(function () {
+      hostSaveTimer = null;
+      toast('Save failed — no response from the host'); // document intact, still dirty
+    }, 10000);
+    hostPost({ type: 'orz-host-save', protocol: HOST_PROTOCOL, version: HOST_VERSION, source: src, html: html });
+  }
+  function onHostMessage(event) {
+    // only the embedding parent may speak the protocol
+    if (window.parent === window || event.source !== window.parent) return;
+    var d = event.data;
+    if (!d || typeof d !== 'object') return;
+    // after the handshake, hold the parent to the origin it introduced itself with
+    if (isHosted() && hostOrigin !== 'null' && event.origin !== hostOrigin) return;
+    if (d.type === 'orz-host-hello' && d.protocol === HOST_PROTOCOL && typeof d.version === 'number' && d.version >= 1) {
+      hostOrigin = event.origin;
+      // reply with the highest version we support ≤ the host's (we speak only 1)
+      hostPost({ type: 'orz-host-ready', protocol: HOST_PROTOCOL, version: HOST_VERSION, kind: 'slides' });
+      if (dirty) hostPostDirty(true); // catch the host up on edits made pre-handshake
+    } else if (d.type === 'orz-host-saved' && hostSaveTimer) {
+      clearTimeout(hostSaveTimer); hostSaveTimer = null;
+      if (d.ok) { clearDirty(); toast('Saved'); }
+      else { toast('Save failed' + (d.error ? ' — ' + String(d.error) : '')); }
+    }
+  }
+  // listen from script load so an early hello isn't missed
+  window.addEventListener('message', onHostMessage);
 
   function serializeDoc() {
     var clone = root.cloneNode(true);
@@ -372,6 +423,9 @@
   function save() {
     if (cm) { slides[curIndex] = cm.getValue(); writeDeck(); }
     var html = serializeDoc();
+    // A hosting platform (verified handshake) receives the save instead of the
+    // file system; the host acknowledges with orz-host-saved (see PROTOCOL.md).
+    if (isHosted()) { hostSave(fullSource(), html); return; }
     if (isServed() && !fileHandle) { if (dirty) showServedNote(); return; }
     if (window.showSaveFilePicker) {
       acquireHandle()
