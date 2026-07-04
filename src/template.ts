@@ -152,9 +152,6 @@ const CHROME_CSS = `
   }
   #orz-toolbar #orz-brand:hover { color: #fff; background: #383d45; }
   #orz-toolbar #orz-brand .orz-logo svg { height: 22px; width: auto; display: block; }
-  /* hosted chrome: the embedding host shows its own orz logo — hide the file's
-     (set by the runtime after the orz-host-save handshake; unhosted files unchanged) */
-  [data-orz-hosted="1"] #orz-toolbar #orz-brand .orz-logo { display: none; }
   #orz-toolbar #orz-brand .orz-brand-name { font: 700 13px/1 system-ui, sans-serif; letter-spacing: .01em; }
   #orz-toolbar #orz-brand .orz-gh { display: inline-flex; opacity: .55; }
   #orz-toolbar #orz-brand:hover .orz-gh { opacity: 1; }
