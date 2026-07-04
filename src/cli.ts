@@ -12,65 +12,25 @@
  *   --inline           embed the engine bundle + theme CSS in the file (default)
  *   --cdn              reference the engine + theme from jsDelivr (small files)
  *   --title <text>     document <title> (fallback; deck `title:` wins)
+ *
+ * The inline path (the default) is shared with the programmatic library entry
+ * `buildSlidesHtml` (src/lib.ts) — there is ONE composition path. The CDN path
+ * lives here.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, dirname, resolve, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { getBrowserRuntimeScript } from 'orz-markdown/runtime';
 import { PREVIEW_CDN } from 'orz-markdown/preview-frame';
 import { parseDeck } from './slide-parser.js';
 import { buildHtml, type ThemeEntry, type RendererSpec, type ThemeSpec } from './template.js';
-
-/** The seven shipped slide themes (served from the orz-slides package on CDN). */
-const THEME_DEFS: Array<Omit<ThemeEntry, 'href'>> = [
-  { id: 'paper', name: 'Paper', scheme: 'light' },
-  { id: 'architect', name: 'Architect', scheme: 'light' },
-  { id: 'executive', name: 'Executive', scheme: 'light' },
-  { id: 'sage', name: 'Sage', scheme: 'light' },
-  { id: 'poppy', name: 'Poppy', scheme: 'light' },
-  { id: 'neon', name: 'Neon', scheme: 'dark' },
-  { id: 'chalk', name: 'Chalk', scheme: 'dark' },
-];
-
-const require = createRequire(import.meta.url);
-const HERE = dirname(fileURLToPath(import.meta.url));
-
-function pkgVersion(name: string, fallback = '0.0.0'): string {
-  try {
-    let dir = dirname(require.resolve(name));
-    while (!existsSync(join(dir, 'package.json'))) dir = dirname(dir);
-    return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-/** orz-slides' own version — pins the engine bundle + theme CDN + version check. */
-function selfVersion(): string {
-  for (const p of [join(HERE, '..', 'package.json'), join(HERE, '..', '..', 'package.json')]) {
-    try {
-      const j = JSON.parse(readFileSync(p, 'utf8')) as { name?: string; version?: string };
-      if (j.name === 'orz-slides' && j.version) return j.version;
-    } catch { /* keep looking */ }
-  }
-  return '0.0.0';
-}
-
-/** assets/ sits next to dist/ when published, and next to src/ in dev. */
-function findAsset(rel: string): string {
-  for (const p of [join(HERE, '..', 'assets', rel), join(HERE, '..', '..', 'assets', rel)]) {
-    if (existsSync(p)) return p;
-  }
-  throw new Error(`asset not found: ${rel}`);
-}
-
-/** A theme's CSS without its `@import url('./base.css')` (base is inlined once). */
-function themeOnly(id: string): string {
-  const css = readFileSync(findAsset(`themes/theme-${id}.css`), 'utf8');
-  return css.replace(/@import\s+url\(\s*['"]?\.\/base\.css['"]?\s*\)\s*;/, '');
-}
+import {
+  THEME_DEFS,
+  selfVersion,
+  findAsset,
+  pkgVersion,
+  buildSlidesHtmlWithDocId,
+} from './lib.js';
 
 interface Args {
   input?: string;
@@ -94,77 +54,37 @@ function parseArgs(argv: string[]): Args {
   return a;
 }
 
-function main(): void {
-  const args = parseArgs(process.argv.slice(2));
-  if (!args.input) {
-    console.error('Usage: orz-slides <input.md> [-o out] [--theme name] [--inline|--cdn]');
-    process.exit(1);
-  }
-
-  const inputPath = resolve(args.input);
-  const source = readFileSync(inputPath, 'utf8');
-  const base = basename(inputPath, extname(inputPath)).replace(/\.slides$/, '');
-  const outPath = args.out ? resolve(args.out) : join(dirname(inputPath), `${base}.slides.html`);
-
-  // The deck's own config wins; CLI flags are fallbacks.
-  const deck = parseDeck(source);
-  const ver = selfVersion();
-  const themeBase = `https://cdn.jsdelivr.net/npm/orz-slides@${ver}/assets/themes`;
-  const themes: ThemeEntry[] = THEME_DEFS.map((t) => ({ ...t, href: `${themeBase}/theme-${t.id}.css` }));
-
-  const wanted = deck.config.theme || args.theme || 'paper';
-  const defaultTheme = themes.some((t) => t.id === wanted) ? wanted : themes[0].id;
-  const ratio = deck.config.ratio || '16:9';
-  const title = deck.config.title || args.title || base;
-
-  // Engine + theme delivery.
-  let renderer: RendererSpec;
-  let theme: ThemeSpec;
-  if (args.delivery === 'inline') {
-    const bundlePath = [
-      join(HERE, 'orz-slides.browser.js'),
-      join(HERE, '..', 'dist', 'orz-slides.browser.js'),
-    ].find(existsSync);
-    if (!bundlePath) {
-      console.error('Inline mode needs the engine bundle. Run: npm run bundle');
-      process.exit(1);
-    }
-    renderer = { mode: 'inline', js: readFileSync(bundlePath, 'utf8') };
-    theme = {
-      mode: 'inline',
-      base: readFileSync(findAsset('themes/base.css'), 'utf8'),
-      themes: THEME_DEFS.map((t) => ({ id: t.id, css: themeOnly(t.id) })),
-    };
-  } else {
-    renderer = { mode: 'cdn', src: `https://cdn.jsdelivr.net/npm/orz-slides-browser@${ver}/orz-slides.browser.js` };
-    theme = { mode: 'cdn' };
-  }
+/** The CDN delivery path (engine + themes referenced from jsDelivr). */
+function buildCdnHtml(
+  source: string,
+  title: string,
+  base: string,
+  docId: string,
+  ver: string,
+  themes: ThemeEntry[],
+  defaultTheme: string,
+  ratio: string,
+): string {
+  const renderer: RendererSpec = {
+    mode: 'cdn',
+    src: `https://cdn.jsdelivr.net/npm/orz-slides-browser@${ver}/orz-slides.browser.js`,
+  };
+  const theme: ThemeSpec = { mode: 'cdn' };
 
   const revealVer = pkgVersion('reveal.js', '5.0.4');
-  // reveal's reset.css + reveal.css contain only data: URIs (no external refs),
-  // so --inline embeds them and the deck presents fully offline.
-  let revealCss: Parameters<typeof buildHtml>[0]['revealCss'];
-  if (args.delivery === 'inline') {
-    const revealDist = dirname(require.resolve('reveal.js'));
-    revealCss = {
-      mode: 'inline',
-      reset: readFileSync(join(revealDist, 'reset.css'), 'utf8'),
-      core: readFileSync(join(revealDist, 'reveal.css'), 'utf8'),
-    };
-  } else {
-    revealCss = {
-      mode: 'cdn',
-      resetUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reset.css`,
-      coreUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reveal.css`,
-    };
-  }
+  const revealCss: Parameters<typeof buildHtml>[0]['revealCss'] = {
+    mode: 'cdn',
+    resetUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reset.css`,
+    coreUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reveal.css`,
+  };
+
   const appJs = readFileSync(findAsset('app.js'), 'utf8');
   const CM = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16';
-  const html = buildHtml({
+  return buildHtml({
     source,
     title,
     filename: base,
-    docId: randomUUID(),
+    docId,
     rendererVersion: ver,
     renderer,
     theme,
@@ -190,6 +110,46 @@ function main(): void {
       chartJs: PREVIEW_CDN.chartJs,
     },
   });
+}
+
+function main(): void {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.input) {
+    console.error('Usage: orz-slides <input.md> [-o out] [--theme name] [--inline|--cdn]');
+    process.exit(1);
+  }
+
+  const inputPath = resolve(args.input);
+  const source = readFileSync(inputPath, 'utf8');
+  const base = basename(inputPath, extname(inputPath)).replace(/\.slides$/, '');
+  const outPath = args.out ? resolve(args.out) : join(dirname(inputPath), `${base}.slides.html`);
+
+  const deck = parseDeck(source);
+  const docId = randomUUID();
+
+  // Resolve the effective (validated) theme once, for the log line and CDN path.
+  const wanted = deck.config.theme || args.theme || 'paper';
+  const defaultTheme = THEME_DEFS.some((t) => t.id === wanted) ? wanted : THEME_DEFS[0].id;
+
+  let html: string;
+  if (args.delivery === 'inline') {
+    // Shared inline composition — the library and the CLI produce byte-identical
+    // output for the same source (modulo docId). The deck-config precedence and
+    // the 'Untitled' fallbacks live in lib.ts; the CLI passes its filename-based
+    // title as the fallback so the deck's own title still wins.
+    html = buildSlidesHtmlWithDocId(
+      { markdown: source, title: args.title ?? base, theme: args.theme },
+      docId,
+    );
+  } else {
+    // The deck's own config wins; CLI flags are fallbacks.
+    const ver = selfVersion();
+    const themeBase = `https://cdn.jsdelivr.net/npm/orz-slides@${ver}/assets/themes`;
+    const themes: ThemeEntry[] = THEME_DEFS.map((t) => ({ ...t, href: `${themeBase}/theme-${t.id}.css` }));
+    const ratio = deck.config.ratio || '16:9';
+    const title = deck.config.title || args.title || base;
+    html = buildCdnHtml(source, title, base, docId, ver, themes, defaultTheme, ratio);
+  }
 
   writeFileSync(outPath, html, 'utf8');
   console.log(`Wrote ${outPath} (${args.delivery}, theme: ${defaultTheme}, ${deck.slides.length} slides)`);
