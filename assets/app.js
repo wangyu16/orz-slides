@@ -343,6 +343,8 @@
       hostOrigin = event.origin;
       // reply with the highest version we support ≤ the host's (we speak only 1)
       hostPost({ type: 'orz-host-ready', protocol: HOST_PROTOCOL, version: HOST_VERSION, kind: 'slides' });
+      // hosted chrome: the chrome CSS hides the file's orz logo (the host shows its own)
+      document.documentElement.dataset.orzHosted = '1';
       if (dirty) hostPostDirty(true); // catch the host up on edits made pre-handshake
     } else if (d.type === 'orz-host-saved' && hostSaveTimer) {
       clearTimeout(hostSaveTimer); hostSaveTimer = null;
@@ -360,6 +362,7 @@
     clone.setAttribute('data-mode', 'present');
     clone.setAttribute('data-theme', currentTheme);
     clone.removeAttribute('data-dirty');
+    clone.removeAttribute('data-orz-hosted'); // hosted-chrome flag is runtime-only, never saved bytes
     // never bake in the (edit-only) update banner so a viewer can't see it
     var ub = clone.querySelector('#orz-update'); if (ub) { ub.classList.remove('show'); ub.removeAttribute('data-latest'); }
     // Reset reveal's rendered DOM so the reopened file re-renders from #orz-deck.
