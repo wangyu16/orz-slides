@@ -107,6 +107,10 @@ export interface BuildSlidesOptions {
   title?: string;
   /** Theme id fallback; the deck's own `theme:` wins. Validated against THEME_DEFS. */
   theme?: string;
+  /** Renderer + theme + reveal CSS delivery: `inline` (default, offline) or
+   *  `cdn` (small file — engine, themes, and reveal.css load from jsDelivr at
+   *  view time; requires orz-slides-browser to be published at this version). */
+  delivery?: 'inline' | 'cdn';
 }
 
 /**
@@ -129,20 +133,31 @@ export function buildSlidesHtmlWithDocId(opts: BuildSlidesOptions, docId: string
   const ratio = deck.config.ratio || '16:9';
   const title = deck.config.title || opts.title || 'Untitled';
 
-  // Engine + theme delivery — always fully inline.
-  const renderer: RendererSpec = { mode: 'inline', js: readEngineBundle() };
-  const theme: ThemeSpec = {
-    mode: 'inline',
-    base: readFileSync(findAsset('themes/base.css'), 'utf8'),
-    themes: THEME_DEFS.map((t) => ({ id: t.id, css: themeOnly(t.id) })),
-  };
+  // Engine + theme + reveal CSS delivery: inline (default, offline) or CDN.
+  const cdn = opts.delivery === 'cdn';
+  const renderer: RendererSpec = cdn
+    ? { mode: 'cdn', src: `https://cdn.jsdelivr.net/npm/orz-slides-browser@${ver}/orz-slides.browser.js` }
+    : { mode: 'inline', js: readEngineBundle() };
+  const theme: ThemeSpec = cdn
+    ? { mode: 'cdn' }
+    : {
+        mode: 'inline',
+        base: readFileSync(findAsset('themes/base.css'), 'utf8'),
+        themes: THEME_DEFS.map((t) => ({ id: t.id, css: themeOnly(t.id) })),
+      };
 
-  const reveal = readRevealCss();
-  const revealCss: Parameters<typeof buildHtml>[0]['revealCss'] = {
-    mode: 'inline',
-    reset: reveal.reset,
-    core: reveal.core,
-  };
+  let revealCss: Parameters<typeof buildHtml>[0]['revealCss'];
+  if (cdn) {
+    const revealVer = pkgVersion('reveal.js', '5.0.4');
+    revealCss = {
+      mode: 'cdn',
+      resetUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reset.css`,
+      coreUrl: `https://cdn.jsdelivr.net/npm/reveal.js@${revealVer}/dist/reveal.css`,
+    };
+  } else {
+    const reveal = readRevealCss();
+    revealCss = { mode: 'inline', reset: reveal.reset, core: reveal.core };
+  }
 
   const appJs = readFileSync(findAsset('app.js'), 'utf8');
   const CM = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16';

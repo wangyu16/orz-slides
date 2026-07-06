@@ -1,6 +1,6 @@
 {
   "name": "orz-slides",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Self-contained, editable HTML slide decks (.slides.html) authored in orz-markdown with a layout syntax. Sibling of orz-mdhtml.",
   "type": "module",
   "main": "./dist/lib.js",
@@ -44,7 +44,7 @@
     "url": "https://github.com/wangyu16/orz-slides"
   },
   "dependencies": {
-    "orz-markdown": "^1.3.0",
+    "orz-markdown": "^1.3.2",
     "reveal.js": "^5.0.4"
   },
   "devDependencies": {
