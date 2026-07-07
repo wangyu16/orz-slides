@@ -9,7 +9,7 @@ syntax, and stays *quietly editable*. Built on
 One file. Open it in a browser to present. Pop out a per-slide editor to change
 a slide. Save it back in place. Nothing to install for the audience.
 
-> **Status: published (v0.1.1).** The authoring syntax, CLI, engine, and in-file
+> **Status: published (v0.4.0).** The authoring syntax, CLI, engine, and in-file
 > editor all work (see [DESIGN.md](./DESIGN.md)). Two packages publish in
 > lockstep: the [`orz-slides`](https://www.npmjs.com/package/orz-slides) CLI and
 > the [`orz-slides-browser`](https://www.npmjs.com/package/orz-slides-browser)
