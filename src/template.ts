@@ -296,8 +296,8 @@ ${themeTag}
 <body>
 <!-- ═══════════ orz · editing this deck with an AI agent ═══════════
   This is a self-contained, EDITABLE orz-slides deck (.slides.html). The editable
-  source of truth is the slide markdown inside <script id="orz-deck"> below (kind:
-  slides, format: 1) — NOT the rendered HTML.
+  source of truth is the slide markdown in the embedded deck source island below
+  (kind: slides, format: 1) — NOT the rendered HTML.
 
   To edit it correctly, load the official orz-slides agent skill first: it defines
   the comment-based layout grammar (slide markers, title bands, region splits,
