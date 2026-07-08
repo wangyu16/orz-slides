@@ -294,6 +294,19 @@ ${themeTag}
 <style>${CHROME_CSS}</style>
 </head>
 <body>
+<!-- ═══════════ orz · editing this deck with an AI agent ═══════════
+  This is a self-contained, EDITABLE orz-slides deck (.slides.html). The editable
+  source of truth is the slide markdown inside <script id="orz-deck"> below (kind:
+  slides, format: 1) — NOT the rendered HTML.
+
+  To edit it correctly, load the official orz-slides agent skill first: it defines
+  the comment-based layout grammar (slide markers, title bands, region splits,
+  speaker notes) and guarantees a byte-identical round-trip.
+    - Fetch the skill: https://cdn.jsdelivr.net/npm/orz-slides/orz-slides-skills/SKILL.md
+    - Install routes:  https://markdown.orz.how/agents.html
+
+  Rules: edit ONLY the embedded deck source and re-embed it in place.
+═══════════════════════════════════════════════════════════════════ -->
 <div class="reveal"><div class="slides"></div></div>
 
 <button id="orz-edit-fab" class="orz-edit-ctrl" title="Edit this deck">${ICON.pencil}</button>

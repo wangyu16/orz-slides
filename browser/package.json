@@ -1,6 +1,6 @@
 {
   "name": "orz-slides-browser",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Prebuilt in-browser presentation engine for orz-slides .slides.html files (reveal.js + orz-markdown + the slide parser/layout/assembler)",
   "main": "orz-slides.browser.js",
   "files": [
