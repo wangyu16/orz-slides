@@ -173,3 +173,7 @@ the authoring syntax, the layout grammar/presets, the DOM contract, the in-file
 UI/runtime, delivery defaults, or the release flow, make sure `README.md` and
 `orz-slides-skills/SKILL.md` still match reality (and stay consistent with
 DESIGN.md). Stale docs/skill are treated as bugs.
+
+## Release
+
+- Before each publishing, always check coherency and consistency, update docs and agent skills, update the example/sample/testing dual extension name files to current version.

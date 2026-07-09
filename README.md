@@ -182,10 +182,14 @@ reveal's core CSS, and all themes are embedded.
 
 `.slides.html` files conform to **`orz-host-save@1`**: a platform can embed a
 deck in an iframe, announce itself with a `postMessage` handshake, and receive
-saves (`{ source, html }`) instead of the file-system path — standalone
+saves (`{ source, html, theme }`) instead of the file-system path — standalone
 behavior and Export are unchanged, and nothing activates without the
-handshake. The canonical spec lives in the orz-mdhtml repo:
-[PROTOCOL.md](https://github.com/wangyu16/orz-mdhtml/blob/main/PROTOCOL.md).
+handshake. Files also speak **`orz-host-ai@1`**: when the host advertises AI
+operations, the editor shows an assistant (a chip on the current selection and a
+toolbar button) that sends the passage to the host and applies the suggestion it
+returns — the file owns the UI, the host owns the model. Both protocols are
+documented in this repo's [PROTOCOL.md](./PROTOCOL.md) (the shared spec
+originates in orz-mdhtml).
 
 ## Security — treat these as programs, not documents
 

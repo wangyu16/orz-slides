@@ -217,6 +217,7 @@ const ICON = {
   pencil: ic24('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'),
   collapseDown: ic24('<path d="M6 9l6 6 6-6"/>'),
   layout: ic24('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
+  ai: ic24('<path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/>'),
 };
 
 /** The orz mark — the "orz" wordmark knocked out of a weathered green seal
@@ -330,6 +331,7 @@ ${themeTag}
     <button id="orz-up" class="ic" title="Move slide earlier">${ICON.up}</button>
     <button id="orz-down" class="ic" title="Move slide later">${ICON.down}</button>
     <span class="orz-spacer"></span>
+    <button id="orz-ai" class="ic" title="AI assistant — improve this slide" aria-label="AI assistant" style="display:none">${ICON.ai}</button>
     <button id="orz-layout-btn" class="ic" title="Slide layout" aria-haspopup="true" aria-expanded="false">${ICON.layout}</button>
     <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)">${ICON.deck}</button>
     <select id="orz-theme" title="Theme"></select>
