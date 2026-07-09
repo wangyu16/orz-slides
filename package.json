@@ -1,6 +1,6 @@
 {
   "name": "orz-slides",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Self-contained, editable HTML slide decks (.slides.html) authored in orz-markdown with a layout syntax. Sibling of orz-mdhtml.",
   "type": "module",
   "main": "./dist/lib.js",

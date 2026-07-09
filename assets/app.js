@@ -283,6 +283,21 @@
     }
     return true;
   }
+  // Self-reproducing: a theme picked from the toolbar must land IN the source,
+  // not just the DOM — rewrite (or insert) the `theme:` line of the leading
+  // `<!-- deck ... -->` block so `fullSource()` always states the deck's actual
+  // theme, standalone and inside a host alike. No deck block yet → create a
+  // minimal one rather than silently dropping the pick.
+  function rewriteDeckTheme(id) {
+    var m = preamble.match(/^([ \t]*<!--\s*deck\b)([\s\S]*?)(-->)/);
+    if (!m) { preamble = '<!-- deck\ntheme: ' + id + '\n-->\n' + preamble; return; }
+    var head = m[1], body = m[2], tail = m[3];
+    var hasTheme = /(^|\n)[ \t]*theme[ \t]*:/.test(body);
+    var newBody = hasTheme
+      ? body.replace(/((^|\n)[ \t]*theme[ \t]*:)[^\n]*/, function (_, prefix) { return prefix + ' ' + id; })
+      : body.replace(/\n?$/, '\ntheme: ' + id + '\n');
+    preamble = preamble.slice(0, m.index) + head + newBody + tail + preamble.slice(m.index + m[0].length);
+  }
   function setTheme(id) {
     currentTheme = id;
     root.setAttribute('data-theme', id);
@@ -295,6 +310,15 @@
         document.head.appendChild(link);
       }
       link.href = themeById(id).href;
+    }
+    rewriteDeckTheme(id);
+    writeDeck();
+    if (editingDeck && cm) {
+      // The "deck settings" editor is open on this exact text — keep it in
+      // sync without re-triggering the change handler (already handled below).
+      suppressChange = true;
+      cm.setValue(preamble);
+      suppressChange = false;
     }
     if (cm) cm.setOption('theme', cmTheme());
     markDirty();

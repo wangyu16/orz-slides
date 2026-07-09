@@ -3,6 +3,22 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] — 2026-07-09
+
+### Fixed
+
+- **Theme picker now writes into the deck source.** Picking a theme from the
+  toolbar dropdown updated the runtime (`data-theme`, the rendered CSS) and the
+  CodeMirror editor's syntax theme, but never touched the deck's own leading
+  `<!-- deck ... -->` config block — so the pick was DOM-only state, lost the
+  moment a host (or the author) read `theme:` from the saved source instead of
+  a side channel. `setTheme()` now rewrites (or inserts) the `theme:` line in
+  the deck config on every pick — replacing an existing line, adding one to a
+  deck block that lacks it, or creating a minimal deck block if the deck had
+  none at all — and keeps the open "deck settings" editor buffer in sync. The
+  deck is now genuinely self-describing: its own source is always the single,
+  correct statement of its current theme, standalone or hosted alike.
+
 ## [0.6.0] — 2026-07-09
 
 ### Added
