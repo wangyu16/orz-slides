@@ -8,7 +8,7 @@ tooling. It is the slide-deck sibling of
 self-contained, browser-delivered engine), built on **reveal.js** for the deck
 mechanics and **orz-markdown** for content.
 
-> Status: **published MVP** (`orz-slides` + `orz-slides-browser` v0.4.0). The
+> Status: **published** (`orz-slides` + `orz-slides-browser` v0.7.1). The
 > authoring syntax, engine, themes, editor, speaker view, fragments, timer, slide
 > numbers, progress bar, and npm packaging are built. PDF export is the remaining
 > planned presenter extra.

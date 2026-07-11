@@ -26,7 +26,7 @@ You write only the **deck source**. Never hand-write the surrounding HTML
 edit the deck source (in a `.md`-ish file fed to the CLI, or in-browser) and let
 the tool re-serialize.
 
-> Status: orz-slides is **published to npm** (v0.4.0) as two lockstep packages —
+> Status: orz-slides is **published to npm** (v0.7.1) as two lockstep packages —
 > the `orz-slides` CLI and the `orz-slides-browser` engine. Generate decks with
 > the CLI (`npx orz-slides deck.md`, or install it globally). Speaker view
 > (**S**), step-reveal fragments, an on-deck timer (**T**), and slide numbers are
@@ -77,6 +77,12 @@ YAML-ish `key: value` lines. `:` is for config values; it never appears in a
 layout. Keys: `title`, `theme`, `ratio` (`16:9` default, or `4:3`), `author`,
 `footer` (deck-wide footer shown on normal slides), `transition` (default reveal
 transition).
+
+`title` and `author` also seed the generated document's portable metadata in
+standard `<head>` tags and the `#orz-meta` JSON island. Programmatic hosts may
+pass richer `metadata` (license, canonical source, date, description, keywords)
+to `buildSlidesHtml`; host values win field by field. This metadata affects the
+document head only and does not replace the visible footer or deck content.
 
 Theme ids: `paper`, `architect`, `executive`, `sage`, `poppy`, `neon`, `chalk`
 (plus a base). Readers can switch live in the editor.

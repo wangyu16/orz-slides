@@ -1,6 +1,6 @@
 {
   "name": "orz-slides",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Self-contained, editable HTML slide decks (.slides.html) authored in orz-markdown with a layout syntax. Sibling of orz-mdhtml.",
   "type": "module",
   "main": "./dist/lib.js",
@@ -17,7 +17,8 @@
   "files": [
     "dist",
     "assets",
-    "orz-slides-skills"
+    "orz-slides-skills",
+    "PROTOCOL.md"
   ],
   "scripts": {
     "build": "tsc && npm run bundle",
@@ -41,18 +42,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wangyu16/orz-slides"
+    "url": "git+https://github.com/wangyu16/orz-slides.git"
   },
   "dependencies": {
-    "orz-markdown": "^1.4.0",
+    "orz-markdown": "^1.4.1",
     "reveal.js": "^5.0.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "esbuild": "^0.21.5",
+    "esbuild": "^0.28.1",
     "path-browserify": "^1.0.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.1.10"
   }
 }

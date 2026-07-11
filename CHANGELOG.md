@@ -3,6 +3,28 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] — 2026-07-11
+
+### Security
+
+- Updated build/test tooling to fixed `esbuild ^0.28.1` and `vitest ^4.1.10`
+  releases. Runtime dependencies and generated document behavior are unchanged.
+
+### Packaging
+
+- Ship the MIT license in both npm packages and include `PROTOCOL.md` in the CLI
+  tarball so installed README links remain valid.
+
+## [0.7.0] — 2026-07-11
+
+### Added
+
+- Portable document metadata. Deck `title:` and `author:` seed standard
+  `<head>` tags and an `#orz-meta` JSON island. Programmatic callers can pass
+  richer `metadata` to `buildSlidesHtml`; host values win field by field while
+  the deck footer and visible content remain unchanged. Requires
+  `orz-markdown ^1.4.0`.
+
 ## [0.6.1] — 2026-07-09
 
 ### Fixed

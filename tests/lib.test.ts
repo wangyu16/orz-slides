@@ -75,4 +75,21 @@ describe('buildSlidesHtml — programmatic library entry', () => {
     const html = buildSlidesHtmlWithDocId({ markdown: bare, theme: 'no-such-theme' }, 'id');
     expect(html).toContain('data-theme="paper"');
   });
+
+  it('emits deck and host metadata without changing the deck source', () => {
+    const deck = DECK.replace('theme: executive', 'theme: executive\n  author: Deck Author');
+    const html = buildSlidesHtmlWithDocId({
+      markdown: deck,
+      metadata: {
+        author: 'Host Author',
+        license: { spdx: 'CC-BY-4.0', url: 'https://creativecommons.org/licenses/by/4.0/' },
+      },
+    }, 'id');
+
+    expect(html).toContain('<meta name="author" content="Host Author">');
+    expect(html).toContain('<meta name="dcterms.license" content="CC-BY-4.0">');
+    expect(html).toContain('<link rel="license" href="https://creativecommons.org/licenses/by/4.0/">');
+    expect(html).toContain('"title": "Library Deck"');
+    expect(html).toContain('author: Deck Author');
+  });
 });

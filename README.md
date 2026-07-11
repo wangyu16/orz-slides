@@ -9,7 +9,7 @@ syntax, and stays *quietly editable*. Built on
 One file. Open it in a browser to present. Pop out a per-slide editor to change
 a slide. Save it back in place. Nothing to install for the audience.
 
-> **Status: published (v0.4.0).** The authoring syntax, CLI, engine, and in-file
+> **Status: published (v0.7.1).** The authoring syntax, CLI, engine, and in-file
 > editor all work (see [DESIGN.md](./DESIGN.md)). Two packages publish in
 > lockstep: the [`orz-slides`](https://www.npmjs.com/package/orz-slides) CLI and
 > the [`orz-slides-browser`](https://www.npmjs.com/package/orz-slides-browser)
@@ -58,6 +58,13 @@ re-serializes the whole document around it:
   ...deck config + slides (this is what you write)...
 </script>
 ```
+
+The deck config's `title:` and `author:` also become portable document metadata:
+the generator emits standard `<head>` tags plus an `#orz-meta` JSON island that
+survives in-browser saves and framework updates. Programmatic callers can pass a
+richer `metadata` object to `buildSlidesHtml` (license, canonical source, date,
+description, and keywords); host values win field by field without changing the
+visible deck or its footer.
 
 > "Self-contained" means *works as one file*. With the default `--inline`, the
 > engine, reveal's core CSS, and all themes are embedded — a text deck presents
@@ -154,7 +161,7 @@ More install routes: <https://markdown.orz.how/agents.html> · layout reference:
 - **In-browser per-slide editor** — pop-out CodeMirror + live preview; deck ops
   (add / duplicate / delete / reorder / theme).
 - **Structure templates** — `title` / `section` / `outline` / `closing` pages
-  (`title` is fully styled; the others are evolving).
+  with multiple theme-aware variants.
 - **Presenter tools** — navigation, slide overview, fullscreen, slide numbers,
   and a progress bar from reveal.js; a self-contained **speaker view** (press
   **S** — current/next slide, your `@notes`, clock + timer) and an on-deck
