@@ -28,6 +28,7 @@ import { getBrowserRuntimeScript } from 'orz-markdown/runtime';
 import { PREVIEW_CDN } from 'orz-markdown/preview-frame';
 import { parseDeck } from './slide-parser.js';
 import { buildHtml, type ThemeEntry, type RendererSpec, type ThemeSpec } from './template.js';
+import { mergeDocMeta, renderDocMetaHead, renderDocMetaIsland, type DocMeta } from 'orz-markdown/doc-meta';
 
 /** The seven shipped slide themes (served from the orz-slides package on CDN). */
 export const THEME_DEFS: Array<Omit<ThemeEntry, 'href'>> = [
@@ -111,6 +112,8 @@ export interface BuildSlidesOptions {
    *  `cdn` (small file — engine, themes, and reveal.css load from jsDelivr at
    *  view time; requires orz-slides-browser to be published at this version). */
   delivery?: 'inline' | 'cdn';
+  /** Document metadata injected by the host; wins over the deck config. */
+  metadata?: DocMeta;
 }
 
 /**
@@ -132,6 +135,14 @@ export function buildSlidesHtmlWithDocId(opts: BuildSlidesOptions, docId: string
   const defaultTheme = themes.some((t) => t.id === wanted) ? wanted : themes[0].id;
   const ratio = deck.config.ratio || '16:9';
   const title = deck.config.title || opts.title || 'Untitled';
+
+  // The deck config is slides' native metadata channel; the host wins over it,
+  // field by field. Note this drives the <head> only — deck.config.footer keeps
+  // driving the on-slide footer, unchanged. Nothing is stripped from the source.
+  const meta = mergeDocMeta(
+    { title: deck.config.title, author: deck.config.author },
+    opts.metadata,
+  );
 
   // Engine + theme + reveal CSS delivery: inline (default, offline) or CDN.
   const cdn = opts.delivery === 'cdn';
@@ -163,6 +174,8 @@ export function buildSlidesHtmlWithDocId(opts: BuildSlidesOptions, docId: string
   const CM = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16';
   return buildHtml({
     source: opts.markdown,
+    metaHead: renderDocMetaHead(meta),
+    metaIsland: renderDocMetaIsland(meta),
     title,
     filename: 'Untitled',
     docId,

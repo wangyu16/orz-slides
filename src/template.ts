@@ -41,6 +41,10 @@ export interface EditorLibs {
 
 export interface BuildOptions {
   source: string;
+  /** document-metadata `<head>` tags (meta/link rel=license), or '' if none. */
+  metaHead?: string;
+  /** document-metadata JSON island, or '' if none. */
+  metaIsland?: string;
   title: string;
   filename: string;
   docId: string;
@@ -288,7 +292,7 @@ export function buildHtml(o: BuildOptions): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(o.title)}</title>
-<meta name="generator" content="orz-slides">
+<meta name="generator" content="orz-slides">${o.metaHead ? '\n' + o.metaHead : ''}${o.metaIsland ? '\n' + o.metaIsland : ''}
 ${revealCssTag}
 <link rel="stylesheet" href="${escapeHtml(o.cdn.katexCss)}">
 ${themeTag}
