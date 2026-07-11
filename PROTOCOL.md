@@ -133,3 +133,29 @@ text — it then saves through `orz-host-save` (or the file's own Export), so it
 passes through whatever validation the host's save path enforces. Versioning
 follows the same rule (host announces; file replies with the highest it supports
 ≤ the host's).
+
+---
+
+# `orz-host-include` — host-provided web transclusion
+
+**Version 1** (`orz-host-include@1`). Companion to `orz-host-save` / `orz-host-ai`.
+Lets a trusted host resolve URL-based markdown includes (`{{md-include https://…}}`
+/ `{{markdown https://…}}`) for the deck's PREVIEW render. The deck source keeps
+the directive; a **standalone file never resolves and never auto-fetches**.
+
+## Messages
+
+| Message | Direction | Payload |
+| --- | --- | --- |
+| `orz-host-include-hello` | host → file | `{ type, protocol: "orz-host-include", version: 1 }` |
+| `orz-host-include-ready` | file → host | `{ type, protocol, version, kind: "slides" }` |
+| `orz-host-include-request` | file → host | `{ type, protocol, version, requestId, url }` |
+| `orz-host-include-result` | host → file | `{ type, protocol, version, requestId, ok, markdown?, error? }` |
+
+## Behavior
+
+Host announces (retried); file replies ready; for each distinct include URL the
+file requests resolution, caches the result, inlines it into the render, and
+re-renders each slide's content IN PLACE (never a full rebuild — reveal.js keeps
+its slide count + position). A ~30s timeout leaves a directive unresolved.
+Security/versioning matches the sibling protocols.

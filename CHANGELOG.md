@@ -3,6 +3,16 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — 2026-07-11
+
+### Added
+
+- **`orz-host-include@1`** — the in-file editor resolves URL-based markdown
+  transclusion (`{{md-include https://…}}`) for its preview via a trusted host,
+  inlining the fetched markdown into each slide in place (reveal.js state
+  preserved). The deck source keeps the directive; a standalone file never
+  resolves and never auto-fetches. See PROTOCOL.md.
+
 ## [0.7.1] — 2026-07-11
 
 ### Security

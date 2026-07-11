@@ -70,7 +70,7 @@
   function sections() { return document.querySelectorAll('.reveal .slides > section.orz-slide'); }
 
   function renderCurrentSlide() {
-    var src = fullSource();
+    var src = renderSource();
     var deck = API.parseDeck(src);
     var secs = sections();
     // structural change (a slide added/removed in-place) → full re-render
@@ -101,7 +101,7 @@
   // Deck-config edits affect every slide (footer, etc.) → re-render the whole deck.
   function scheduleRerenderAll() {
     if (rerenderAllTimer) clearTimeout(rerenderAllTimer);
-    rerenderAllTimer = setTimeout(function () { API.renderAll(fullSource()); }, 240);
+    rerenderAllTimer = setTimeout(function () { API.renderAll(renderSource()); }, 240);
   }
 
   function curH() { return (API.reveal && API.reveal.getIndices) ? API.reveal.getIndices().h : 0; }
@@ -239,7 +239,7 @@
   function rebuildFrom(newSlides, focus) {
     slides = newSlides;
     writeDeck();
-    API.renderAll(fullSource());
+    API.renderAll(renderSource());
     markDirty();
     setTimeout(function () {
       gotoSlide(focus);
@@ -502,6 +502,68 @@
     if (aiPanel && !aiPanel.contains(e.target)) aiHidePanel();
   });
 
+  // ---- host-provided includes (orz-host-include@1) --------------------------
+  // When a host offers include resolution, `{{md-include URL}}` / `{{markdown
+  // URL}}` directives are resolved by the host (which owns the fetch + allowlist)
+  // and inlined into the PREVIEW render only. The deck source keeps the
+  // directive. STANDALONE (no host) the directives are left as-is — the file
+  // NEVER auto-fetches a URL. (See PROTOCOL.md.)
+  var INCLUDE_PROTOCOL = 'orz-host-include';
+  var INCLUDE_VERSION = 1;
+  var includeOrigin = null, includeSeq = 0, includePending = {}, includeCache = {}, includeInflight = {};
+  function includeTarget() { return includeOrigin && includeOrigin !== 'null' ? includeOrigin : '*'; }
+  function includePost(msg) { try { window.parent.postMessage(msg, includeTarget()); } catch (e) {} }
+  function includeRequest(url) {
+    return new Promise(function (resolve) {
+      var id = 'inc' + (++includeSeq);
+      includePending[id] = resolve;
+      includePost({ type: 'orz-host-include-request', protocol: INCLUDE_PROTOCOL, version: INCLUDE_VERSION, requestId: id, url: url });
+      setTimeout(function () { if (includePending[id]) { delete includePending[id]; resolve(null); } }, 30000);
+    });
+  }
+  function applyIncludes(src) {
+    if (!includeOrigin) return src;
+    return src.replace(/\{\{(?:markdown|md-include)\s+(https?:\/\/[^\s}]+)\}\}/g, function (whole, url) {
+      var v = includeCache[url]; return (typeof v === 'string') ? v : whole;
+    });
+  }
+  function ensureIncludes(src) {
+    if (!includeOrigin) return;
+    var re = /\{\{(?:markdown|md-include)\s+(https?:\/\/[^\s}]+)\}\}/g, m, seen = {};
+    while ((m = re.exec(src))) {
+      var url = m[1];
+      if (seen[url]) continue; seen[url] = true;
+      if (Object.prototype.hasOwnProperty.call(includeCache, url) || includeInflight[url]) continue;
+      includeInflight[url] = true;
+      (function (u) { includeRequest(u).then(function (md) { includeCache[u] = (typeof md === 'string') ? md : null; delete includeInflight[u]; scheduleIncludeRerender(); }); })(url);
+    }
+  }
+  // The source used for RENDERING (web includes inlined); save always uses the
+  // raw `fullSource()`, so the deck keeps its `{{md-include}}` directives.
+  function renderSource() { var s = fullSource(); ensureIncludes(s); return applyIncludes(s); }
+
+  // Re-render EVERY slide's content in place when an include resolves — update
+  // each <section>'s innerHTML without rebuilding the section list, so reveal.js
+  // keeps its slide count + current position (a full renderAll would reset them).
+  function rerenderAllInPlace() {
+    var deck = API.parseDeck(renderSource());
+    var secs = sections();
+    if (deck.slides.length !== secs.length) { API.renderAll(renderSource()); return; }
+    for (var i = 0; i < secs.length; i++) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = API.renderSlide(deck.slides[i], API.md, deck.config);
+      var fresh = tmp.firstElementChild;
+      if (fresh) secs[i].innerHTML = fresh.innerHTML;
+    }
+    try { API.reveal.sync(); } catch (e) {}
+    API.refresh();
+  }
+  var includeRerenderTimer = null;
+  function scheduleIncludeRerender() {
+    if (includeRerenderTimer) clearTimeout(includeRerenderTimer);
+    includeRerenderTimer = setTimeout(rerenderAllInPlace, 80);
+  }
+
   function onHostMessage(event) {
     // only the embedding parent may speak the protocol
     if (window.parent === window || event.source !== window.parent) return;
@@ -531,6 +593,13 @@
     } else if (d.type === 'orz-host-ai-result' && d.requestId && aiPending[d.requestId]) {
       var aiRes = aiPending[d.requestId]; delete aiPending[d.requestId];
       aiRes({ ok: !!d.ok, proposed: d.proposed, error: d.error });
+    } else if (d.type === 'orz-host-include-hello' && d.protocol === INCLUDE_PROTOCOL && typeof d.version === 'number' && d.version >= 1) {
+      includeOrigin = event.origin;
+      includePost({ type: 'orz-host-include-ready', protocol: INCLUDE_PROTOCOL, version: INCLUDE_VERSION, kind: 'slides' });
+      scheduleIncludeRerender(); // request + render now that web includes can resolve
+    } else if (d.type === 'orz-host-include-result' && d.requestId && includePending[d.requestId]) {
+      var incRes = includePending[d.requestId]; delete includePending[d.requestId];
+      incRes(d.ok ? d.markdown : null);
     }
   }
   // listen from script load so an early hello isn't missed
