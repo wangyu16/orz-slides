@@ -60,9 +60,28 @@ function enhance(): void {
   const w = window as any;
   try {
     if (w.mermaid) {
-      w.mermaid.initialize({ startOnLoad: false });
-      const p = w.mermaid.run({ querySelector: '.mermaid:not([data-processed])' });
-      if (p && p.then) p.then(() => fitCurrent()).catch(() => undefined); // re-fit once the SVG lands
+      // `htmlLabels: false` → SVG <text> labels, not <foreignObject> HTML. HTML
+      // labels are measured via getBoundingClientRect, which reveal.js's
+      // scale-to-fit transform distorts — the label boxes come out ~0-sized and
+      // the text is clipped away (diagram draws, labels vanish). SVG text is
+      // measured in transform-independent SVG user units, so it renders correctly
+      // whatever scale the slide is at.
+      w.mermaid.initialize({ startOnLoad: false, htmlLabels: false, flowchart: { htmlLabels: false } });
+      // Only run mermaid on diagrams that are actually LAID OUT (visible, non-zero
+      // size). reveal.js keeps off-slide sections `display:none`; rendering a
+      // mermaid diagram while hidden measures its label text at zero size — the
+      // boxes draw but the labels vanish — and mermaid still marks it
+      // `data-processed`, so later passes skip it and it never recovers without a
+      // reload. Deferring hidden diagrams lets each render correctly once its
+      // slide is shown (via the slidechanged + retry passes).
+      const pending = Array.prototype.filter.call(
+        document.querySelectorAll('.mermaid:not([data-processed])'),
+        (el: HTMLElement) => el.offsetWidth > 0 && el.offsetHeight > 0,
+      ) as HTMLElement[];
+      if (pending.length) {
+        const p = w.mermaid.run({ nodes: pending });
+        if (p && p.then) p.then(() => fitCurrent()).catch(() => undefined); // re-fit once the SVG lands
+      }
     }
   } catch (e) { /* ignore */ }
 
@@ -189,9 +208,10 @@ function fitRegion(region: HTMLElement): void {
   region.setAttribute('data-scale', scale.toFixed(2));
 }
 
-/** Size mermaid SVGs to fit their region (both dimensions), keeping the diagram's
- *  aspect ratio. Font scale-to-fit can't shrink an SVG, so a tall flowchart would
- *  otherwise overflow the region. Charts fill the region via maintainAspectRatio. */
+/** Size graphics to fit their region (both dimensions), keeping their aspect
+ *  ratio. Font scale-to-fit cannot shrink pixel-sized images or SVGs, so a tall
+ *  graphic would otherwise remain clipped even after the surrounding text is
+ *  reduced. Charts fill the available box via maintainAspectRatio. */
 /** Space available to a graphic = region width × (region height minus the height
  *  of the OTHER content in its markdown-body) — so a caption and a diagram can
  *  share one region without the diagram overflowing. */
@@ -210,6 +230,37 @@ function availFor(region: HTMLElement, graphic: Element): { w: number; h: number
 
 function fitRegionGraphics(region: HTMLElement): void {
   if (!region.clientWidth || !region.clientHeight) return;
+  region.querySelectorAll<HTMLImageElement>('.markdown-body img').forEach((img) => {
+    // QR graphics have their own fixed plate/overlay behavior below.
+    if (img.closest('.qrcode')) return;
+    const fit = () => {
+      const av = availFor(region, img);
+      const naturalW = img.naturalWidth;
+      const naturalH = img.naturalHeight;
+      const attrW = Number(img.getAttribute('width')) || 0;
+      const attrH = Number(img.getAttribute('height')) || 0;
+      const ar = naturalW && naturalH
+        ? naturalW / naturalH
+        : attrW && attrH
+          ? attrW / attrH
+          : 1;
+      // Explicit Markdown width is an author-supplied maximum, not a command to
+      // overflow a smaller region. Unspecified images may use their natural size.
+      const preferredW = attrW || naturalW || av.w;
+      let w = Math.min(av.w, preferredW);
+      let h = w / ar;
+      if (h > av.h) { h = av.h; w = h * ar; }
+      img.style.width = Math.max(1, Math.floor(w)) + 'px';
+      img.style.height = Math.max(1, Math.floor(h)) + 'px';
+      img.style.maxWidth = 'none';
+    };
+    if (img.complete && (img.naturalWidth || img.getAttribute('width'))) {
+      fit();
+    } else if (!(img as any).__orzFitOnLoad) {
+      (img as any).__orzFitOnLoad = true;
+      img.addEventListener('load', () => { fit(); fitCurrent(); }, { once: true });
+    }
+  });
   region.querySelectorAll<SVGSVGElement>('.mermaid svg').forEach((svg) => {
     const av = availFor(region, svg);
     const vb = svg.viewBox && svg.viewBox.baseVal;
@@ -235,8 +286,12 @@ function fitCurrent(): void {
   const slide: HTMLElement | null = (Reveal.getCurrentSlide && Reveal.getCurrentSlide()) || null;
   if (!slide || slide.getAttribute('data-fit') === 'off') return;
   slide.querySelectorAll<HTMLElement>('.orz-region').forEach((region) => {
-    fitRegion(region);
+    // Graphics need their own box fit before the text scale is measured;
+    // otherwise a large fixed-pixel image can force text to the 0.6 floor while
+    // remaining oversized itself.
+    region.style.removeProperty('--region-scale');
     fitRegionGraphics(region);
+    fitRegion(region);
   });
 }
 

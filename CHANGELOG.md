@@ -5,6 +5,15 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 
 ## [0.8.0] — 2026-07-11
 
+### Fixed
+
+- **Mermaid diagram labels now render on first load.** Mermaid used HTML
+  (`<foreignObject>`) labels measured via `getBoundingClientRect`, which
+  reveal.js's scale-to-fit transform distorted to ~0-size boxes — the diagram
+  drew but its text was clipped away until a manual reload. Switched to SVG
+  `<text>` labels (`htmlLabels: false`), measured in transform-independent user
+  units, and defer rendering a diagram until its slide is actually laid out.
+
 ### Added
 
 - **`orz-host-include@1`** — the in-file editor resolves URL-based markdown
