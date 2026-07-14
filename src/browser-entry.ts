@@ -355,7 +355,12 @@ function mount(): void {
   Reveal.on('fragmenthidden', syncSpeaker);
 
   const relayout = () => { try { Reveal.layout(); } catch (e) { /* ignore */ } };
-  loadEnhancers(cfg).then(() => { relayout(); refresh(); });
+  loadEnhancers(cfg).then(() => { relayout(); refresh(); syncFragmentsToMode(); });
+  // Keep fragment stepping in step with edit/present mode (the in-file editor
+  // toggles `data-mode` on <html>).
+  new MutationObserver(syncFragmentsToMode).observe(
+    document.documentElement, { attributes: true, attributeFilter: ['data-mode'] },
+  );
   // Diagrams/charts finish asynchronously and may settle after the first fit —
   // re-fit several times so their final size is measured into scale-to-fit.
   Reveal.on('slidechanged', () => { enhance(); [80, 500, 1400].forEach((t) => setTimeout(refresh, t)); });
@@ -415,6 +420,19 @@ function applyFragments(): boolean {
     });
   });
   return added;
+}
+
+/** Step-reveal fragments are a PRESENT-mode concern. In EDIT mode reveal them
+ *  all and turn stepping off, so every arrow key moves slide-to-slide while
+ *  authoring — otherwise navigating onto a step slide gets stuck cycling hidden
+ *  fragments (nothing visibly changes, and the deck won't advance until each is
+ *  stepped). Re-applied whenever the in-file editor flips `data-mode`. */
+function syncFragmentsToMode(): void {
+  const editing = document.documentElement.getAttribute('data-mode') === 'edit';
+  try {
+    Reveal.configure({ fragments: !editing });
+    Reveal.sync();
+  } catch (e) { /* ignore */ }
 }
 
 /* ---------- presenter clock / timer ---------- */
