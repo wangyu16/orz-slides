@@ -343,6 +343,11 @@ function mount(): void {
   });
   window.orzslides.reveal = Reveal;
 
+  // Apply the fragments-vs-mode rule once reveal has finished initializing —
+  // `initialize()` resets `fragments` to its default, so a host hello that
+  // arrived DURING init (embedded load) would otherwise be clobbered.
+  Reveal.on('ready', syncFragmentsToMode);
+
   // Presenter keybindings (shown in reveal's '?' help): S = speaker view,
   // T = on-deck clock/timer overlay.
   try {
@@ -361,6 +366,16 @@ function mount(): void {
   new MutationObserver(syncFragmentsToMode).observe(
     document.documentElement, { attributes: true, attributeFilter: ['data-mode'] },
   );
+  // A host (Alembic workspace) announces itself with an `orz-host-*-hello`. Once
+  // embedded, the deck is for authoring/review — turn fragment stepping off in
+  // preview too, so navigating a step slide flips slide-to-slide, not fragments.
+  window.addEventListener('message', (e: MessageEvent) => {
+    const t = e && e.data && (e.data as { type?: unknown }).type;
+    if (typeof t === 'string' && t.indexOf('orz-host-') === 0 && t.indexOf('hello') !== -1 && !hostEmbedded) {
+      hostEmbedded = true;
+      syncFragmentsToMode();
+    }
+  });
   // Diagrams/charts finish asynchronously and may settle after the first fit —
   // re-fit several times so their final size is measured into scale-to-fit.
   Reveal.on('slidechanged', () => { enhance(); [80, 500, 1400].forEach((t) => setTimeout(refresh, t)); });
@@ -422,15 +437,23 @@ function applyFragments(): boolean {
   return added;
 }
 
-/** Step-reveal fragments are a PRESENT-mode concern. In EDIT mode reveal them
- *  all and turn stepping off, so every arrow key moves slide-to-slide while
- *  authoring — otherwise navigating onto a step slide gets stuck cycling hidden
- *  fragments (nothing visibly changes, and the deck won't advance until each is
- *  stepped). Re-applied whenever the in-file editor flips `data-mode`. */
+/** True once a host (e.g. Alembic's workspace) has said hello — the deck is
+ *  embedded for authoring/review, not for presenting to an audience. */
+let hostEmbedded = false;
+
+/** Step-reveal fragments are a real-PRESENTATION feature: they only make sense
+ *  when someone is presenting a standalone deck. Turn stepping OFF (reveal all
+ *  content, arrow keys move slide-to-slide) whenever the deck is being AUTHORED
+ *  or REVIEWED — i.e. in EDIT mode, or in ANY mode while embedded in a host
+ *  workspace (edit + preview). Otherwise a step slide traps navigation: pressing
+ *  an arrow reveals a hidden fragment instead of advancing, so the deck appears
+ *  stuck. Only a STANDALONE deck in present mode (downloaded / published) keeps
+ *  real click-to-reveal stepping. Re-applied on `data-mode` flip + on host hello. */
 function syncFragmentsToMode(): void {
-  const editing = document.documentElement.getAttribute('data-mode') === 'edit';
+  const presenting =
+    document.documentElement.getAttribute('data-mode') === 'present' && !hostEmbedded;
   try {
-    Reveal.configure({ fragments: !editing });
+    Reveal.configure({ fragments: presenting });
     Reveal.sync();
   } catch (e) { /* ignore */ }
 }
