@@ -8,7 +8,7 @@
  */
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
-import { mkdirSync, existsSync, readFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -67,4 +67,17 @@ copyFileSync(
   join(browserPkgDir, 'orz-slides.browser.js')
 );
 
-console.log(`Bundled orz-slides@${selfVersion} → dist/orz-slides.browser.js (+ browser/)`);
+// CDN-delivered files request the engine at orz-slides' OWN version
+// (`orz-slides-browser@${selfVersion}` — see lib.ts). The two package versions
+// are therefore one version, and drift is not a nuisance but a hard break: a
+// root-only release leaves every CDN deck pointing at a 404, which renders as a
+// themed-but-empty page with no engine and no editor. Keep them in lockstep
+// here, at the only place that already knows the real version.
+const browserPkgPath = join(browserPkgDir, 'package.json');
+const browserPkg = JSON.parse(readFileSync(browserPkgPath, 'utf8'));
+if (browserPkg.version !== selfVersion) {
+  browserPkg.version = selfVersion;
+  writeFileSync(browserPkgPath, `${JSON.stringify(browserPkg, null, 2)}\n`);
+}
+
+console.log(`Bundled orz-slides@${selfVersion} → dist/orz-slides.browser.js (+ browser/ @ ${selfVersion})`);

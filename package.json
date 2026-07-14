@@ -23,6 +23,7 @@
   "scripts": {
     "build": "tsc && npm run bundle",
     "bundle": "tsx build/bundle.ts",
+    "release": "npm run build && npm publish && npm publish ./browser",
     "gen": "tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
