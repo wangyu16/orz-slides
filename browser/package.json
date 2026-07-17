@@ -1,6 +1,6 @@
 {
   "name": "orz-slides-browser",
-  "version": "0.8.2",
+  "version": "0.8.5",
   "description": "Prebuilt in-browser presentation engine for orz-slides .slides.html files (reveal.js + orz-markdown + the slide parser/layout/assembler)",
   "main": "orz-slides.browser.js",
   "files": [
@@ -11,6 +11,8 @@
     "type": "git",
     "url": "git+https://github.com/wangyu16/orz-slides.git"
   },
+  "homepage": "https://markdown.orz.how/family.html#slides",
+  "bugs": "https://github.com/wangyu16/orz-slides/issues",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

@@ -11,7 +11,7 @@ back. Built on [reveal.js](https://revealjs.com) for the deck mechanics.
 One file. Open it in a browser to present. Pop out a per-slide editor to change
 a slide. Save it back in place. Nothing to install for the audience.
 
-> **Status: published (v0.8.4).** The authoring syntax, CLI, engine, and in-file
+> **Status: published (v0.8.5).** The authoring syntax, CLI, engine, and in-file
 > editor all work (see [DESIGN.md](./DESIGN.md)). Two packages publish in
 > lockstep: the [`orz-slides`](https://www.npmjs.com/package/orz-slides) CLI and
 > the [`orz-slides-browser`](https://www.npmjs.com/package/orz-slides-browser)

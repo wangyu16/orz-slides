@@ -1,6 +1,6 @@
 ---
 name: orz-slides
-description: Author and edit self-contained .slides.html presentation decks (orz-slides). Use when a user wants to turn notes or markdown into a browser-based slide deck — one portable HTML file that presents in any browser (reveal.js), is written in orz-markdown with a layout syntax, and can be edited in-browser. Covers the deck source format, slide/layout/region markers, structure templates, and per-slide capacity budgets so slides do not overflow.
+description: Author and edit single-file, self-editing .slides.html presentation decks (orz-slides). Use when a user wants to turn notes or markdown into a browser-based slide deck — one portable HTML file that presents in any browser (reveal.js), is written in orz-markdown with a layout syntax, and can be edited in-browser. Covers the deck source format, slide/layout/region markers, structure templates, and per-slide capacity budgets so slides do not overflow.
 ---
 
 # orz-slides — author a `.slides.html` deck
@@ -26,7 +26,7 @@ You write only the **deck source**. Never hand-write the surrounding HTML
 edit the deck source (in a `.md`-ish file fed to the CLI, or in-browser) and let
 the tool re-serialize.
 
-> Status: orz-slides is **published to npm** (v0.7.1) as two lockstep packages —
+> Status: orz-slides is **published to npm** (v0.8.5) as two lockstep packages —
 > the `orz-slides` CLI and the `orz-slides-browser` engine. Generate decks with
 > the CLI (`npx orz-slides deck.md`, or install it globally). Speaker view
 > (**S**), step-reveal fragments, an on-deck timer (**T**), and slide numbers are
@@ -119,7 +119,7 @@ Reveal a slide's content one piece at a time:
 
 ### Presenting
 
-reveal.js keyboard nav, plus: **S** opens a self-contained **speaker view**
+reveal.js keyboard nav, plus: **S** opens a dedicated **speaker view**
 (current + next slide, the slide's `@notes`, a wall clock and a start/pause/reset
 timer; arrows there drive the deck). **T** toggles an on-deck clock/timer
 overlay. Slide numbers (`c/t`) and a progress bar show during the presentation.
@@ -383,7 +383,7 @@ needs internet. `--cdn` instead references the engine + theme from jsDelivr
 
 ## Security
 
-`.slides.html` files are **self-contained executable HTML** — opening one runs its
+`.slides.html` files are **single-file executable HTML** — opening one runs its
 embedded JavaScript. Treat them like programs: only open or edit files from a
 trusted source, and advise users the same. The one-click framework update is
 opt-in (edit view only, explicit confirm) and always fetches from the hardcoded
