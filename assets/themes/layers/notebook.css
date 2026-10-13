@@ -1,0 +1,283 @@
+/* Notebook — deck layer for light-playful-1 ("a ruled school exercise book").
+   Every slide is a ruled page: blue rules every --nb-pitch from the top edge, a
+   pink margin line, text written ON the rules (concept-shim.js snaps each
+   region's blocks to the bands; text line boxes are one pitch tall). What is
+   not running text — notes, code, tables, quotes, diagrams, pictures — is a
+   slip stuck on top, as in the document theme. The title and closing pages
+   are the exercise book's cover with its name label; the section divider is a
+   tabbed divider page; the outline is today's list with the current item
+   highlighted. A region that fit has to shrink becomes a sheet with its own,
+   finer ruling, so shrunk text still sits on lines. */
+
+:root {
+  --nb-pitch: 40px;          /* line spacing; 18 lines on a 720px page */
+  --nb-rule: 31px;           /* where the rule sits inside each band (just under the baseline) */
+  --nb-margin-x: 92px;       /* the pink margin line */
+
+  --sl-size: 26px;
+  --sl-lh: 40px;
+  --sl-pad-t: 40px;
+  --sl-pad-x: 118px;
+  --sl-chrome: 80px;
+  --sl-gap: 40px;
+  --sl-title-gap: 0px;
+  --sl-title-size: 1.85em;
+  --sl-bg: var(--bg-color);
+  --sl-viewport: #e9e3d6;
+  --sl-ink: var(--text-main);
+  --sl-mono: var(--code-font);
+  --sl-controls: var(--accent);
+  --sl-qr: 4.4em;
+
+  --nb-ruling:
+    linear-gradient(to right, transparent var(--nb-margin-x), var(--margin-ink) var(--nb-margin-x),
+      var(--margin-ink) calc(var(--nb-margin-x) + 1.5px), transparent calc(var(--nb-margin-x) + 1.5px)) 0 0 / 100% 100% no-repeat,
+    linear-gradient(to bottom, transparent calc(var(--nb-rule) - 1px), var(--rule-ink) calc(var(--nb-rule) - 1px),
+      var(--rule-ink) var(--nb-rule), transparent var(--nb-rule)) 0 0 / 100% var(--nb-pitch) repeat-y;
+  --nb-cover: #3d6f9e;
+  --nb-cover-ink: #f3f6fa;
+
+  --chart-1: #d6336c; --chart-2: #00649a; --chart-3: #3d6e17; --chart-4: #b07a00;
+  --chart-text: #35332f;
+  --chart-grid: rgba(58, 128, 214, 0.22);
+  --chart-font: 'Shantell Sans', 'Comic Sans MS', cursive;
+  --chart-font-size: 19;
+  --chart-surface: #fffefa;
+  --mm-font: 'Shantell Sans', 'Comic Sans MS', cursive;
+  --mm-font-size: 19;
+  --mm-node: #fff1a1;
+  --mm-border: #24466e;
+  --mm-text: #23211e;
+  --mm-line: #24466e;
+  --mm-surface: #fffefa;
+}
+
+/* ───────── the ruled page ───────── */
+.reveal .orz-slide {
+  font-family: var(--body-font);
+  font-variation-settings: 'INFM' 55, 'BNCE' 25;
+  background: var(--nb-ruling), var(--bg-color);
+}
+
+/* text is written on the lines. The source's screen notebook (its @media screen rules, kept by the
+   build and scoped to a region's body) puts every block on the grid of --orz-grid with the kit's grid
+   pass (orz-markdown 2.3.0; fit re-aligns at each scale, src/present/grid.ts); here the grid is the
+   slide's ruling: pitch --nb-pitch, scaled with fit. A region's body starts on a rule (the title band
+   is two lines, the gap one), so its lines are the page's lines; the page draws them. */
+.reveal .orz-region > .markdown-body {
+  --nb-p: calc(var(--nb-pitch) * var(--fit-scale, 1));
+  --rule: var(--nb-p);
+  line-height: var(--nb-p);
+  background: none;
+}
+/* a region fit had to shrink: a sheet on top of the page, with its own finer ruling at the kit's rule height */
+.reveal .orz-region[data-scale]:not([data-scale="1"]) > .markdown-body[data-orz-grid] {
+  background:
+    linear-gradient(to bottom, transparent calc(var(--orz-rule-at, 31px) - 1px), var(--rule-ink) calc(var(--orz-rule-at, 31px) - 1px),
+      var(--rule-ink) var(--orz-rule-at, 31px), transparent var(--orz-rule-at, 31px)) 0 0 / 100% var(--nb-p) repeat-y,
+    var(--bg-color);
+  background-origin: content-box;
+  box-shadow: 0 0 0 6px var(--bg-color), 1.5px 2.5px 0 6px rgba(80, 60, 30, 0.12);
+}
+/* the slide-scale rhythm gives way to the grid's (a blank ruled line between blocks) */
+.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl) { margin-bottom: 0; }
+
+/* slips stuck on top: diagrams, charts, molecules, pictures */
+.reveal .orz-region .markdown-body > :is(.mermaid, .smiles-render, p:has(> img), p:has(> .orz-chart-frame)),
+.reveal .orz-region .markdown-body > .orz-chart-frame {
+  background: var(--paper-slip);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12);
+  padding: 0.35em;
+  line-height: 0;
+}
+.reveal .orz-region .markdown-body > p:has(> img) { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
+.reveal .orz-region .markdown-body > p:has(> img)::after,
+.reveal .orz-region .markdown-body > .smiles-render::after {
+  content: ''; position: absolute; top: -11px; left: 50%; width: 76px; height: 22px; transform: translateX(-50%) rotate(-3deg);
+  background: rgba(240, 230, 205, 0.82); box-shadow: 0 1px 2px rgba(80, 60, 30, 0.14);
+}
+.reveal .orz-region .markdown-body > .smiles-render { position: relative; width: fit-content; margin-inline: auto; overflow: visible; }
+.reveal .orz-region .markdown-body > .mermaid { padding: 0.5em; }
+/* the molecule slip sits apart from its caption */
+.reveal .orz-region .markdown-body > .smiles-render + p { font-family: var(--heading-font); font-size: 1.12em; color: var(--accent-blue); }
+
+/* notes/quotes/code keep the source's slips; keep their tape inside the region */
+.reveal .orz-region .markdown-body > :is(.info, .success, .warning, .danger) { line-height: 1.45; padding-top: 0.9em; padding-bottom: 0.8em; }
+.reveal .orz-region .markdown-body > blockquote { line-height: 1.35; }
+.reveal .orz-region .markdown-body > pre { line-height: 1.5; }
+.reveal .orz-region .markdown-body table { line-height: 1.35; }
+.reveal .orz-region { padding-right: 10px; }
+
+/* ───────── title band: written in blue ballpoint over two lines, dashed underline ───────── */
+.reveal .orz-title { height: calc(2 * var(--nb-pitch)); margin: 0; }
+.reveal .orz-title h2 {
+  font-family: var(--heading-font);
+  font-weight: 400;
+  color: var(--accent-blue);
+  line-height: calc(2 * var(--nb-pitch));
+  height: calc(2 * var(--nb-pitch));
+  margin: 0; padding: 0; border: 0;
+  width: auto;
+  position: relative; top: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-decoration: underline dashed currentColor;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.16em;
+  transform: none;
+}
+.reveal .orz-title h2 .katex { font-size: 0.8em; }
+
+/* ───────── chrome: page number circled in pencil, a highlighter progress, footer in pencil ───────── */
+.reveal .orz-footer {
+  font-family: var(--heading-font); font-size: 0.86em; color: var(--text-muted);
+  height: var(--nb-pitch); bottom: 3px; align-items: flex-end; padding-bottom: 6px;   /* written on the last rule, under the highlighter */
+}
+.reveal .orz-chrome { font-family: var(--heading-font); font-size: 1em; }
+.reveal .orz-chrome-num {
+  right: 54px; bottom: 26px; height: 50px; width: 50px; justify-content: center; gap: 0;
+  border: 2px solid rgba(53, 51, 47, 0.55); border-radius: 52% 48% 55% 45% / 47% 55% 45% 53%;
+  color: var(--text-strong); font-size: 1.05em; transform: rotate(-4deg);
+}
+.reveal .orz-chrome-num i, .reveal .orz-chrome-num span { display: none; }
+.reveal .orz-chrome-bar {
+  left: var(--nb-margin-x); bottom: calc(var(--nb-pitch) * 2 - var(--nb-rule) - 9px); height: 14px;
+  width: calc(var(--progress) * (100% - var(--nb-margin-x) - 140px));
+  background: rgba(255, 214, 102, 0.55); border-radius: 2px 7px 3px 6px;
+}
+
+/* ───────── floats: a sticky note with tape ───────── */
+.reveal .orz-float {
+  background: var(--note-yellow);
+  padding: 0.7em 0.8em 0.6em;
+  border-radius: 2px 2px 16px 2px / 2px 2px 22px 2px;
+  box-shadow: 1px 3px 0 rgba(80, 60, 30, 0.06), 2px 7px 12px -4px rgba(80, 60, 30, 0.22);
+  transform: rotate(-2deg);
+  overflow: visible;
+  color: var(--ink-warning);
+  font-size: 0.9em; line-height: 1.35;
+  display: flex; align-items: center;
+}
+.reveal .orz-float::before {
+  content: ''; position: absolute; top: -12px; left: 50%; width: 70px; height: 22px; transform: translateX(-50%) rotate(4deg);
+  background: rgba(240, 230, 205, 0.82); box-shadow: 0 1px 2px rgba(80, 60, 30, 0.12);
+}
+.reveal .orz-float strong { color: var(--text-strong); font-family: var(--heading-font); font-size: 1.3em; font-weight: 400; }
+
+/* ───────── fragments: the current step gets a stroke of yellow highlighter ───────── */
+.reveal .orz-region .fragment.current-fragment {
+  background: linear-gradient(to bottom, transparent 22%, rgba(255, 214, 102, 0.6) 22%, rgba(255, 214, 102, 0.6) 82%, transparent 82%);
+  border-radius: 3px 8px 4px 6px;
+}
+.reveal .orz-region li.fragment.current-fragment::marker { color: var(--accent); }
+
+/* ───────── title and closing: the exercise book's cover and its name label ───────── */
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"]) {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.035) 0 2px, transparent 2px 6px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22) 0 26px, rgba(255, 255, 255, 0.08) 26px 30px, transparent 30px),
+    var(--nb-cover);
+  padding: 40px 120px 56px;
+}
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"]) .orz-frame { justify-content: center; align-items: center; }
+.reveal .orz-template-title, .reveal .orz-template-closing {
+  width: min(100%, 880px);
+  background:
+    linear-gradient(to bottom, transparent calc(100% - 1px), rgba(58, 128, 214, 0.32) calc(100% - 1px)) 0 0 / 100% 1.42em repeat-y,
+    var(--paper-slip);
+  background-origin: content-box;
+  border-radius: 22px;
+  box-shadow: 0 0 0 2px #24466e inset, 0 0 0 7px var(--paper-slip) inset, 0 0 0 8.5px #24466e inset, 0 6px 0 rgba(0, 0, 0, 0.18);
+  padding: 34px 54px 30px;
+  align-items: flex-start;
+  text-align: left;
+  position: relative;
+}
+.reveal .orz-template-title::before, .reveal .orz-template-closing::before {
+  content: 'SUBJECT'; position: absolute; top: 14px; left: 56px;
+  font: 700 0.42em/1 'Recursive', ui-monospace, monospace; letter-spacing: 0.22em; color: #24466e; font-variation-settings: 'CASL' 0, 'MONO' 1;
+}
+.reveal .orz-template-closing::before { content: 'THE END'; }
+.reveal .orz-title-main {
+  font-family: var(--heading-font); font-weight: 400; color: #1d3f6e;
+  font-size: 1.95em; line-height: 1.12; margin-top: 0.25em;
+}
+.reveal .orz-title-sub { font-family: var(--heading-font); color: var(--accent); font-size: 1.25em; line-height: 1.3; margin-top: 0.15em; }
+.reveal .orz-title-meta {
+  margin-top: 0.7em; padding-top: 0.6em; width: 100%;
+  border-top: 2px dotted rgba(36, 70, 110, 0.5);
+  font-family: var(--body-font); font-size: 0.72em; line-height: 1.5; color: var(--text-main);
+}
+.reveal .orz-title-meta p::before {
+  content: 'NAME'; display: inline-block; margin-right: 0.9em;
+  font: 700 0.62em/1 'Recursive', ui-monospace, monospace; letter-spacing: 0.22em; color: #24466e; vertical-align: 0.15em;
+}
+.reveal .orz-template-closing .orz-title-main { font-size: 2.6em; }
+.reveal .orz-template-closing { padding-right: 300px; }
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute; right: 54px; top: 50%; margin: 0; transform: translateY(-50%) rotate(3deg);
+  padding: 10px; border: 1px solid var(--border-color); box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.14);
+}
+.reveal .orz-template-closing > .orz-qr-slot::after {
+  content: ''; position: absolute; top: -12px; left: 50%; width: 70px; height: 22px; transform: translateX(-50%) rotate(-5deg);
+  background: rgba(240, 230, 205, 0.85); box-shadow: 0 1px 2px rgba(80, 60, 30, 0.12);
+}
+.reveal .orz-slide[data-template="closing"] .orz-chrome { display: none; }
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"]) .orz-footer { display: none; }
+
+/* ───────── section: a divider page with a coloured index tab ───────── */
+.reveal .orz-slide[data-template="section"] { background: var(--nb-ruling), var(--bg-color); }
+.reveal .orz-slide[data-template="section"]::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 16px; background: var(--note-pink);
+}
+.reveal .orz-template-section { justify-content: flex-start; padding-top: calc(var(--nb-pitch) * 3); padding-right: 140px; position: static; }   /* the index tab hangs on the slide's edge */
+.reveal .orz-section-main {
+  font-family: var(--heading-font); font-weight: 400; color: var(--accent);
+  font-size: 2.6em; line-height: calc(var(--nb-pitch) * 2); position: static;
+  text-decoration: underline wavy rgba(214, 51, 108, 0.5); text-decoration-thickness: 2px; text-underline-offset: 0.18em; text-decoration-skip-ink: none;
+}
+.reveal .orz-section-main::after {
+  content: attr(data-sec); position: absolute; right: 0; top: 80px; width: 104px; height: 120px;
+  display: flex; align-items: center; justify-content: center; padding-right: 14px;
+  background: var(--note-pink); color: var(--ink-danger); font-size: 0.82em; line-height: 1; text-decoration: none;
+  border-radius: 16px 0 0 16px; box-shadow: -2px 2px 0 rgba(80, 60, 30, 0.12);
+}
+.reveal .orz-section-meta { font-family: var(--body-font); color: var(--accent-blue); line-height: var(--nb-pitch); margin-top: var(--nb-pitch); font-size: 1em; }
+.reveal .orz-section-meta p { margin: 0; line-height: var(--nb-pitch); }
+
+/* ───────── outline: today's list, the current item highlighted with an arrow ───────── */
+.reveal .orz-template-outline { justify-content: flex-start; }
+.reveal .orz-outline { line-height: var(--nb-pitch); }
+.reveal .orz-outline h2 {
+  font-family: var(--heading-font); font-weight: 400; color: var(--accent-blue); font-size: 1.85em;
+  line-height: calc(2 * var(--nb-pitch)); margin: 0 0 var(--nb-pitch); padding: 0; border: 0; position: relative; top: 6px;
+  text-decoration: underline dashed currentColor; text-decoration-thickness: 2px; text-underline-offset: 0.16em; width: auto;
+}
+.reveal .orz-outline ol { margin: 0; padding-left: 1.6em; }
+.reveal .orz-outline li { line-height: calc(var(--nb-pitch) * 1.5); font-size: 1.25em; margin: 0; padding-left: 0.2em; }
+.reveal .orz-outline li::marker { font-family: var(--heading-font); color: var(--accent); }
+.reveal .orz-outline li strong { font-weight: 600; }
+.reveal .orz-outline li.orz-here {
+  width: fit-content;
+  position: relative;
+  font-weight: 600;
+  background: linear-gradient(to bottom, transparent 28%, #ffc6da 28%, #ffc6da 88%, transparent 88%) 0.15em 0 / calc(100% - 0.15em) 100% no-repeat;
+}
+.reveal .orz-outline li.orz-here::after {
+  content: '\2190 today'; font-family: var(--heading-font); color: var(--accent); font-size: 0.95em; font-weight: 400;
+  position: absolute; left: 100%; top: 0; margin-left: 0.6em; white-space: nowrap;   /* beside the highlight, not in it */
+}
+.reveal .orz-slide[data-template="outline"] .orz-frame { justify-content: flex-start; }
+.reveal .orz-slide[data-template="section"] .orz-frame { justify-content: flex-start; }
+
+/* fixes after the first look */
+.reveal .orz-slide .orz-region .markdown-body > :is(p, ul, ol, dl) { padding-bottom: 0; padding-top: 0; }
+.reveal .orz-region li.fragment.current-fragment,
+.reveal .orz-region p.fragment.current-fragment { width: fit-content; max-width: 100%; }
+.reveal .orz-template-closing .orz-title-meta,
+.reveal .orz-template-closing .orz-title-meta p { position: static; }
+.reveal .orz-region .markdown-body li.task-list-item { padding-left: 1.35em; text-indent: -1.35em; }
+.reveal .orz-region .markdown-body li.task-list-item > * { text-indent: 0; }
+.reveal .orz-template-closing > .orz-qr-slot svg { width: 5.4em; }

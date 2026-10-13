@@ -25,9 +25,8 @@ slides kind), `spec/conformance.md`; the family plan `../docs/REBUILD.md` §3c
 (owner decisions 1–6 and the approved plan).
 
 Rebuild status: steps 1 (base), 2 (format-1 parser + isomorphic
-assembler) and 3 (the engine: the read view, present, print) on branch
-`rebuild/1.0`. Step 3 builds one theme (Orchard); the other 13 show in it
-as a stand-in until step 4.
+assembler), 3 (the engine: the read view, present, print) and 4 (the 14
+themes) on branch `rebuild/1.0`.
 
 ## B — base (rebuild step 1)
 
@@ -143,12 +142,18 @@ as a stand-in until step 4.
 | C.2 | The outline's current item is marked on screen (automatic, or `here=N`), styled apart by the theme. | real |
 | C.3 | The closing template lifts a lone `{{qr}}` into its own slot (`.orz-qr-slot`, its `data-md` breadcrumb kept; the paragraph it leaves tidied); with two codes nothing moves. | real |
 
-## T — themes in the engine (rebuild step 3; step 4 completes them)
+## T — themes in the engine (rebuild steps 3–4)
 
 | ID | Claim | Oracle |
 |---|---|---|
-| T.1 | The read view's theme is the engine's stylesheet (`#orz-slide-theme`; step 3: Orchard, the stand-in for a theme not built yet); the shell's head links no theme; slides render at the logical size — 1280 × 720 for 16:9, 960 × 720 for 4:3 — and a Ratio or Theme setting re-presents the deck. | real |
-| T.2 | `assets/themes/<id>.css` is exactly what scripts/build-themes.ts derives from the installed orz-markdown (orz-markdown common.css + the source theme adapted to a slide + layers/slide-scale.css + the theme's layer); the engine bundle carries reveal.js's core CSS, deck.css and the built themes, so inline and cdn files style the same. | conformance |
+| T.1 | The read view's theme is the engine's stylesheet (`#orz-slide-theme`, the header theme's own: all 14 are built); the shell's head links no theme; slides render at the logical size — 1280 × 720 for 16:9, 960 × 720 for 4:3 — and a Ratio or Theme setting re-presents the deck. | real |
+| T.2 | `assets/themes/<id>.css` is exactly what scripts/build-themes.ts makes from the installed orz-markdown for each of the 14 themes — a derived theme: orz-markdown common.css + its source theme adapted to a slide (Notebook also keeps the source's screen notebook, scoped to a region's body) + layers/slide-scale.css + its layer; an updated theme: layers/content.css + its layer; the engine bundle carries reveal.js's core CSS, deck.css and the 14 themes, so inline and cdn files style the same. | conformance |
+| T.3 | Every theme on the sample deck (online): no silent clipping (the fit oracle) and no box clipped at all — the dense slide is scaled, the title, section and closing pages fit unscaled decoration included. | real |
+| T.4 | Every text of the chrome slots (running head, footer, section, slide number) is at least 20 px at the logical 1280 × 720, in every theme. | real |
+| T.5 | Contrast, from what is drawn (the background sampled with the text hidden): body ink ≥ 4.5 : 1 and the title band and the title page's title ≥ 3 : 1, in every theme. | real |
+| T.6 | The chart and the diagram are drawn with the theme's tokens — tick colour `--chart-text`, first series `--chart-1`, font size `--chart-font-size` (≥ 18), node fill `--mm-node`; the dark themes (Inscription, Copper, Nocturne, Chalk, Neon) draw them dark-native (light ink and labels, dark nodes, no light panel), the light themes in dark ink. | real |
+| T.7 | D-46: the long title stays inside the slide, fitted and not clipped, on the title pages (v2 and v1) of the corpus deck in every theme. | real |
+| T.8 | The Theme setting switches the theme: its own stylesheet, its section labels (Paper roman, the others 01), its colours and colour scheme, and the chart redrawn in its tokens. | real |
 
 ## Q — print (rebuild step 3; Q8)
 

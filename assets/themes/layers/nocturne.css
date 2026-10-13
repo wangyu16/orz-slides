@@ -1,0 +1,231 @@
+/* Nocturne — the slide layer over orz-markdown dark-elegant-3 (orz-slides 1.0; ported
+   from the concept on branch concepts/themes to the 1.0 slots).
+   A graphite editor at night. Atkinson Hyperlegible Next for every label,
+   Charis SIL for the text, one syntax hue per heading level (h1 blue, h2
+   azure, h3 gold), the source's gutter marks (h1 bar, h2 bar, h3 four-point
+   star). The deck parts are the editor's own: the chrome is a status bar, the
+   title page has a line-number gutter, the outline is a file list with the
+   active entry, the current step is the current-line highlight, callouts are
+   diagnostics and the float is a hover widget. */
+
+:root {
+  --sl-size: 30px;
+  --sl-lh: 1.5;
+  --sl-bg: var(--bg-color);
+  --sl-viewport: #1d1e21;
+  --sl-ink: var(--text-color);
+  --sl-mono: var(--font-code);
+  --sl-title-size: 1.5em;
+  --sl-title-gap: 28px;
+  --sl-pad-t: 42px;
+  --sl-pad-x: 80px;
+  --sl-chrome: 50px;
+  --sl-controls: var(--accent);
+
+  --nx-status: #1d1e21;      /* the status bar */
+  --nx-line: #313237;        /* current-line highlight */
+  --nx-active: #36383e;      /* active entry */
+  --nx-star: polygon(50% 0, 63% 37%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0 50%, 37% 37%);
+
+  --chart-1: #77b9ff; --chart-2: #f1c86c; --chart-3: #77dda5; --chart-4: #f7a885;
+  --chart-text: #c4c7cd;
+  --chart-grid: rgba(214, 216, 220, 0.12);
+  --chart-font: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --chart-font-size: 19;
+  --chart-surface: #2a2b2f;
+  --mm-font: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --mm-font-size: 20;
+  --mm-node: #232428;
+  --mm-border: #76cdf9;
+  --mm-text: #e3e5e8;
+  --mm-line: #a9adb6;
+  --mm-surface: #2a2b2f;
+}
+
+.reveal .orz-slide { font-family: var(--font-body); }
+
+/* ───────── title band: the h2 in azure, its gutter bar hung in the margin ───────── */
+.reveal .orz-title h2 {
+  color: var(--h2);
+  font-family: var(--font-heading);
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+.reveal .orz-title h2::before { left: -0.62em; width: 5px; top: 0.17em; height: 0.82em; }
+/* the caret stands left of the title: the band reaches into the page's margin to hold it (it clips sideways) */
+.reveal .orz-title { margin-left: -34px; padding-left: 34px; }
+
+/* in-slide headings: the gold star moved inside the region (regions clip) */
+.reveal .orz-region .markdown-body h3 { padding-left: 1.05em; }
+.reveal .orz-region .markdown-body h3::before { left: 0; }
+.reveal .orz-region .markdown-body h2::before { display: none; }
+
+/* text: Charis a step brighter for projection */
+.reveal .orz-region .markdown-body { color: #dcdee2; }
+.reveal .markdown-body li { margin-top: 0; }
+.reveal .markdown-body ul.contains-task-list { padding-left: 1.5em; }
+.reveal .markdown-body .task-list-item { margin-left: -1.2em; }
+
+/* split regions: an editor split — a 1px divider */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  border-left: 1px solid var(--border-color);
+  padding-left: 30px;
+  margin-left: -14px;
+}
+
+/* diagnostics: flat panels on a slide, no drop shadow */
+.reveal .markdown-body div:is(.info, .warning, .success, .danger) {
+  box-shadow: none; padding: 0.5em 0.8em 0.5em 2.25em; --icon-top: calc(0.5em + (var(--sl-lh) * 1em - var(--icon)) / 2); --icon-left: 0.62em;
+}
+.reveal .markdown-body blockquote { padding: 0.55em 0.85em; font-size: 1.02em; color: #c3c7ce; }
+.reveal .markdown-body pre { padding: 0.6em 0.7em; font-size: 0.7em; border-radius: 4px; }
+.reveal .markdown-body pre code { color: #d6d8dc; }
+.reveal .markdown-body table th { padding: 0.45em 0.6em; font-size: 0.9em; }
+.reveal .markdown-body table td { padding: 0.36em 0.6em; }
+
+/* charts and diagram in the editor's own colours, no light panel */
+.reveal .markdown-body div.mermaid { background: transparent; border: 0; box-shadow: none; padding: 0; margin: 0; }
+.reveal .markdown-body .orz-chart-frame { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.reveal .markdown-body p > img { border-radius: 4px; }
+
+/* breathing room between the content and the chrome band (fit scales into it) */
+.reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 16px; }
+
+/* ───────── chrome: the editor's status bar ───────── */
+.reveal .orz-chrome {
+  background: var(--nx-status); border-top: 1px solid #34363c;
+  font-family: var(--font-heading); font-size: 20px;   /* chrome text >= 20px on a 1280 x 720 slide */
+}
+.reveal .orz-footer {
+  z-index: 1; font-family: var(--font-heading); font-size: 1em; font-weight: 500; color: var(--text-secondary);
+  left: calc(var(--sl-pad-x) + 0.2em);
+}
+.reveal .orz-footer::before {
+  /* a branch-like glyph: a small star in gold, as the file's "mode" mark */
+  content: ''; width: 0.8em; height: 0.8em; margin-right: 0.6em; flex: 0 0 auto;
+  background: var(--h3); clip-path: var(--nx-star);
+}
+.reveal .orz-chrome-sec {
+  display: block; position: absolute; right: calc(var(--sl-pad-x) + 6.4em); bottom: 0; height: var(--sl-chrome);
+  line-height: var(--sl-chrome); color: var(--text-secondary); white-space: nowrap; font-weight: 500;
+  padding-right: 1.4em; border-right: 1px solid #3d3f46;
+}
+.reveal .orz-chrome-sec::before { content: '§ ' attr(data-sec) '  '; white-space: pre; color: var(--h3); font-family: var(--font-code); font-size: 1em; }
+.reveal .orz-chrome-sec[data-sec=""] { display: none; }
+.reveal .orz-chrome-num {
+  font-family: var(--font-code); font-size: 1em; color: var(--text-color); gap: 0.35em; right: calc(var(--sl-pad-x) - 0.2em);
+}
+.reveal .orz-chrome-num::before { content: 'Ln'; color: var(--text-muted); margin-right: 0.15em; font-family: var(--font-heading); }
+.reveal .orz-chrome-num i { font-style: normal; color: var(--text-muted); }
+.reveal .orz-chrome-num span { color: var(--text-secondary); }
+.reveal .orz-chrome-bar { top: -1px; bottom: auto; height: 3px; background: var(--accent); }
+
+/* ───────── float: the editor's hover widget ───────── */
+.reveal .orz-float {
+  background: var(--bg-secondary);
+  border: 1px solid #4a4d55;
+  border-radius: 4px;
+  padding: 0.45em 0.7em;
+  font-family: var(--font-heading); font-size: 0.72em; line-height: 1.35;
+  color: var(--text-color);
+  display: flex; align-items: center;
+}
+.reveal .orz-float strong { color: var(--h4); font-family: var(--font-code); font-weight: 500; font-size: 0.98em; }
+
+/* ───────── fragments: the current step is the current line ───────── */
+.reveal .orz-region .fragment.current-fragment {
+  background: var(--nx-line); box-shadow: -0.5em 0 0 var(--nx-line), 0.5em 0 0 var(--nx-line);
+  border-radius: 2px; color: #eceef1;
+}
+.reveal .orz-region .fragment.visible:not(.current-fragment) { color: var(--text-secondary); }
+.reveal .orz-region .markdown-body ul { padding-left: 1.4em; }
+.reveal .orz-region .markdown-body > :first-child.fragment { margin-left: 0.5em; margin-right: 0.5em; }
+
+/* ───────── title page: code-like gutter of line numbers ───────── */
+.reveal .orz-slide[data-template="title"],
+.reveal .orz-slide[data-template="closing"] {
+  background:
+    linear-gradient(#34363c, #34363c) 92px 0 / 1px 100% no-repeat,
+    linear-gradient(var(--bg-secondary), var(--bg-secondary)) 0 0 / 92px 100% no-repeat,
+    var(--bg-color);
+  padding-left: 150px;
+}
+.reveal .orz-slide[data-template="title"]::before,
+.reveal .orz-slide[data-template="closing"]::before {
+  content: '1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 10\A 11\A 12\A 13\A 14\A 15\A 16\A 17\A 18\A 19\A 20\A 21\A 22';
+  white-space: pre; position: absolute; left: 0; top: 18px; width: 72px; text-align: right;
+  font-family: var(--font-code); font-size: 18px; line-height: 32px; color: #5d6068;
+}
+.reveal .orz-template-title, .reveal .orz-template-closing { align-items: flex-start; text-align: left; padding: 0 40px 0 0; }
+.reveal .orz-title-main {
+  font-family: var(--font-heading); color: var(--h1); font-weight: 700; letter-spacing: -0.024em;
+  font-size: 1.95em; line-height: 1.12; max-width: 20em;
+}
+.reveal .orz-title-main::after { content: ''; display: block; width: 2.4em; height: 5px; margin-top: 0.42em; border-radius: 3px; background: currentColor; }
+.reveal .orz-title-sub { margin-top: 0.7em; font-family: var(--font-heading); font-weight: 500; font-size: 1.04em; color: var(--h2); }
+.reveal .orz-title-meta { margin-top: 1.3em; font-size: 0.78em; line-height: 1.6; color: var(--text-secondary); }
+.reveal .orz-title-meta p strong { color: var(--text-color); }
+
+/* closing: the QR as an info diagnostic, set on the right */
+.reveal .orz-template-closing .orz-title-main { font-size: 2.5em; }
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0;
+  --sl-qr: 5em; border-radius: 4px; outline: 1px solid var(--info-border); outline-offset: 10px;
+}
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 10px; border-radius: 4px; }
+
+/* ───────── section: the gold star and the number, the title in keyword blue ───────── */
+.reveal .orz-template-section { padding-left: 1.6em; }
+.reveal .orz-section-main {
+  position: relative;
+  font-family: var(--font-heading); color: var(--h1); font-weight: 700; letter-spacing: -0.024em;
+  font-size: 2.05em; line-height: 1.1; max-width: 15em;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec); display: block; margin-bottom: 0.32em;
+  font-family: var(--font-code); font-weight: 500; font-size: 0.5em; letter-spacing: 0.02em; color: var(--h3);
+  padding-left: 1.5em;
+}
+.reveal .orz-section-main::after {
+  content: ''; position: absolute; left: 0; top: 0.02em; width: 0.5em; height: 0.5em;
+  background: var(--h3); clip-path: var(--nx-star);
+}
+.reveal .orz-section-meta { margin-top: 0.75em; font-size: 0.98em; color: var(--text-secondary); max-width: 28em; }
+.reveal .orz-section-meta::before { content: ''; display: block; width: 2.4em; height: 4px; border-radius: 2px; background: var(--h1); margin-bottom: 0.8em; }
+
+/* ───────── outline: a file list; the current item is the active entry ───────── */
+.reveal .orz-template-outline { padding: 0 18% 0 1.6em; }
+.reveal .orz-outline h2 {
+  font-family: var(--font-heading); font-size: 0.6em; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0 0 0.9em; padding: 0 0 0 0.85em;
+}
+.reveal .orz-outline h2::before { display: none; }
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; border-top: 1px solid var(--border-color); }
+.reveal .orz-outline li {
+  counter-increment: c; position: relative; margin: 0; padding: 0.42em 0.6em 0.42em 3.3em;
+  font-family: var(--font-heading); font-size: 1.05em; font-weight: 500; line-height: 1.3; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+.reveal .orz-outline li::before {
+  content: counter(c, decimal-leading-zero); position: absolute; left: 0.75em; top: 0.55em;
+  font-family: var(--font-code); font-size: 0.82em; color: var(--text-muted);
+}
+.reveal .orz-outline li::marker { content: none; }
+.reveal .orz-outline li.orz-here {
+  background: var(--nx-active); color: #eceef1;
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.reveal .orz-outline li.orz-here::before { color: var(--h3); }
+.reveal .orz-outline li.orz-here::after {
+  content: ''; position: absolute; left: 2.05em; top: 50%; width: 0.6em; height: 0.6em; margin-top: -0.3em;
+  background: var(--h3); clip-path: var(--nx-star);
+}
+.reveal .orz-outline li strong { font-weight: 700; color: inherit; }
+
+/* the closing's status bar shows the file only */
+.reveal .orz-slide[data-template="closing"] .orz-chrome-sec { display: none; }
+.reveal .orz-float .markdown-body p { text-wrap: balance; }
+
+/* math keeps its case inside upper-cased labels */
+.reveal :is(th, .orz-title-main, .orz-section-main, .orz-outline h2, .orz-footer) .katex { text-transform: none; }
+.reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: calc(5em + 70px); min-height: calc(5em + 60px); }

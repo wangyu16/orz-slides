@@ -1,0 +1,256 @@
+/* Inscription — the slide layer over orz-markdown dark-elegant-1 (orz-slides 1.0; ported
+   from the concept on branch concepts/themes to the 1.0 slots).
+   A classical inscription read at night: deep navy stock, Cinzel capitals for
+   every title and label, Source Serif 4 for the text, and one blue lozenge as
+   the only ornament — it keys the title rules, marks the h3, the folio, the
+   outline and the current step. Frames are corner brackets, never boxes.
+   Formal and quiet: hairlines, no glow. */
+
+:root {
+  --sl-size: 30px;
+  --sl-lh: 1.52;
+  --sl-bg: var(--bg-surface);
+  --sl-viewport: var(--bg);
+  --sl-ink: var(--text-primary);
+  --sl-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sl-title-size: 1.42em;
+  --sl-title-gap: 30px;
+  --sl-pad-t: 44px;
+  --sl-pad-x: 76px;
+  --sl-chrome: 58px;
+  --sl-controls: var(--accent);
+
+  /* the lozenge and the bracket, as reusable paint */
+  --ins-rule: #2e3248;
+  --ins-key: var(--accent);
+  --ins-arm: 22px;
+
+  --chart-1: #82a1f6; --chart-2: #e8be6e; --chart-3: #5fd39a; --chart-4: #f2837a;
+  --chart-text: #c3cad8;
+  --chart-grid: rgba(154, 163, 184, 0.2);
+  --chart-font: 'Source Serif 4', Georgia, serif;
+  --chart-font-size: 20;
+  --chart-surface: #13161f;
+  --mm-font: 'Source Serif 4', Georgia, serif;
+  --mm-font-size: 21;
+  --mm-node: #1c1f2e;
+  --mm-border: #6f8fe0;
+  --mm-text: #e4e8f0;
+  --mm-line: #9aa3b8;
+  --mm-surface: #13161f;
+}
+
+.reveal .orz-slide { font-family: 'Source Serif 4', Georgia, serif; font-optical-sizing: auto; }
+
+/* ───────── title band: Cinzel on a blue hairline, keyed at its start by the lozenge ───────── */
+.reveal .orz-title h2 {
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+  color: var(--text-heading-2);
+  padding: 0 0 0.3em 0;
+  border-bottom: 1px solid var(--accent-dim);
+  position: relative;
+}
+.reveal .orz-title h2::after {
+  content: ''; position: absolute; left: 0; bottom: -5px; width: 9px; height: 9px;
+  transform: rotate(45deg); background: var(--ins-key); box-shadow: 0 0 0 4px var(--bg-surface);
+}
+.reveal .orz-title h2 .katex { font-size: 1em; }
+
+/* sub-headings: the source's hung h3 lozenge, brought inside the region (regions clip) */
+.reveal .orz-region .markdown-body h3 { padding-left: 0.9em; }
+.reveal .orz-region .markdown-body h3::before { left: 0.05em; }
+
+/* body: strong text a step brighter, never thin */
+.reveal .orz-region .markdown-body { color: var(--text-primary); }
+.reveal .markdown-body ul li::before { content: ''; width: 0.32em; height: 0.32em; margin-left: -0.9em; margin-right: 0.58em; transform: rotate(45deg) translateY(-0.2em); background: var(--accent); display: inline-block; vertical-align: 0.12em; }
+.reveal .markdown-body ul.contains-task-list li::before { display: none; }
+
+/* split regions: a hairline between columns, like the joints of a stone panel */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  border-left: 1px solid var(--border);
+  padding-left: 30px;
+  margin-left: -14px;
+}
+
+/* callouts: the source's corner-bracket frame, quieter fill on a slide */
+.reveal .markdown-body div:is(.success, .info, .warning, .danger) { padding: 0.6em 0.85em; --arm: 18px; }
+.reveal .markdown-body blockquote { font-size: 1.04em; padding: 0.6em 0.9em; background: rgba(95, 140, 255, 0.05); color: #b4bccd; }
+
+/* charts and diagrams drawn in the theme's own night colours */
+.reveal .markdown-body div.mermaid { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.reveal .markdown-body .orz-chart-frame { background: transparent; border: 0; box-shadow: none; padding: 0; }
+/* the white figure becomes a plate held by corner brackets */
+.reveal .markdown-body p > img { border-radius: 1px; outline: 1px solid var(--border); outline-offset: 6px; }
+
+/* code and table */
+.reveal .markdown-body pre { border-radius: 2px; padding: 0.6em 0.6em; font-size: 0.7em; }
+.reveal .markdown-body thead th { font-family: 'Cinzel', Georgia, serif; font-size: 0.7em; letter-spacing: 0.04em; color: var(--text-heading-3); padding: 0.5em 0.5em; }
+.reveal .markdown-body td { padding: 0.32em 0.5em; }
+
+/* breathing room between the content and the chrome band (fit scales into it) */
+.reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 16px; }
+
+/* ───────── chrome: a rule across, Cinzel labels, the folio keyed by the lozenge ───────── */
+.reveal .orz-chrome { font-family: 'Cinzel', Georgia, serif; font-size: 20px; }   /* chrome text >= 20px on a 1280 x 720 slide */
+.reveal .orz-chrome::before {
+  content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x); top: 0; height: 1px; background: var(--ins-rule);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x); top: -1px; bottom: auto; height: 3px;
+  width: calc(var(--progress) * (100% - 2 * var(--sl-pad-x)));
+  background: var(--accent-dim);
+}
+.reveal .orz-footer {
+  font-family: 'Cinzel', Georgia, serif; font-weight: 600; font-size: 1em; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.reveal .orz-chrome-num { font-size: 1.04em; color: var(--text-heading-2); gap: 0.4em; font-weight: 600; }
+.reveal .orz-chrome-num::before {
+  content: ''; width: 0.38em; height: 0.38em; transform: rotate(45deg); background: var(--ins-key); margin-right: 0.35em;
+}
+.reveal .orz-chrome-num i { font-style: normal; color: var(--text-muted); }
+.reveal .orz-chrome-num span { color: var(--text-secondary); }
+.reveal .orz-chrome-sec {
+  display: block; position: absolute; left: 50%; transform: translateX(-50%); bottom: 0; height: var(--sl-chrome);
+  line-height: var(--sl-chrome); color: var(--text-secondary); white-space: nowrap; letter-spacing: 0.08em; font-weight: 600;
+}
+.reveal .orz-slide:has(.orz-footer) .orz-chrome-sec { display: none; }
+
+/* ───────── floats: a small inscribed tablet held by corner brackets ───────── */
+.reveal .orz-float {
+  background:
+    linear-gradient(var(--ins-key), var(--ins-key)) top left / 14px 2px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) top left / 2px 14px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) top right / 14px 2px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) top right / 2px 14px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) bottom left / 14px 2px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) bottom left / 2px 14px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) bottom right / 14px 2px no-repeat,
+    linear-gradient(var(--ins-key), var(--ins-key)) bottom right / 2px 14px no-repeat,
+    var(--bg-elevated);
+  border: 1px solid var(--border);
+  padding: 0.5em 0.75em;
+  font-size: 0.8em; line-height: 1.35;
+  color: var(--text-primary);
+  display: flex; align-items: center;
+}
+.reveal .orz-float strong { font-family: 'Cinzel', Georgia, serif; color: var(--text-heading); letter-spacing: 0.03em; }
+
+/* ───────── fragments: the current step is keyed by the lozenge, lit a step brighter ───────── */
+.reveal .orz-region .fragment.current-fragment { position: relative; color: var(--text-heading); }
+.reveal .orz-region p.fragment.current-fragment::before {
+  content: ''; display: inline-block; width: 0.34em; height: 0.34em; margin: 0 0.55em 0 0.1em; vertical-align: 0.14em;
+  transform: rotate(45deg); background: var(--ins-key);
+}
+.reveal .orz-region .markdown-body .fragment.current-fragment > :first-child { color: inherit; }
+.reveal .markdown-body ul li.fragment.current-fragment::before { background: var(--text-heading); box-shadow: 0 0 0 3px var(--accent); }
+.reveal .orz-region .fragment.visible:not(.current-fragment) { color: var(--text-secondary); }
+.reveal .orz-region .fragment.visible:not(.current-fragment) strong { color: var(--text-primary); }
+
+/* ───────── title + closing: an inscription plate in four corner brackets ───────── */
+.reveal .orz-slide[data-template="title"],
+.reveal .orz-slide[data-template="closing"] {
+  --b: var(--accent-dim); --i: 36px; --a: 46px;
+  background:
+    linear-gradient(var(--b), var(--b)) var(--i) var(--i) / var(--a) 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) var(--i) var(--i) / 2px var(--a) no-repeat,
+    linear-gradient(var(--b), var(--b)) calc(100% - var(--i)) var(--i) / var(--a) 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) calc(100% - var(--i)) var(--i) / 2px var(--a) no-repeat,
+    linear-gradient(var(--b), var(--b)) var(--i) calc(100% - var(--i)) / var(--a) 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) var(--i) calc(100% - var(--i)) / 2px var(--a) no-repeat,
+    linear-gradient(var(--b), var(--b)) calc(100% - var(--i)) calc(100% - var(--i)) / var(--a) 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) calc(100% - var(--i)) calc(100% - var(--i)) / 2px var(--a) no-repeat,
+    var(--bg-surface);
+}
+.reveal .orz-template-title, .reveal .orz-template-closing { align-items: center; text-align: center; padding: 0 70px; }
+.reveal .orz-title-main {
+  position: relative;
+  font-family: 'Cinzel', Georgia, serif; font-weight: 600; text-transform: uppercase;
+  color: var(--text-heading); font-size: 1.5em; line-height: 1.32; letter-spacing: 0.085em;
+  padding: 0.62em 0.6em 0.66em;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  width: 100%;
+}
+.reveal .orz-title-main::before,
+.reveal .orz-title-main::after {
+  content: ''; position: absolute; left: 50%; width: 11px; height: 11px; margin-left: -5.5px;
+  transform: rotate(45deg); background: var(--ins-key); box-shadow: 0 0 0 6px var(--bg-surface);
+}
+.reveal .orz-title-main::before { top: -6px; background: var(--bg-surface); outline: 1px solid var(--accent); outline-offset: -1px; }
+.reveal .orz-title-main::after { bottom: -6px; }
+.reveal .orz-title-sub {
+  margin-top: 0.85em; font-style: italic; font-size: 1.04em; color: var(--text-heading-3); letter-spacing: 0.005em;
+}
+.reveal .orz-title-meta { margin-top: 1.5em; font-size: 0.74em; color: var(--text-secondary); line-height: 1.6; }
+.reveal .orz-title-meta p strong { font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.08em; color: var(--text-heading); }
+
+/* the closing is the last plate: no running foot under its brackets */
+.reveal .orz-slide[data-template="closing"] :is(.orz-chrome, .orz-footer) { display: none; }
+
+/* closing: shorter title, the QR set beneath like a seal */
+.reveal .orz-template-closing .orz-title-main { width: auto; min-width: 9em; font-size: 1.9em; padding: 0.45em 1.2em 0.5em; letter-spacing: 0.14em; }
+.reveal .orz-template-closing .orz-title-meta { margin-top: 1.2em; }
+.reveal .orz-template-closing > .orz-qr-slot { --sl-qr: 5em; margin-top: 0.8em; outline: 1px solid var(--accent-dim); outline-offset: 7px; }
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 7px; border-radius: 1px; }
+
+/* ───────── section: the number between lozenges, the title in capitals over the keyed rule ───────── */
+.reveal .orz-template-section { align-items: center; text-align: center; padding: 0 90px; }
+.reveal .orz-section-main {
+  position: relative;
+  font-family: 'Cinzel', Georgia, serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-heading); font-size: 1.85em; line-height: 1.2;
+  padding-bottom: 0.55em; border-bottom: 1px solid var(--border); width: 100%;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec); display: block; margin: 0 auto 0.5em; width: fit-content;
+  font-size: 0.82em; letter-spacing: 0.2em; color: var(--accent); font-weight: 700;
+  padding: 0 1.2em 0 1.4em;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 0 10 5 5 10 0 5z' fill='%235f8cff'/%3E%3C/svg%3E") left center / 0.36em 0.36em no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 0 10 5 5 10 0 5z' fill='%235f8cff'/%3E%3C/svg%3E") right center / 0.36em 0.36em no-repeat;
+}
+.reveal .orz-section-main::after {
+  content: ''; position: absolute; left: 50%; bottom: -6px; width: 11px; height: 11px; margin-left: -5.5px;
+  transform: rotate(45deg); background: var(--ins-key); box-shadow: 0 0 0 6px var(--bg-surface);
+}
+.reveal .orz-section-meta { margin-top: 1.1em; font-style: italic; font-size: 0.96em; color: var(--text-heading-3); max-width: 30em; }
+
+/* ───────── outline: Cinzel heading, lozenge markers, the current item framed by corner brackets ───────── */
+.reveal .orz-template-outline { padding-left: 12%; padding-right: 12%; }
+.reveal .orz-outline h2 {
+  font-family: 'Cinzel', Georgia, serif; font-weight: 600; font-size: 1.05em; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--text-heading-2); margin: 0 0 1em; padding: 0 0 0.35em; border-bottom: 1px solid var(--accent-dim); position: relative;
+}
+.reveal .orz-outline h2::after {
+  content: ''; position: absolute; left: 0; bottom: -5px; width: 9px; height: 9px; transform: rotate(45deg); background: var(--ins-key); box-shadow: 0 0 0 4px var(--bg-surface);
+}
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; }
+.reveal .orz-outline li {
+  counter-increment: c; position: relative; font-size: 1.12em; line-height: 1.3; margin: 0 0 0.3em;
+  color: var(--text-secondary); padding: 0.32em 0.6em 0.36em 2.6em;
+}
+.reveal .orz-outline li::before {
+  content: counter(c, upper-roman); position: absolute; left: 0.6em; top: 0.38em; width: 1.6em;
+  font-family: 'Cinzel', Georgia, serif; font-size: 0.82em; color: #7d849a; letter-spacing: 0.04em;
+}
+.reveal .orz-outline li.orz-here {
+  color: var(--text-heading);
+  --b: var(--accent);
+  background:
+    linear-gradient(var(--b), var(--b)) top left / 18px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) top left / 2px 18px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 18px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 2px 18px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 18px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 2px 18px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 18px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 2px 18px no-repeat,
+    rgba(95, 140, 255, 0.07);
+}
+.reveal .orz-outline li.orz-here::before { color: var(--accent); font-weight: 700; }
+.reveal .orz-outline li strong { font-weight: 600; color: var(--text-heading); }
+
+/* math keeps its case inside upper-cased labels */
+.reveal :is(th, .orz-title-main, .orz-section-main, .orz-outline h2, .orz-footer) .katex { text-transform: none; }

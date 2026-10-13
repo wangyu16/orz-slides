@@ -38,10 +38,10 @@ export function slideSize(ratio: Ratio): { width: number; height: number } {
   return ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 };
 }
 
-/** STEP-4 PLACEHOLDER: the orz-markdown theme standing in for an updated 0.x theme. */
+/** Until rebuild step 5 (the flattened preview): the orz-markdown theme standing in for an updated 0.x theme. */
 const STAND_IN: Readonly<Record<string, string>> = Object.freeze({ architect: 'light-neat-2', chalk: 'dark-elegant-1', neon: 'dark-elegant-3', paper: 'light-academic-1' });
 
-/** The stylesheet URL of a slide theme (placeholder until step 4: its orz-markdown source theme). */
+/** The editor preview's stylesheet URL of a slide theme (until rebuild step 5: its orz-markdown source theme). */
 export function themeHref(theme: SlideTheme): string {
   const md = theme.derivedFrom ?? STAND_IN[theme.id] ?? 'light-neat-3';
   return `https://cdn.jsdelivr.net/npm/orz-markdown@${ORZ_MARKDOWN_VERSION}/themes/${md}.css`;

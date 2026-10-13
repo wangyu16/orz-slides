@@ -1,6 +1,5 @@
 /**
- * Builds the slide themes the engine carries (REBUILD §3c step 3 — the
- * minimum; step 4 completes it to the 14 themes).
+ * Builds the 14 slide themes the engine carries (REBUILD §3c steps 3–4).
  *
  *   npx tsx scripts/build-themes.ts           write the generated files
  *   npx tsx scripts/build-themes.ts --check   exit 1 when a generated file is stale
@@ -22,10 +21,17 @@
  * source theme's body size, so the slide's text size scales every size.
  * Font `@import`s are hoisted to the top.
  *
+ * An UPDATED theme (a 0.x theme kept: Architect, Chalk, Neon, Paper) has no
+ * source theme; it is
+ *
+ *   assets/themes/layers/content.css       Markdown content in theme tokens
+ *   assets/themes/layers/<id>.css          the theme (tokens, content, slide)
+ *
  * Inputs: the INSTALLED orz-markdown package (node_modules/orz-markdown/
  * themes), so an orz-markdown theme change flows into the slides on
  * rebuild. Output (generated, committed; run by `prebuild` and `pretest`):
- * assets/themes/<id>.css for every theme that has a layer. The engine's
+ * assets/themes/<id>.css for every theme of src/themes.ts (each must have
+ * its layer). The engine's
  * structure (assets/themes/deck.css) is hand-written; build/bundle.ts
  * bundles it and the generated themes as text (the virtual module
  * `orz-slides:themes`), so inline and cdn files style the same.
@@ -157,9 +163,22 @@ function basePxOf(css: string): number {
   return m ? parseFloat(m[1]) * (m[2] === 'rem' ? 16 : 1) : 16;
 }
 
-export function deriveSource(file: string, fonts: string[]): string {
+/**
+ * `screenScope`: the source theme's `@media screen` rules are kept (unwrapped:
+ * a slide is always on a screen, and its print document must look the same),
+ * with `.markdown-body` rescoped to this selector — the screen notebook's
+ * baseline grid of light-playful-1, which the kit's grid pass
+ * (orz-markdown 2.3.0, `--orz-grid`) aligns, applied to a slide's regions.
+ */
+export function deriveSource(file: string, fonts: string[], o: { screenScope?: string } = {}): string {
   const raw = readFileSync(file, 'utf8');
   const basePx = basePxOf(raw);
+  const scoped = (nodes: Node[], scope: string): string[] => nodes.flatMap((n) => {
+    if (n.kind !== 'rule') return [];
+    const sels = splitTop(n.selector, ',').map((x) => x.replace(/\.markdown-body\b/g, scope));
+    const ds = parseDecls(n.body).map((d) => ({ ...d, value: relative(withoutViewport(d.value), basePx, d.prop === 'font-size') }));
+    return ds.length ? [`${sels.join(',\n')} {\n${fmt(ds)}\n}`] : [];
+  });
   const emit = (nodes: Node[]): string[] => {
     const out: string[] = [];
     for (const n of nodes) {
@@ -187,7 +206,14 @@ export function deriveSource(file: string, fonts: string[]): string {
         if (/^https?:/.test(href)) fonts.push(href);
         continue;
       }
-      if (n.name === 'media') continue; // narrow-screen, print and the screen notebook: not a slide
+      if (n.name === 'media') {
+        // narrow-screen and print: not a slide; the screen notebook only where a theme asks for it (screenScope)
+        if (o.screenScope && n.body !== null && /^screen$/i.test(n.prelude.trim())) {
+          const inner = scoped(parseNodes(n.body), o.screenScope);
+          if (inner.length) out.push(`/* the source's @media screen rules, scoped to ${o.screenScope} */\n${inner.join('\n\n')}`);
+        }
+        continue;
+      }
       if (n.name === 'supports' && n.body !== null) {
         const inner = emit(parseNodes(n.body));
         if (inner.length) out.push(`@supports ${n.prelude} {\n${inner.join('\n\n')}\n}`);
@@ -203,6 +229,9 @@ export function deriveSource(file: string, fonts: string[]): string {
 
 /* ───────────── a derived theme ───────────── */
 
+/** Derived themes whose regions are written on the source's baseline grid (its @media screen rules kept, rescoped). */
+const SCREEN_GRID: ReadonlySet<string> = new Set(['notebook']);
+
 const IMPORT = /^@import\s+url\((['"]).*?\1\)\s*;/gm;
 
 /** The generated stylesheet of a derived slide theme (its layer must exist). */
@@ -211,7 +240,7 @@ export function derivedTheme(id: string): string {
   if (!t || !t.derivedFrom) throw new Error(`build-themes: ${id} is not a derived theme`);
   const fonts: string[] = [];
   const common = deriveSource(join(MD_THEMES, 'common.css'), fonts);
-  const source = deriveSource(join(MD_THEMES, `${t.derivedFrom}.css`), fonts);
+  const source = deriveSource(join(MD_THEMES, `${t.derivedFrom}.css`), fonts, SCREEN_GRID.has(id) ? { screenScope: '.reveal .orz-region > .markdown-body' } : {});
   const layer = readFileSync(join(LAYER_DIR, `${id}.css`), 'utf8');
   const layerImports = layer.match(IMPORT) ?? [];
   const mdVersion = (JSON.parse(readFileSync(join(MD_THEMES, '..', 'package.json'), 'utf8')) as { version: string }).version;
@@ -230,9 +259,33 @@ export function derivedTheme(id: string): string {
   ].join('\n\n') + '\n';
 }
 
-/** The themes built now: every derived theme with a layer (step 3: orchard). */
+/** The generated stylesheet of an updated theme (layers/content.css + its layer). */
+export function updatedTheme(id: string): string {
+  const t = THEMES.find((x) => x.id === id);
+  if (!t || t.derivedFrom) throw new Error(`build-themes: ${id} is not an updated theme`);
+  const content = readFileSync(join(LAYER_DIR, 'content.css'), 'utf8');
+  const layer = readFileSync(join(LAYER_DIR, `${id}.css`), 'utf8');
+  return [
+    `/* orz-slides theme "${id}" (${t.name}) — GENERATED by scripts/build-themes.ts (an updated 0.x theme: no source theme); edit assets/themes/layers/${id}.css instead. */`,
+    ...(layer.match(IMPORT) ?? []),
+    `/* ===== layers/content.css (Markdown content in theme tokens) ===== */`,
+    content.trim(),
+    `/* ===== layers/${id}.css (the theme) ===== */`,
+    layer.replace(IMPORT, '').trim(),
+  ].join('\n\n') + '\n';
+}
+
+/** The stylesheet of any theme. */
+export function themeCss(id: string): string {
+  const t = THEMES.find((x) => x.id === id);
+  if (!t) throw new Error(`build-themes: unknown theme ${id}`);
+  return t.derivedFrom ? derivedTheme(id) : updatedTheme(id);
+}
+
+/** The themes built: every theme of src/themes.ts (a missing layer is an error). */
 export function builtThemes(): string[] {
-  return THEMES.filter((t) => t.derivedFrom && existsSync(join(LAYER_DIR, `${t.id}.css`))).map((t) => t.id);
+  for (const t of THEMES) if (!existsSync(join(LAYER_DIR, `${t.id}.css`))) throw new Error(`build-themes: no layer for theme ${t.id} (assets/themes/layers/${t.id}.css)`);
+  return THEMES.map((t) => t.id);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -240,7 +293,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   let stale = 0;
   for (const id of builtThemes()) {
     const file = join(THEME_DIR, `${id}.css`);
-    const css = derivedTheme(id);
+    const css = themeCss(id);
     const same = existsSync(file) && readFileSync(file, 'utf8') === css;
     if (check) { if (!same) { stale++; console.error(`stale: assets/themes/${id}.css`); } continue; }
     if (!same) writeFileSync(file, css, 'utf8');

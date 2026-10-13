@@ -1,0 +1,220 @@
+/* Copper — the slide layer over orz-markdown dark-elegant-2 (orz-slides 1.0; ported
+   from the concept on branch concepts/themes to the 1.0 slots).
+   Deep teal-black, Sora set large and tight over Vollkorn, copper as the one
+   loud colour and violet as its second voice. The marks are the source's own:
+   the short copper segment that starts every hairline, the copper lozenge,
+   copper dots, large radii and pills. A faint copper drafting grid lives in
+   one corner of the title and section pages only. */
+
+:root {
+  --sl-size: 31px;
+  --sl-lh: 1.5;
+  --sl-bg: var(--bg);
+  --sl-viewport: #050c12;
+  --sl-ink: var(--text);
+  --sl-mono: var(--font-code);
+  --sl-title-size: 1.45em;
+  --sl-title-gap: 30px;
+  --sl-pad-t: 44px;
+  --sl-pad-x: 74px;
+  --sl-chrome: 58px;
+  --sl-controls: var(--accent);
+
+  --cu-seg: 2.2em;           /* the copper segment on a hairline */
+  --cu-grid: rgba(224, 124, 74, 0.2);
+
+  --chart-1: #e78a5a; --chart-2: #b99be0; --chart-3: #66c2fb; --chart-4: #68e099;
+  --chart-text: #b9cdd8;
+  --chart-grid: rgba(122, 165, 185, 0.18);
+  --chart-font: 'Sora', system-ui, sans-serif;
+  --chart-font-size: 18;
+  --chart-surface: #071018;
+  --mm-font: 'Sora', system-ui, sans-serif;
+  --mm-font-size: 19;
+  --mm-node: #13222d;
+  --mm-border: #e07c4a;
+  --mm-text: #deebf2;
+  --mm-line: #8fa8b6;
+  --mm-surface: #071018;
+}
+
+.reveal .orz-slide { font-family: var(--font-body); font-variant-numeric: lining-nums; }  /* Vollkorn's old-style 1 reads as I in data */
+
+/* ───────── title band: the source h1's hairline that starts with a copper segment ───────── */
+.reveal .orz-title h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--heading);
+  padding-bottom: 0.32em;
+  border-bottom: 0;
+  background:
+    linear-gradient(var(--accent), var(--accent)) left bottom / var(--cu-seg) 4px no-repeat,
+    linear-gradient(var(--border-strong), var(--border-strong)) left bottom 1px / 100% 1px no-repeat;
+}
+
+/* h3 lozenge already inline in the source; slide spacing only */
+.reveal .orz-region .markdown-body h3 { letter-spacing: -0.015em; }
+
+/* body copy: Vollkorn a touch brighter for projection; dots a touch larger */
+.reveal .orz-region .markdown-body { color: var(--text); }
+.reveal .markdown-body ul > li::before { width: 0.3em; height: 0.3em; left: -0.85em; top: 0.62em; opacity: 1; }
+.reveal .markdown-body ul { padding-left: 1.2em; }
+.reveal .markdown-body ul.contains-task-list > li::before { display: none; }
+
+/* split regions: a soft column rule */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  border-left: 1px solid var(--border);
+  padding-left: 30px;
+  margin-left: -14px;
+}
+
+/* the source's panels, tightened for a slide */
+.reveal .markdown-body div:is(.success, .note, .info, .warning, .danger) { padding: calc(0.55em + 4px) 0.8em 0.55em 2.3em; border-radius: 14px; --mark-top: calc(0.55em + 4px + (var(--sl-lh) * 1em - var(--mark)) / 2); }
+.reveal .markdown-body div:is(.success, .note, .info, .warning, .danger)::after { left: 0.85em; }
+.reveal .markdown-body div.success::after { left: calc(0.85em + 0.24em); }
+.reveal .markdown-body blockquote { padding: 0.55em 0.9em 0.55em 2.2em; font-size: 1.04em; }
+.reveal .markdown-body blockquote::before { left: 0.45em; top: 0.3em; font-size: 2.2em; color: var(--accent); }
+.reveal .markdown-body .katex-display { padding: 0.35em 0.6em; border-radius: 16px; }
+.reveal .markdown-body pre { padding: 0.6em 0.6em; border-radius: 16px; font-size: 0.68em; }
+.reveal .markdown-body thead th { font-family: var(--font-heading); font-size: 0.66em; letter-spacing: 0.05em; padding: 0.6em 0.5em; }
+.reveal .markdown-body tbody td { padding: 0.36em 0.5em; font-variant-numeric: lining-nums tabular-nums; }
+
+/* charts and diagram drawn natively on the dark */
+.reveal .markdown-body div.mermaid { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.reveal .markdown-body .orz-chart-frame { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.reveal .markdown-body p > img { border-radius: 18px; border: 0; box-shadow: none; }
+
+/* breathing room between the content and the chrome band (fit scales into it) */
+.reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 16px; }
+
+/* ───────── chrome: a copper-to-violet progress line, Sora labels ───────── */
+.reveal .orz-chrome { font-family: var(--font-heading); font-size: 20px; }   /* chrome text >= 20px on a 1280 x 720 slide */
+.reveal .orz-chrome::before {
+  content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x); top: 0; height: 1px; background: var(--border-soft);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x); top: -1px; bottom: auto; height: 3px; border-radius: 3px;
+  width: calc(var(--progress) * (100% - 2 * var(--sl-pad-x)));
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm)) left / calc(1280px - 2 * var(--sl-pad-x)) 100% no-repeat;
+}
+.reveal .orz-footer {
+  font-family: var(--font-heading); font-weight: 500; font-size: 1em; letter-spacing: 0.01em; color: var(--text-soft);
+}
+.reveal .orz-chrome-num { font-size: 1em; gap: 0.25em; font-weight: 700; color: var(--heading); }
+.reveal .orz-chrome-num b { color: var(--accent-2); }
+.reveal .orz-chrome-num i { font-style: normal; color: var(--text-muted); font-weight: 400; }
+.reveal .orz-chrome-num span { color: var(--text-soft); font-weight: 500; }
+.reveal .orz-chrome-sec {
+  display: flex; align-items: center; gap: 0.6em; position: absolute; right: calc(var(--sl-pad-x) + 4.6em); bottom: 0; height: var(--sl-chrome);
+  color: var(--text-soft); white-space: nowrap; font-weight: 500;
+}
+.reveal .orz-chrome-sec::before {
+  content: attr(data-sec); font-size: 1em; font-weight: 700; color: #1a0d06; background: var(--accent-2);
+  border-radius: 999px; padding: 0.12em 0.6em;
+}
+.reveal .orz-chrome-sec[data-sec=""], .reveal .orz-slide[data-kind="template"] .orz-chrome-sec { display: none; }
+.reveal .orz-slide:has(.orz-footer) .orz-chrome-sec { display: none; }
+
+/* ───────── floats: a rounded copper-capped panel ───────── */
+.reveal .orz-float {
+  background: var(--callout-panel);
+  border: 1px solid rgba(224, 124, 74, 0.55);
+  border-radius: 16px;
+  padding: 0.5em 0.8em;
+  font-size: 0.8em; line-height: 1.32;
+  color: var(--text);
+  display: flex; align-items: center;
+}
+.reveal .orz-float::before { content: ''; position: absolute; top: 0; left: 0.8em; width: 2.2em; height: 4px; border-radius: 0 0 4px 4px; background: var(--accent); }
+.reveal .orz-float strong { font-family: var(--font-heading); color: var(--accent-2); letter-spacing: -0.02em; }
+
+/* ───────── fragments: the current step's dot becomes a copper ring ───────── */
+.reveal .orz-region .fragment.current-fragment { position: relative; color: var(--heading); }
+.reveal .markdown-body ul > li.fragment.current-fragment::before {
+  width: 0.46em; height: 0.46em; left: -0.93em; top: 0.54em; background: transparent; border: 3px solid var(--accent-2); box-sizing: border-box;
+}
+.reveal .orz-region p.fragment.current-fragment::before {
+  content: ''; display: inline-block; width: 0.46em; height: 0.46em; margin-right: 0.45em; vertical-align: 0.06em;
+  border: 3px solid var(--accent-2); border-radius: 999px; box-sizing: border-box;
+}
+.reveal .orz-region .fragment.visible:not(.current-fragment) { color: var(--text-soft); }
+
+/* ───────── title page: a big Sora title on the copper segment, a faint grid in the corner ───────── */
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"], [data-template="section"]) { isolation: isolate; }
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"], [data-template="section"])::before {
+  /* the drafting grid, faded out from the top-right corner */
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--cu-grid) 1px, transparent 1px) right -1px top 0 / 32px 32px,
+    linear-gradient(var(--cu-grid) 1px, transparent 1px) right 0 top -1px / 32px 32px;
+  -webkit-mask-image: radial-gradient(ellipse 48% 70% at 100% 0%, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 100%);
+  mask-image: radial-gradient(ellipse 48% 70% at 100% 0%, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 100%);
+}
+.reveal .orz-template-title, .reveal .orz-template-closing { align-items: flex-start; text-align: left; padding: 0 140px 0 6px; }
+.reveal .orz-title-main {
+  font-family: var(--font-heading); font-weight: 700; color: var(--heading);
+  font-size: 1.82em; line-height: 1.1; letter-spacing: -0.035em;
+  padding-bottom: 0.42em; max-width: 21em;
+  background:
+    linear-gradient(var(--accent), var(--accent)) left bottom / 2.2em 5px no-repeat,
+    linear-gradient(var(--border-strong), var(--border-strong)) left bottom 2px / 100% 1px no-repeat;
+}
+.reveal .orz-title-sub { margin-top: 0.75em; font-size: 1.04em; font-style: italic; color: var(--accent-2); }
+.reveal .orz-title-meta { margin-top: 1.5em; font-family: var(--font-heading); font-size: 0.62em; line-height: 1.7; color: var(--text-soft); letter-spacing: 0.01em; }
+.reveal .orz-title-meta p strong { color: var(--heading); font-weight: 700; }
+
+/* closing: the title huge, the QR in a white rounded tile on the right */
+.reveal .orz-template-closing .orz-title-main { font-size: 2.6em; max-width: 9em; }
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute; right: 30px; top: 50%; transform: translateY(-50%); margin: 0;
+  --sl-qr: 5em; outline: 3px solid var(--accent); outline-offset: 6px; border-radius: 18px;
+}
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 12px; border-radius: 18px; box-shadow: none; }
+
+/* ───────── section: a large copper numeral beside the title ───────── */
+.reveal .orz-template-section { padding: 0 140px 0 6px; }
+.reveal .orz-section-main {
+  font-family: var(--font-heading); font-weight: 700; letter-spacing: -0.035em; color: var(--heading);
+  font-size: 1.95em; line-height: 1.08; max-width: 14em;
+  padding-bottom: 0.4em;
+  background:
+    linear-gradient(var(--accent), var(--accent)) left bottom / 2.2em 5px no-repeat,
+    linear-gradient(var(--border-strong), var(--border-strong)) left bottom 2px / 100% 1px no-repeat;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec); display: block; font-size: 2.4em; font-weight: 800; line-height: 0.9; letter-spacing: -0.05em;
+  color: var(--accent); margin-bottom: 0.12em;
+}
+.reveal .orz-section-meta { margin-top: 0.8em; font-size: 0.98em; font-style: italic; color: var(--text-soft); max-width: 26em; }
+
+/* ───────── outline: copper dots; the current item a filled copper pill ───────── */
+.reveal .orz-template-outline { padding: 0 10% 0 62px; margin-left: -56px; width: calc(100% + 56px); max-width: none; }   /* the numerals hang in the page margin, inside the box */
+.reveal .orz-outline h2 {
+  font-family: var(--font-heading); font-size: 0.66em; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--accent-2); border: 0; margin: 0 0 1.4em; padding: 0;
+}
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; }
+.reveal .orz-outline li {
+  counter-increment: c; position: relative; width: fit-content;
+  font-family: var(--font-heading); font-weight: 600; letter-spacing: -0.02em;
+  font-size: 1.12em; line-height: 1.2; margin: 0 0 0.45em; padding: 0.38em 1.1em 0.42em 2.3em;
+  color: var(--text-soft); border-radius: 999px;
+}
+.reveal .orz-outline li::before {
+  content: ''; position: absolute; left: 1em; top: 50%; width: 0.36em; height: 0.36em; margin-top: -0.18em;
+  border-radius: 999px; background: var(--accent);
+}
+.reveal .orz-outline li::after {
+  content: counter(c, decimal-leading-zero); position: absolute; left: -2.2em; top: 0.48em;
+  font-size: 0.72em; font-weight: 600; color: var(--text-muted); letter-spacing: 0;
+}
+.reveal .orz-outline li.orz-here { background: var(--accent-2); color: #1a0d06; }
+.reveal .orz-outline li.orz-here::before { background: #1a0d06; }
+.reveal .orz-outline li.orz-here::after { color: var(--accent-2); }
+.reveal .orz-outline li strong { color: inherit; font-weight: 700; }
+.reveal .orz-float .markdown-body p { text-wrap: balance; }
+
+/* math keeps its case inside upper-cased labels */
+.reveal :is(th, .orz-title-main, .orz-section-main, .orz-outline h2, .orz-footer) .katex { text-transform: none; }
+.reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: calc(5em + 90px); min-height: calc(5em + 60px); }

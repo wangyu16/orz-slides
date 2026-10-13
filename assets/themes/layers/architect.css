@@ -1,0 +1,625 @@
+@import url('https://fonts.googleapis.com/css?family=Barlow:400,400i,500,500i,600,700|Barlow+Semi+Condensed:500,600,700|Source+Code+Pro:400,500,600,700&display=swap');
+
+/* Architect — updated 0.8.5 theme ("the drafting sheet").
+   0.8.5: "blueprint / technical-drawing style — precise, structural,
+   grid-based, monochromatic", Source Code Pro, slate #2c3e50, a blueprint
+   grid, sharp corners, a bracket title band.
+   Strengthened into a real drawing sheet: a fine grid with major lines inside
+   a faint sheet border with centring ticks; a title block in
+   the bottom-right corner (project · section · sheet n / total); a dimension
+   line under every title and a dimension line for progress; callouts as
+   drafting notes with NOTE / CAUTION / WARNING tags; tables as a parts list;
+   section pages as detail bubbles. Barlow (a DIN-like technical sans) for
+   text so long lines read; Source Code Pro kept for every label and number.
+   Monochrome slate; one functional accent — redline — for "current" and
+   for warnings. */
+
+:root {
+  --slate: #2c3e50;
+  --slate-2: #4a5d70;
+  --slate-3: #6b7c8c;
+  --paper: #f8fafb;
+  --paper-2: #eef2f5;
+  --grid-minor: #eef2f5;
+  --grid-major: #dde4ea;
+  --redline: #b83a26;
+  --zone: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 720' width='1280' height='720'%3E%3Crect x='12.5' y='12.5' width='1255' height='695' fill='none' stroke='%232c3e50' stroke-opacity='0.3' stroke-width='1'/%3E%3Cpath d='M640 12V22M640 698V708M12 360H22M1258 360H1268' stroke='%232c3e50' stroke-opacity='0.45' stroke-width='1'/%3E%3C/svg%3E");
+
+  /* 0.8.5 tokens (read by legacy-content) */
+  --accent: var(--slate);
+  --ink: var(--slate);
+  --bg: var(--paper);
+  --font-heading: 'Barlow Semi Condensed', 'Barlow', 'Arial Narrow', sans-serif;
+  --font-body: 'Barlow', 'Helvetica Neue', sans-serif;
+  --font-mono: 'Source Code Pro', ui-monospace, Menlo, monospace;
+  --heading-font-weight: 600;
+  --box-radius: 0;
+  --box-shadow: none;
+  --box-info: var(--slate); --box-info-bg: #fff;
+  --box-warning: var(--redline); --box-warning-bg: #fff;
+  --box-danger: var(--redline); --box-danger-bg: #fff;
+  --box-success: var(--slate); --box-success-bg: #fff;
+  --table-head-bg: var(--slate);
+  --table-head-color: #f4f7f9;
+  --row-highlight: #e8eef2;
+  --surface: #fff;
+  --muted: #5a6b7a;
+  --rule: #b9c5cf;
+  --code-bg: #eef2f5;
+  --code-color: #22313f;
+  --link-color: var(--slate);
+  --mark-bg: #dce6ee;
+  --span-red: var(--redline);
+  --span-green: #2f6b4a;
+  --span-blue: #2f5f8f;
+  --span-yellow: #8a6200;
+
+  /* deck geometry */
+  --sl-size: 30px;
+  --sl-lh: 1.4;
+  --sl-pad-t: 54px;
+  --sl-pad-x: 66px;
+  --sl-chrome: 80px;
+  --sl-gap: 44px;
+  --sl-title-gap: 30px;
+  --sl-title-size: 1.5em;
+  --sl-bg: var(--paper);
+  --sl-viewport: #e6ebef;
+  --sl-ink: var(--slate);
+  --sl-mono: var(--font-mono);
+  --sl-controls: var(--slate);
+  --sl-qr: 5.6em;
+
+  --chart-1: #2c3e50; --chart-2: #b83a26; --chart-3: #4f86b5; --chart-4: #8796a3;
+  --chart-text: #2c3e50;
+  --chart-grid: #dbe3e9;
+  --chart-font: 'Barlow', sans-serif;
+  --chart-font-size: 20;
+  --chart-surface: #f8fafb;
+  --mm-font: 'Barlow', sans-serif;
+  --mm-font-size: 21;
+  --mm-node: #ffffff;
+  --mm-border: #2c3e50;
+  --mm-text: #22313f;
+  --mm-line: #2c3e50;
+  --mm-surface: #f8fafb;
+}
+
+/* ───────── the sheet: zone border on the margin, grid inside the frame line ───────── */
+.reveal .orz-slide {
+  font-family: var(--font-body);
+  font-weight: 500;
+  background: var(--zone) 0 0 / 100% 100% no-repeat, var(--paper);
+}
+.reveal .orz-slide::before {
+  content: '';
+  position: absolute;
+  inset: 26px;
+  border: 1px solid var(--slate-2);
+  background:
+    linear-gradient(var(--grid-major) 1px, transparent 1px) -1px -1px / 100px 100px,
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px) -1px -1px / 100px 100px,
+    linear-gradient(var(--grid-minor) 1px, transparent 1px) -1px -1px / 20px 20px,
+    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px) -1px -1px / 20px 20px;
+  pointer-events: none;
+  z-index: -1;
+}
+.reveal .orz-slide { isolation: isolate; }
+.reveal .markdown-body { color: var(--slate); line-height: inherit; }
+.reveal .markdown-body strong { font-weight: 700; color: #1e2b38; }
+
+/* ───────── title band: the title on a dimension line ───────── */
+.reveal .orz-title h2 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--slate);
+  letter-spacing: -0.005em;
+  line-height: 1.08;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0 0 0.3em;
+  position: relative;
+  background:
+    linear-gradient(var(--slate), var(--slate)) 0 calc(100% - 4px) / 100% 1.5px no-repeat;
+}
+/* extension lines and 45° architectural ticks at both ends */
+.reveal .orz-title h2::before,
+.reveal .orz-title h2::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  width: 14px;
+  height: 18px;
+  background:
+    linear-gradient(var(--slate), var(--slate)) 50% 0 / 1.5px 100% no-repeat,
+    linear-gradient(45deg, transparent calc(50% - 1.2px), var(--slate) calc(50% - 1.2px), var(--slate) calc(50% + 1.2px), transparent calc(50% + 1.2px)) 50% 3px / 12px 12px no-repeat;
+}
+.reveal .orz-title h2::before { left: -7px; }
+.reveal .orz-title h2::after { right: -7px; }
+/* the ticks stand past the title's ends: the band reaches into the page's margin to hold them (it clips sideways) */
+.reveal .orz-title { margin-left: -12px; margin-right: -12px; padding: 0 12px; }
+
+/* sub-headings in the lettering face */
+.reveal .markdown-body :is(h3, h4, h5, h6) { font-family: var(--font-heading); font-weight: 600; color: var(--slate); letter-spacing: 0; }
+
+/* ───────── regions: a centre line (long dash, dot) between columns ───────── */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  padding-left: 22px;
+  margin-left: -22px;
+  background: repeating-linear-gradient(to bottom, var(--slate-3) 0 22px, transparent 22px 28px, var(--slate-3) 28px 32px, transparent 32px 38px) left top / 1px 100% no-repeat;
+}
+
+/* lists: square markers, like a spec */
+.reveal .markdown-body ul { list-style: square; padding-left: 1.2em; }
+.reveal .markdown-body ol { padding-left: 1.5em; }
+.reveal .markdown-body li::marker { color: var(--slate-2); }
+.reveal .markdown-body ol > li::marker { font-family: var(--font-mono); font-size: 0.8em; font-weight: 600; }
+.reveal .markdown-body p { margin-bottom: 0.45em; }
+
+/* links and marks */
+.reveal .markdown-body a { color: var(--slate); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+
+/* ───────── callouts: drafting notes with a lettered tag ───────── */
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger) {
+  position: relative;
+  margin: 0.95em 0 0.5em;
+  padding: 0.7em 0.85em 0.55em;
+  background: #fff;
+  border: 1.5px solid var(--slate);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--grid-major);
+  font-size: 0.92em;
+  color: var(--slate);
+}
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger)::before {
+  position: absolute;
+  left: -1.5px;
+  top: -1.45em;
+  padding: 0.12em 0.6em 0.1em;
+  font: 600 0.6em/1.3 var(--font-mono);
+  letter-spacing: 0.14em;
+  color: #f4f7f9;
+  background: var(--slate);
+}
+.reveal .markdown-body div.info::before { content: 'NOTE'; }
+.reveal .markdown-body div.success::before { content: 'CHECK'; }
+.reveal .markdown-body div.warning::before { content: 'CAUTION'; background: #fff; color: var(--redline); outline: 1.5px solid var(--redline); outline-offset: -1.5px; }
+.reveal .markdown-body div.danger::before { content: 'WARNING'; background: var(--redline); }
+.reveal .markdown-body :is(div.warning, div.danger) { border-color: var(--redline); box-shadow: 4px 4px 0 #ecd3cd; }
+.reveal .markdown-body :is(div.warning, div.danger) strong { color: var(--redline); }
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger) > :last-child { margin-bottom: 0; }
+
+/* badges: stamped tags */
+.reveal .markdown-body :is(span.success, span.info, span.warning, span.danger) {
+  display: inline-block;
+  margin: 0.35em 0.25em 0 0;
+  padding: 0.18em 0.55em 0.14em;
+  font: 600 0.62em/1.2 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 0;
+  border: 1.5px solid var(--slate);
+  color: var(--slate);
+  background: #fff;
+}
+.reveal .markdown-body span.success { background: var(--slate); color: #f4f7f9; }
+.reveal .markdown-body span.danger { border-color: var(--redline); color: var(--redline); }
+
+/* task list: square check boxes */
+.reveal .markdown-body ul.contains-task-list { list-style: none; padding-left: 0.1em; }
+.reveal .markdown-body li.task-list-item { list-style: none; }
+.reveal .markdown-body .task-list-item-checkbox {
+  appearance: none; -webkit-appearance: none;
+  font-size: inherit; width: 0.72em; height: 0.72em; margin: 0 0.5em 0 0; vertical-align: -0.04em;
+  border: 1.5px solid var(--slate); background: #fff; position: relative; pointer-events: none;
+}
+.reveal .markdown-body .task-list-item-checkbox:checked { background: var(--slate); }
+.reveal .markdown-body .task-list-item-checkbox:checked::after {
+  content: ''; position: absolute; left: 0.2em; top: 0.04em; width: 0.18em; height: 0.36em;
+  border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg);
+}
+
+/* code: a detail box with a language tag */
+.reveal .markdown-body pre {
+  position: relative;
+  margin: 0;
+  padding: 0.85em 0.9em 0.7em;
+  background: #fff;
+  border: 1.5px solid var(--slate);
+  border-radius: 0;
+  font-size: 0.68em;
+  line-height: 1.5;
+}
+.reveal .markdown-body pre code { font-size: 1em; color: #22313f; font-weight: 500; }
+.reveal .markdown-body pre::before {
+  content: 'CODE';
+  position: absolute; right: 0; top: 0;
+  padding: 0.1em 0.6em; font: 600 0.72em/1.4 var(--font-mono); letter-spacing: 0.14em;
+  color: #f4f7f9; background: var(--slate);
+}
+.reveal .markdown-body pre:has(code.language-python)::before { content: 'PYTHON'; }
+.reveal .markdown-body :is(p, li, td) > code { font-size: 0.86em; background: var(--paper-2); color: #22313f; border-radius: 0; padding: 0.05em 0.3em; }
+
+/* tables: a parts list (BOM) */
+.reveal .markdown-body table {
+  width: auto;
+  min-width: 70%;
+  margin: 0;
+  font-size: 0.78em;
+  background: #fff;
+  border: 2px solid var(--slate);
+  font-variant-numeric: tabular-nums;
+}
+.reveal .markdown-body th {
+  font: 600 0.82em/1.25 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--slate);
+  color: #f4f7f9;
+  padding: 0.5em 0.65em;
+  border: 1px solid var(--slate);
+}
+.reveal .markdown-body th .katex { text-transform: none; font-size: 1.15em; }
+.reveal .markdown-body td { padding: 0.32em 0.65em; border: 1px solid var(--rule); }
+.reveal .markdown-body td:first-child { font-family: var(--font-mono); font-weight: 600; font-size: 0.9em; text-align: center; }
+.reveal .markdown-body tbody tr:nth-child(even) td { background: #f3f6f8; }
+
+/* quote: a general note between rules */
+.reveal .markdown-body blockquote {
+  margin: 0 0 0.5em;
+  padding: 0.5em 0 0.5em 0;
+  border: 0;
+  border-top: 2px solid var(--slate);
+  border-bottom: 1px solid var(--slate);
+  background: transparent;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.04em;
+  color: var(--slate);
+}
+
+/* figures: each picture is a lettered view (VIEW A, B…) */
+.reveal .orz-slide { counter-reset: view; }
+.reveal .orz-region .markdown-body p:has(> img) {
+  counter-increment: view;
+  position: relative;
+  margin: 0.9em 0 0;
+  padding: 10px;
+  border: 1.5px solid var(--slate);
+  background: #fff;
+  line-height: 0;
+  box-sizing: border-box;
+  max-height: calc(100% - 0.9em);
+}
+.reveal .orz-region .markdown-body p:has(> img)::before {
+  content: 'VIEW\2002' counter(view, upper-alpha);
+  position: absolute; left: -1.5px; top: -1.5em;
+  padding: 0.14em 0.6em; font: 600 0.6em/1.3 var(--font-mono); letter-spacing: 0.14em;
+  color: #f4f7f9; background: var(--slate);
+}
+.reveal .orz-region .markdown-body p > img { display: block; max-height: 100%; }
+
+/* mermaid: square nodes, slate lines */
+.reveal .markdown-body .mermaid svg .node :is(rect, polygon) { stroke-width: 1.5px !important; }
+
+/* ───────── fragments: the current step is redlined ───────── */
+.reveal .orz-region .fragment.current-fragment { text-decoration: underline 2px var(--redline); text-underline-offset: 0.18em; text-decoration-skip-ink: none; }
+.reveal .orz-region li.fragment.current-fragment::marker { color: var(--redline); }
+.reveal .orz-region .fragment.current-fragment .katex { text-decoration: none; }
+
+/* ───────── floats: a datum tag with a leader ───────── */
+.reveal .orz-float {
+  overflow: visible;
+  background: #fff;
+  border: 1.5px solid var(--slate);
+  padding: 0.35em 0.55em;
+  font-size: 0.7em;
+  line-height: 1.22;
+  display: flex;
+  align-items: center;
+}
+.reveal .orz-float { overflow: clip; overflow-clip-margin: 60px; }   /* the leader is drawn past the tag's edge (as shadows: not overflow fit would measure) */
+.reveal .orz-float::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 46px;
+  height: 1.5px;
+  box-shadow: 46px 0 0 var(--slate);
+}
+.reveal .orz-float::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: calc(50% - 4.5px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 51px 0 0 var(--slate);
+}
+.reveal .orz-float strong { font-family: var(--font-mono); font-weight: 700; }
+
+/* ───────── chrome: progress as a dimension line; a title block in the corner ───────── */
+.reveal .orz-chrome { font-family: var(--font-mono); font-size: 20px; height: 80px; }   /* chrome text >= 20px on a 1280 x 720 slide */
+.reveal .orz-footer,
+.reveal .orz-chrome-sec,
+.reveal .orz-chrome-num {
+  position: absolute;
+  bottom: 22px;
+  height: 54px;
+  box-sizing: border-box;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--slate);
+  padding: 19px 10px 0;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.reveal .orz-chrome-num { right: 26px; width: 128px; font-size: 20px; font-weight: 600; }
+.reveal .orz-chrome-num b { font-weight: 600; }
+.reveal .orz-chrome-num i { font-style: normal; color: var(--slate-3); margin: 0 0.3em; }
+.reveal .orz-chrome-sec { right: calc(26px + 128px - 1px); width: 98px; font-size: 0; }
+.reveal .orz-chrome-sec::after { content: attr(data-sec); font-size: 20px; font-weight: 500; }
+.reveal .orz-chrome-sec[data-sec=""]::after { content: '—'; font-weight: 400; color: var(--slate-3); }
+.reveal .orz-footer {
+  left: auto;
+  right: calc(26px + 128px + 98px - 2px);
+  width: 470px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.3;
+  padding-top: 19px;
+  margin: 0;
+}
+.reveal .orz-footer .markdown-body p { overflow: hidden; text-overflow: ellipsis; color: var(--slate); }
+.reveal .orz-footer::before,
+.reveal .orz-chrome-sec::before,
+.reveal .orz-chrome-num::before {
+  position: absolute;
+  left: 8px;
+  top: 3px;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  color: #8796a3;
+}
+.reveal .orz-footer::before { content: 'PROJECT'; }
+.reveal .orz-chrome-sec::before { content: 'SECTION'; }
+.reveal .orz-chrome-num::before { content: 'SHEET'; }
+/* progress: a dimension line from the frame to the current position */
+.reveal .orz-chrome-bar {
+  left: 66px;
+  bottom: 48px;
+  height: 1.5px;
+  width: calc(var(--progress, 0) * (100% - 66px - 26px - 128px - 98px - 470px - 40px));
+  background: var(--slate);
+}
+.reveal .orz-chrome-bar::before,
+.reveal .orz-chrome-bar::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  width: 12px;
+  height: 18px;
+  background:
+    linear-gradient(var(--slate), var(--slate)) 50% 0 / 1.5px 100% no-repeat,
+    linear-gradient(45deg, transparent calc(50% - 1.2px), var(--redline) calc(50% - 1.2px), var(--redline) calc(50% + 1.2px), transparent calc(50% + 1.2px)) 50% 50% / 12px 12px no-repeat;
+}
+.reveal .orz-chrome-bar::before { left: -6px; }
+.reveal .orz-chrome-bar::after { right: -6px; }
+
+/* ───────── title page: the cover sheet ───────── */
+.reveal .orz-slide[data-template="title"] .orz-frame,
+.reveal .orz-slide[data-template="closing"] .orz-frame { justify-content: stretch; }
+.reveal .orz-template-title,
+.reveal .orz-template-closing {
+  height: 100%;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 26px 0 0 4px;
+}
+.reveal .orz-template-title { padding-top: 96px; }
+.reveal .orz-slide[data-template="title"] .orz-template-title {   /* reaches the corner: the title block and the scale bar are inside the box */
+  margin: 0 -40px -54px 0; width: auto; height: calc(100% + 54px); max-height: none; max-width: none;
+}
+.reveal .orz-template-closing { padding-top: 120px; }
+.reveal .orz-title-main {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 2.3em;
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  color: var(--slate);
+  max-width: min(18.5em, calc(100% - 12px));   /* the dimension line's right arrow stays in the box */
+  position: relative;
+  padding-bottom: 0.32em;
+  background: linear-gradient(var(--slate), var(--slate)) 0 calc(100% - 5px) / 100% 2px no-repeat;
+}
+.reveal .orz-title-main::before,
+.reveal .orz-title-main::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  width: 16px;
+  height: 26px;
+  background:
+    linear-gradient(var(--slate), var(--slate)) 50% 0 / 2px 100% no-repeat,
+    linear-gradient(45deg, transparent calc(50% - 1.5px), var(--slate) calc(50% - 1.5px), var(--slate) calc(50% + 1.5px), transparent calc(50% + 1.5px)) 50% 7px / 14px 14px no-repeat;
+}
+.reveal .orz-title-main::before { left: -8px; }
+.reveal .orz-title-main::after { right: -8px; }
+.reveal .orz-title-sub {
+  margin-top: 0.75em;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate-2);
+}
+/* the meta paragraph becomes the cover's title block */
+.reveal .orz-title-meta {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  max-width: 62%;
+  padding: 1.55em 0.9em 0.6em;
+  background: #fff;
+  border: 1px solid var(--rule);
+  font-size: 0.6em;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--slate);
+}
+.reveal .orz-template-title { position: relative; }
+.reveal .orz-title-meta::before {
+  content: 'PREPARED BY';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  padding: 0.3em 0.75em;
+  font: 600 0.72em/1.2 var(--font-mono);
+  letter-spacing: 0.16em;
+  color: #f4f7f9;
+  background: var(--slate);
+}
+.reveal .orz-title-meta strong { font-family: var(--font-heading); font-size: 1.25em; font-weight: 700; }
+/* the cover's scale bar, bottom left */
+.reveal .orz-template-title::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  bottom: 18px;
+  width: 300px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--slate);
+  background: repeating-linear-gradient(90deg, var(--slate) 0 50px, #fff 50px 100px);
+}
+.reveal .orz-template-title::before {
+  content: 'SCALE\2002 1 : 1';
+  position: absolute; left: 322px; bottom: 18px; font: 600 12px/10px var(--font-mono); letter-spacing: 0.16em; color: var(--slate-2);
+}
+
+/* ───────── section: a detail bubble on its title line ───────── */
+.reveal .orz-template-section { align-items: flex-start; padding-left: 10px; }
+.reveal .orz-section-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 2.05em;
+  line-height: 1.05;
+  color: var(--slate);
+  max-width: 100%;
+  padding-right: 0.6em;
+  background: linear-gradient(var(--slate), var(--slate)) 1.5em 100% / calc(100% - 1.5em) 3px no-repeat;
+  padding-bottom: 0.18em;
+  position: relative;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec) '\A SEC';
+  white-space: pre;
+  flex: 0 0 auto;
+  width: 3.2em;
+  height: 3.2em;
+  box-sizing: border-box;
+  border: 3px solid var(--slate);
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--slate), var(--slate)) 0 50% / 100% 2px no-repeat,
+    #fff;
+  font: 700 0.62em/1 var(--font-mono);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.55;
+  margin-bottom: -1.05em;
+  font-size: 0.62em;
+}
+.reveal .orz-section-meta { margin: 1.2em 0 0 calc(2.05em * 0.62 * 3.2 + 0.5em * 2.05); font-size: 0.95em; color: var(--slate-2); max-width: 26em; font-weight: 500; }
+
+/* ───────── outline: a drawing index ───────── */
+.reveal .orz-template-outline { padding: 0 60px 0 30px; }
+.reveal .orz-outline h2 {
+  margin: 0 0 0.6em;
+  padding: 0 0 0.35em;
+  font: 600 0.7em/1.2 var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--slate-2);
+  border-bottom: 2px solid var(--slate);
+  background: none;
+  box-shadow: none;
+}
+.reveal .orz-outline h2::after { content: '\2002 ·\2002 drawing index'; color: var(--slate-3); }
+.reveal .orz-outline ol { list-style: none; counter-reset: item; margin: 0; padding: 0; }
+.reveal .orz-outline li {
+  counter-increment: item;
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.9em;
+  margin: 0;
+  padding: 0.38em 0.4em;
+  border-bottom: 1px solid var(--rule);
+  font-size: 1.1em;
+  font-weight: 500;
+  color: var(--slate-2);
+}
+.reveal .orz-outline li::before {
+  content: 'S-' counter(item, decimal-leading-zero);
+  flex: 0 0 auto;
+  font: 600 0.68em/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--slate-3);
+}
+.reveal .orz-outline li.orz-here { background: #fff; color: var(--slate); box-shadow: inset 0 0 0 1.5px var(--slate); border-bottom-color: transparent; }
+.reveal .orz-outline li.orz-here::before { color: var(--slate); }
+.reveal .orz-outline li.orz-here::after {
+  content: 'CURRENT';
+  margin-left: auto;
+  align-self: center;
+  padding: 0.2em 0.6em;
+  font: 600 0.5em/1.2 var(--font-mono);
+  letter-spacing: 0.16em;
+  color: #fff;
+  background: var(--redline);
+}
+.reveal .orz-outline li strong { font-weight: 700; }
+
+/* ───────── closing: the last sheet — the QR as a detail with its tag ───────── */
+.reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: calc(6.3em + 110px); }
+.reveal .orz-template-closing .orz-title-main { font-size: 2.6em; }
+.reveal .orz-template-closing .orz-title-meta { position: relative; right: auto; bottom: auto; margin-top: 1.6em; max-width: 100%; }
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute;
+  right: 40px;
+  top: 120px;
+  width: max-content;
+  --sl-qr: 6.3em;
+  margin: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1.5px solid var(--slate);
+}
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 0; }
+.reveal .orz-template-closing > .orz-qr-slot::after {
+  content: 'DETAIL — SCAN';
+  white-space: nowrap;
+  position: absolute;
+  left: -1.5px;
+  right: -1.5px;
+  top: 100%;
+  margin-top: 8px;
+  font: 600 13px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  color: var(--slate-2);
+  text-align: center;
+}
+
+/* charts: plotted on a clean white panel so the chart grid is not doubled by the sheet grid */
+.reveal .markdown-body .orz-chart-frame { background: #fff; outline: 1.5px solid var(--slate); outline-offset: -1.5px; padding: 8px; box-sizing: border-box; }

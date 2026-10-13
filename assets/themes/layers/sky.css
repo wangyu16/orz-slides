@@ -1,0 +1,223 @@
+/* Sky — the slide layer over orz-markdown light-neat-1 (orz-slides 1.0; ported
+   from the concept on branch concepts/themes to the 1.0 slots).
+   Airy and friendly: a near-white page with soft sky and teal tints in the
+   top corners, Figtree headings over Source Sans 3, round shapes everywhere.
+   Two marks carry it: the haloed round dot (bullets, the h3 gutter dot, the
+   outline, the slide number, the current step) and the ✦ star between two
+   sky-to-teal strokes that closes the centred title and section pages. */
+
+:root {
+  --sl-size: 30px;
+  --sl-lh: 1.45;
+  --sl-bg:
+    radial-gradient(circle at 0 0, rgba(98, 176, 232, 0.17), transparent 36%),
+    radial-gradient(circle at 100% 0, rgba(72, 183, 168, 0.14), transparent 30%),
+    linear-gradient(180deg, #fdfeff 0%, var(--bg) 100%);
+  --sl-viewport: #eef3f8;
+  --sl-ink: var(--text);
+  --sl-mono: var(--font-code);
+  --sl-pad-t: 48px;
+  --sl-pad-x: 80px;
+  --sl-chrome: 60px;
+  --sl-gap: 44px;
+  --sl-title-size: 1.5em;
+  --sl-title-gap: 30px;
+  --sl-controls: var(--accent);
+
+  --halo: rgba(98, 176, 232, 0.22);
+  --sky-teal: linear-gradient(90deg, var(--accent-2), var(--accent-warm));
+
+  --chart-1: #2e8bcf; --chart-2: #d9822b; --chart-3: #1f9a8a; --chart-4: #7a5cc7;
+  --chart-text: #3a5064;
+  --chart-grid: #e1eaf2;
+  --chart-font: 'Source Sans 3', system-ui, sans-serif;
+  --chart-font-size: 21;
+  --chart-surface: #ffffff;
+  --mm-font: 'Source Sans 3', system-ui, sans-serif;
+  --mm-font-size: 21;
+  --mm-node: #eaf4fc;
+  --mm-border: #2e8bcf;
+  --mm-text: #142230;
+  --mm-line: #587085;
+  --mm-surface: #f7f9fb;
+}
+
+.reveal .orz-slide { font-family: var(--font-body); }
+
+/* ───────── title band: the source h2 — Figtree, sky-blue ink, a soft rule ───────── */
+.reveal .orz-title h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--accent-strong);
+  letter-spacing: -0.03em;
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid var(--border-strong);
+}
+.reveal .orz-title::after {        /* the rule starts with a short sky-to-teal stroke */
+  content: ''; position: absolute; left: 0; bottom: 0; width: 72px; height: 3px; border-radius: 2px;
+  background: var(--sky-teal);
+}
+.reveal .orz-title h2 .katex { color: inherit; }
+
+/* the h3 gutter dot needs the gutter: keep it inside the region */
+.reveal .orz-region .markdown-body h3 { margin-left: 0.85em; }
+
+/* ───────── regions: a soft hairline between columns ───────── */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  border-left: 1px solid var(--border);
+  padding-left: 30px;
+  margin-left: -14px;
+}
+.reveal .orz-split[style*="rows"] > .orz-region:first-child { color: var(--text-soft); }
+.reveal .markdown-body .katex-display { padding: 0.45em 0.8em; }
+.reveal .markdown-body div.mermaid { padding: 0.6em; background: rgba(255, 255, 255, 0.6); }
+
+/* ───────── chrome: footer, a sky-to-teal hairline, the number in a haloed dot ───────── */
+.reveal .orz-footer { color: var(--text-soft); font-family: var(--font-heading); font-weight: 500; font-size: 1.14em; letter-spacing: 0.01em; }
+.reveal .orz-chrome { font-family: var(--font-heading); }
+.reveal .orz-chrome::before {
+  content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x); top: 0; height: 1px; background: var(--border);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x); top: -1px; bottom: auto; height: 3px; border-radius: 2px;
+  width: calc(var(--progress) * (100% - 2 * var(--sl-pad-x)));
+  background: var(--sky-teal);
+}
+.reveal .orz-chrome-num { gap: 0; }
+.reveal .orz-chrome-num i, .reveal .orz-chrome-num span { display: none; }
+.reveal .orz-chrome-num b {
+  display: grid; place-items: center;
+  min-width: 1.9em; height: 1.9em; padding: 0 0.3em; box-sizing: border-box; border-radius: 999px;
+  background: var(--accent-strong); color: #fdfeff;
+  font-size: 1.16em; font-weight: 700; letter-spacing: -0.01em;
+  box-shadow: 0 0 0 5px var(--halo);
+}
+
+/* ───────── floats: a rounded sky note ───────── */
+.reveal .orz-float {
+  background: #f5faff;
+  border: 1px solid var(--info-border);
+  border-radius: 16px;
+  padding: 0.5em 0.8em 0.5em 1.7em;
+  font-size: 0.8em;
+  line-height: 1.3;
+  color: var(--text-soft);
+  display: flex; align-items: center;
+}
+.reveal .orz-float::before {
+  content: ''; position: absolute; left: 0.7em; top: 50%; width: 0.42em; height: 0.42em; margin-top: -0.21em;
+  border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 4px var(--halo);
+}
+.reveal .orz-float strong { color: var(--accent-strong); font-family: var(--font-heading); }
+
+/* ───────── fragments: the current step's dot fills a larger halo ───────── */
+.reveal .orz-region li.fragment.current-fragment { color: var(--heading); }
+.reveal .orz-region li.fragment.current-fragment::before {
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 6px var(--halo);
+}
+.reveal .orz-region p.fragment.current-fragment { color: var(--heading); }
+
+/* ───────── the ✦ ornament: a star between two sky-to-teal strokes ───────── */
+.reveal .orz-template-title .orz-title-main::after,
+.reveal .orz-template-closing .orz-title-main::after,
+.reveal .orz-template-section .orz-section-main::after {
+  content: '\2726';
+  display: block;
+  width: 6.4em;
+  margin: 0.55em auto 0;
+  font-size: 0.44em;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--accent-strong);
+  background:
+    linear-gradient(90deg, var(--accent-2), var(--accent-warm)) left center / 2.4em 3px no-repeat,
+    linear-gradient(90deg, var(--accent-warm), var(--accent-2)) right center / 2.4em 3px no-repeat;
+}
+
+/* ───────── title page: centred, signed with the star ───────── */
+.reveal .orz-template-title,
+.reveal .orz-template-closing { align-items: center; text-align: center; padding: 0 40px; }
+.reveal .orz-title-main {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  color: #173248;
+  font-size: 2.05em;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  max-width: 19em;
+}
+.reveal .orz-title-sub {
+  margin-top: 0.75em;
+  font-family: var(--font-heading); font-weight: 600;
+  font-size: 1.04em; color: var(--accent-strong); letter-spacing: -0.015em;
+}
+.reveal .orz-title-meta { margin-top: 1.5em; font-size: 0.72em; color: var(--text-soft); line-height: 1.55; }
+.reveal .orz-title-meta strong { color: var(--heading); }
+
+/* ───────── section: centred; the number in a big haloed dot, the star below ───────── */
+.reveal .orz-template-section { align-items: center; text-align: center; }
+.reveal .orz-section-main {
+  font-family: var(--font-heading); font-weight: 800; color: #173248;
+  font-size: 2.3em; line-height: 1.06; letter-spacing: -0.035em; max-width: 15em;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec);
+  display: grid; place-items: center;
+  width: 2.3em; height: 2.3em; margin: 0 auto 0.75em;
+  border-radius: 999px;
+  background: var(--accent-strong); color: #fdfeff;
+  font-size: 0.5em; font-weight: 700; letter-spacing: -0.02em;
+  box-shadow: 0 0 0 0.32em var(--halo), 0 0 0 0.64em rgba(98, 176, 232, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+.reveal .orz-section-meta { margin: 0.7em auto 0; font-size: 0.9em; color: var(--text-soft); max-width: 26em; }
+
+/* ───────── outline: a thread of haloed dots; the current one filled, its halo larger ───────── */
+.reveal .orz-template-outline { padding-left: 8%; }
+.reveal .orz-outline h2 {
+  font-size: 0.74em; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-soft); border: 0; padding: 0; margin: 0 0 1.2em;
+}
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; position: relative; }
+.reveal .orz-outline ol::before {   /* the thread */
+  content: ''; position: absolute; left: 0.47em; top: 0.9em; bottom: 0.9em; width: 2px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent-warm)); opacity: 0.45; font-size: 1.26em;
+}
+.reveal .orz-outline li {
+  counter-increment: c; position: relative; padding-left: 2.1em; margin: 0 0 0.62em;
+  font-family: var(--font-heading); font-weight: 600; font-size: 1.26em; line-height: 1.24;
+  letter-spacing: -0.02em; color: var(--text-soft);
+}
+.reveal .orz-outline li::before {
+  content: ''; position: absolute; left: 0.18em; top: 0.33em; width: 0.6em; height: 0.6em; box-sizing: border-box;
+  border-radius: 999px; background: #fdfeff; border: 3px solid var(--accent-2);
+}
+.reveal .orz-outline li.orz-here { color: var(--heading); }
+.reveal .orz-outline li.orz-here::before {
+  left: 0.12em; top: 0.27em; width: 0.72em; height: 0.72em; border: 0;
+  background: var(--accent-strong); box-shadow: 0 0 0 7px var(--halo), 0 0 0 14px rgba(98, 176, 232, 0.08);
+}
+.reveal .orz-outline li strong { font-weight: 800; color: inherit; }
+
+/* ───────── closing: centred thanks, the code in a rounded white tile ───────── */
+.reveal .orz-template-closing .orz-title-main { font-size: 2.4em; }
+.reveal .orz-template-closing .orz-title-meta { margin-top: 1.1em; }
+.reveal .orz-template-closing > .orz-qr-slot { --sl-qr: 5em; margin-top: 0.6em; }
+.reveal .orz-template-closing > .orz-qr-slot .qrcode {
+  padding: 10px; border-radius: 16px; background: #fff;
+  box-shadow: 0 0 0 1px var(--border), 0 0 0 7px rgba(98, 176, 232, 0.12);
+}
+
+/* ───────── content at slide scale: tables and code that fit their column ───────── */
+.reveal .markdown-body :is(thead th, tbody td) { padding: 0.38em 0.62em; }
+.reveal .markdown-body th .katex { text-transform: none; }
+.reveal .markdown-body pre { padding: 0.75em 0.95em; }
+.reveal .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reveal .markdown-body .task-list-item-checkbox:not(:checked) { border: 2px solid var(--accent); }
+/* table heads: the source's spaced capitals cost a column on a slide; set them in the heading face instead */
+.reveal .markdown-body thead th { text-transform: none; letter-spacing: 0; font-family: var(--font-heading); font-size: 0.86em; }
+
+/* breathing room between the content and the chrome line (fit scales into it) */
+.reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 14px; }

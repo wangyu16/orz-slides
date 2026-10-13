@@ -3,9 +3,10 @@
  * (FC-18 §5.1; owner decision 5 of REBUILD §3c, 2026-10-13: 14 themes).
  *
  * - Ten are DERIVED from orz-markdown themes (the kit's `orz-markdown/themes`;
- *   the stylesheets are built in rebuild step 4 by scripts/build-themes.ts);
+ *   scripts/build-themes.ts builds each from its source theme and its layer);
  *   their orz-markdown ids are accepted as aliases (Q5).
- * - Four are the 0.x themes kept and updated (Architect, Chalk, Neon, Paper).
+ * - Four are the 0.x themes kept and updated (Architect, Chalk, Neon, Paper):
+ *   layers of their own over layers/content.css.
  * - Dropped: Manuscript (light-academic-1) and Trade Book (beige-decent-1) in
  *   favour of Paper (their md ids are aliases of `paper`); the 0.x themes executive, poppy and sage. `upgrade` maps
  *   the dropped 0.x ids (executive → sky, poppy → sticker, sage → orchard,

@@ -1,0 +1,344 @@
+/* ==========================================================================
+   orz-slides 1.0 · layers/content.css
+   The content styling under the four UPDATED themes (Architect, Chalk, Neon,
+   Paper), which have no orz-markdown source theme: Markdown elements,
+   callouts, containers and inline plugins of a region, in the theme's own
+   tokens (--ink, --accent, --rule, --surface, --box-*, --code-*, --font-*).
+   Ported from 0.8.5's base.css by the theme concepts (branch concepts/themes,
+   legacy-content.css): side-stripe callouts and quotes are 1px full borders.
+   Each updated theme's layer restyles on top of it. Sizes in em (fit scales
+   them); nothing here sets a slide colour.
+   ========================================================================== */
+
+/* ==========================================================
+   .markdown-body — orz-markdown content inside regions
+   ========================================================== */
+.reveal .markdown-body {
+    line-height: 1.45;
+    color: var(--ink, #222);
+}
+.reveal .markdown-body > :first-child { margin-top: 0; }
+.reveal .markdown-body > :last-child { margin-bottom: 0; }
+
+/* ---------- Sub-headings h3–h6 (plain, NOT the title band) ---------- */
+.reveal .markdown-body h3,
+.reveal .markdown-body h4,
+.reveal .markdown-body h5,
+.reveal .markdown-body h6 {
+    font-family: var(--font-heading, 'Segoe UI', system-ui, sans-serif);
+    color: var(--accent, #345);
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin: 0 0 0.4em;
+    line-height: 1.2;
+    font-weight: var(--heading-font-weight, 600);
+    text-align: left;
+}
+.reveal .markdown-body h3 { font-size: 1.15em; }
+.reveal .markdown-body h4 { font-size: 1.0em; }
+.reveal .markdown-body h5 { font-size: 0.9em; }
+.reveal .markdown-body h6 { font-size: 0.85em; color: var(--muted, #777); }
+
+/* ---------- Paragraphs ---------- */
+.reveal .markdown-body p {
+    margin: 0 0 0.5em;
+    line-height: inherit;
+}
+
+/* ---------- Lists ---------- */
+.reveal .markdown-body ul,
+.reveal .markdown-body ol {
+    text-align: left;
+    margin: 0 0 0.6em;
+    padding-left: 1.8em;   /* room for the marker (esp. two-digit ol numbers) */
+}
+.reveal .markdown-body li {
+    line-height: inherit;
+    margin-bottom: 0.2em;
+}
+.reveal .markdown-body li > ul,
+.reveal .markdown-body li > ol {
+    margin: 0.25em 0 0.25em;
+}
+.reveal .markdown-body li > ul li,
+.reveal .markdown-body li > ol li { font-size: 1em; }
+
+/* ---------- Inline emphasis / links ----------
+   reveal's reset.css applies `font: inherit; font-size: 100%; vertical-align:
+   baseline` to strong/em/b/i/sub/sup/small, wiping their semantics — so restore
+   them here. Bold is BOLD (not recolored — a color hack disappears when it
+   matches the background); italic is italic; sub/sup raise and lower. */
+.reveal .markdown-body strong,
+.reveal .markdown-body b { font-weight: 700; }
+.reveal .markdown-body em,
+.reveal .markdown-body i { font-style: italic; }
+.reveal .markdown-body em strong,
+.reveal .markdown-body strong em { font-weight: 700; font-style: italic; }
+.reveal .markdown-body s,
+.reveal .markdown-body del { text-decoration: line-through; }
+.reveal .markdown-body ins,
+.reveal .markdown-body u { text-decoration: underline; }
+.reveal .markdown-body small { font-size: 0.82em; }
+.reveal .markdown-body sub,
+.reveal .markdown-body sup { font-size: 0.75em; line-height: 0; position: relative; vertical-align: baseline; }
+.reveal .markdown-body sub { bottom: -0.3em; }
+.reveal .markdown-body sup { top: -0.5em; }
+.reveal .markdown-body mark {
+    background: var(--mark-bg, #fde68a);
+    color: #3a2f00;
+    padding: 0 0.18em;
+    border-radius: 2px;
+}
+.reveal .markdown-body a {
+    color: var(--link-color, var(--accent, #345));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* ---------- Tables ---------- */
+.reveal .markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84em;
+    margin: 0 0 0.6em;
+}
+.reveal .markdown-body th {
+    background: var(--table-head-bg, var(--accent, #345));
+    color: var(--table-head-color, #fff);
+    text-align: left;
+    padding: 0.4em 0.6em;
+    border-bottom: 2px solid var(--accent, #345);
+    font-weight: 600;
+}
+.reveal .markdown-body td {
+    padding: 0.4em 0.6em;
+    border-bottom: 1px solid var(--rule, rgba(0, 0, 0, 0.12));
+}
+.reveal .markdown-body tr.row-highlight,
+.reveal .markdown-body tr.row-highlight td {
+    background: var(--row-highlight, rgba(0, 0, 0, 0.04));
+}
+
+/* ---------- Code ---------- */
+.reveal .markdown-body code {
+    font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', Menlo, monospace);
+    font-size: 0.85em;
+    background: var(--code-bg, rgba(0, 0, 0, 0.06));
+    color: var(--code-color, var(--ink, #222));
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+}
+.reveal .markdown-body pre {
+    margin: 0 0 0.6em;
+    padding: 0.7em 0.9em;
+    background: var(--code-bg, rgba(0, 0, 0, 0.06));
+    border: 1px solid var(--rule, rgba(0, 0, 0, 0.12));
+    border-radius: var(--box-radius, 8px);
+    overflow: auto;
+}
+.reveal .markdown-body pre code {
+    display: block;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-size: 0.78em;
+    line-height: 1.5;
+    color: var(--code-color, var(--ink, #222));
+    white-space: pre;
+}
+
+/* ---------- Blockquote ---------- */
+.reveal .markdown-body blockquote {
+    margin: 0 0 0.6em;
+    padding: 0.5em 1em;
+    border: 1px solid var(--rule, rgba(0, 0, 0, 0.14));
+    background: var(--surface, rgba(0, 0, 0, 0.03));
+    color: var(--ink, #222);
+    font-style: italic;
+}
+.reveal .markdown-body blockquote p { margin: 0; }
+
+/* ---------- Horizontal rule ---------- */
+.reveal .markdown-body hr {
+    border: 0;
+    border-top: 1px solid var(--rule, rgba(0, 0, 0, 0.14));
+    margin: 0.8em 0;
+}
+
+/* ==========================================================
+   CALLOUT BOXES  .box-info / .box-warning / .box-danger / .box-success
+   ========================================================== */
+.reveal .markdown-body .box-info,
+.reveal .markdown-body .box-warning,
+.reveal .markdown-body .box-danger,
+.reveal .markdown-body .box-success {
+    text-align: left;
+    padding: 0.7em 0.9em;
+    margin: 0 0 0.6em;
+    border: var(--box-border-width, 2px) solid currentColor;
+    border-radius: var(--box-radius, 8px);
+    box-shadow: var(--box-shadow, none);
+    font-size: 0.92em;
+}
+.reveal .markdown-body .box-info {
+    border-color: var(--box-info, #2b6cb0);
+    background: var(--box-info-bg, rgba(43, 108, 176, 0.08));
+}
+.reveal .markdown-body .box-warning {
+    border-color: var(--box-warning, #c79a2e);
+    background: var(--box-warning-bg, rgba(199, 154, 46, 0.10));
+}
+.reveal .markdown-body .box-danger {
+    border-color: var(--box-danger, #c0392b);
+    background: var(--box-danger-bg, rgba(192, 57, 43, 0.08));
+}
+.reveal .markdown-body .box-success {
+    border-color: var(--box-success, #2e8b57);
+    background: var(--box-success-bg, rgba(46, 139, 87, 0.08));
+}
+/* keep box text in the ink color (the border colors it, not the text) */
+.reveal .markdown-body .box-info,
+.reveal .markdown-body .box-warning,
+.reveal .markdown-body .box-danger,
+.reveal .markdown-body .box-success { color: var(--ink, #222); }
+
+.reveal .markdown-body .box-info > :first-child,
+.reveal .markdown-body .box-warning > :first-child,
+.reveal .markdown-body .box-danger > :first-child,
+.reveal .markdown-body .box-success > :first-child { margin-top: 0; }
+.reveal .markdown-body .box-info > :last-child,
+.reveal .markdown-body .box-warning > :last-child,
+.reveal .markdown-body .box-danger > :last-child,
+.reveal .markdown-body .box-success > :last-child { margin-bottom: 0; }
+
+/* Headings inside callouts: strip the sub-heading accent, keep inline */
+.reveal .markdown-body .box-info :is(h3,h4,h5,h6),
+.reveal .markdown-body .box-warning :is(h3,h4,h5,h6),
+.reveal .markdown-body .box-danger :is(h3,h4,h5,h6),
+.reveal .markdown-body .box-success :is(h3,h4,h5,h6) {
+    color: inherit;
+    margin-top: 0;
+    font-size: 1em;
+}
+
+/* ==========================================================
+   GENERATED CONSTRUCTS (mermaid / smiles / qrcode / math wrappers)
+   ========================================================== */
+.reveal .markdown-body .mermaid,
+.reveal .markdown-body .smiles-render,
+.reveal .markdown-body .qrcode,
+.reveal .markdown-body .katex-display {
+    text-align: center;
+    margin: 0 0 0.6em;      /* not auto: in a region (a flex column) auto margins would shrink a diagram to nothing */
+    max-width: 100%;
+}
+
+/* ---- task lists (- [ ] / - [x]): drop the bullet, keep the checkbox ---- */
+.reveal .markdown-body ul.contains-task-list { list-style: none; padding-left: 0.2em; }
+.reveal .markdown-body li.task-list-item { list-style: none; }
+
+.reveal .markdown-body .task-list-item-checkbox {
+    margin-right: 0.45em; vertical-align: middle; pointer-events: none;
+}
+
+/* ---- table of contents ({{toc}}) ---- */
+.reveal .markdown-body .toc-list { list-style: none; padding-left: 0; }
+.reveal .markdown-body .toc-list a { text-decoration: none; }
+.reveal .markdown-body .toc-list a:hover { text-decoration: underline; }
+
+/* ---- footnotes ---- */
+.reveal .markdown-body .footnotes {
+    margin-top: 0.8em; padding-top: 0.4em; font-size: 0.8em;
+    border-top: 1px solid var(--rule, #ddd); color: var(--muted, #777);
+}
+.reveal .markdown-body .footnote-ref a,
+.reveal .markdown-body .footnote-backref { text-decoration: none; }
+
+/* ==========================================================
+   orz-markdown CONTAINERS & INLINE PLUGINS
+   The slide base styled only plain markdown; these restore the
+   ::: admonitions / cols / tabs / spoiler and {{sp[...]}} spans,
+   using the theme's --box-* / --rule / --surface / --accent tokens.
+   ========================================================== */
+
+/* ---- admonition callouts: ::: info | success | warning | danger ---- */
+.reveal .markdown-body div.info,
+.reveal .markdown-body div.success,
+.reveal .markdown-body div.warning,
+.reveal .markdown-body div.danger {
+    border-radius: var(--box-radius, 6px);
+    border: 1px solid;
+    box-shadow: var(--box-shadow, none);
+    padding: 0.5em 0.8em;
+    margin: 0.5em 0;
+}
+.reveal .markdown-body div.info    { background: var(--box-info-bg, #eef4fb);    border-color: var(--box-info, #2b6cb0); }
+.reveal .markdown-body div.success { background: var(--box-success-bg, #effaf3); border-color: var(--box-success, #2f9e44); }
+.reveal .markdown-body div.warning { background: var(--box-warning-bg, #fdf6e3); border-color: var(--box-warning, #d9a300); }
+.reveal .markdown-body div.danger  { background: var(--box-danger-bg, #fdecec);  border-color: var(--box-danger, #e03131); }
+.reveal .markdown-body div.info > :last-child,
+.reveal .markdown-body div.success > :last-child,
+.reveal .markdown-body div.warning > :last-child,
+.reveal .markdown-body div.danger > :last-child { margin-bottom: 0; }
+
+/* ---- inline colour spans: {{sp[red|green|blue|yellow] …}} ---- */
+.reveal .markdown-body span.red    { color: var(--span-red, #e03131); }
+.reveal .markdown-body span.green  { color: var(--span-green, #2f9e44); }
+.reveal .markdown-body span.blue   { color: var(--span-blue, #1971c2); }
+.reveal .markdown-body span.yellow { color: var(--span-yellow, #d9a300); }
+
+/* ---- inline badges: {{sp[success|info|warning|danger] …}} ---- */
+.reveal .markdown-body span.info,
+.reveal .markdown-body span.success,
+.reveal .markdown-body span.warning,
+.reveal .markdown-body span.danger {
+    display: inline-flex; align-items: center; line-height: 1; white-space: nowrap;
+    padding: 0.15em 0.55em; border-radius: 999px; font-size: 0.82em; font-weight: 600;
+    border: 1px solid;
+}
+.reveal .markdown-body span.info    { color: var(--box-info, #2b6cb0);    background: var(--box-info-bg, #eef4fb);    border-color: var(--box-info, #2b6cb0); }
+.reveal .markdown-body span.success { color: var(--box-success, #2f9e44); background: var(--box-success-bg, #effaf3); border-color: var(--box-success, #2f9e44); }
+.reveal .markdown-body span.warning { color: var(--box-warning, #d9a300); background: var(--box-warning-bg, #fdf6e3); border-color: var(--box-warning, #d9a300); }
+.reveal .markdown-body span.danger  { color: var(--box-danger, #e03131);  background: var(--box-danger-bg, #fdecec);  border-color: var(--box-danger, #e03131); }
+
+/* ---- alignment containers: ::: left | center | right ---- */
+.reveal .markdown-body div.left   { text-align: left; }
+.reveal .markdown-body div.center { text-align: center; }
+.reveal .markdown-body div.right  { text-align: right; }
+
+/* ---- column container: ::: cols / ::: col ---- */
+.reveal .markdown-body .cols {
+    display: grid; gap: 0.8em; margin: 0.5em 0;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+.reveal .markdown-body .cols > .col > :last-child { margin-bottom: 0; }
+
+/* ---- tabs: ::: tabs / ::: tab Label (JS in browser-entry adds the bar) ---- */
+.reveal .markdown-body .tabs { margin: 0.5em 0; }
+.reveal .markdown-body .tabs-bar {
+    display: flex; flex-wrap: wrap; gap: 0.3em;
+    margin-bottom: 0.5em; border-bottom: 1px solid var(--rule, #ddd);
+}
+.reveal .markdown-body .tabs-bar-btn {
+    font: inherit; font-size: 0.85em; cursor: pointer;
+    background: transparent; border: 0; border-bottom: 2px solid transparent;
+    padding: 0.3em 0.7em; color: var(--muted, #777);
+}
+.reveal .markdown-body .tabs-bar-btn.active {
+    color: var(--accent, #345); border-bottom-color: var(--accent, #345); font-weight: 600;
+}
+.reveal .markdown-body .tabs:not([data-js]) > .tab { display: block; }
+.reveal .markdown-body .tabs:not([data-js]) > .tab::before {
+    content: attr(data-label); display: block;
+    font-weight: 700; color: var(--accent, #345); font-size: 0.85em; margin: 0.3em 0 0.2em;
+}
+.reveal .markdown-body .tabs > .tab > :last-child { margin-bottom: 0; }
+
+/* ---- spoiler: ::: spoil Title ---- */
+.reveal .markdown-body details.spoil {
+    border: 1px solid var(--rule, #ddd); border-radius: var(--box-radius, 6px);
+    padding: 0.35em 0.7em; margin: 0.5em 0; background: var(--surface, #f6f6f6);
+}
+.reveal .markdown-body details.spoil > summary { cursor: pointer; font-weight: 600; color: var(--accent, #345); }
+.reveal .markdown-body details.spoil > :not(summary) { margin-top: 0.4em; }

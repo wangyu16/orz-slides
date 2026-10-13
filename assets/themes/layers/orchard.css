@@ -28,8 +28,10 @@
 
   /* charts and diagrams: the colours are light-neat-3's (--chart-*, --mm-*); the slide sets the face */
   --chart-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --chart-font-size: 20;
   --chart-surface: #fbfbf8;
   --mm-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mm-font-size: 20;
 }
 
 .reveal .orz-slide { font-family: var(--font-body); }
@@ -73,8 +75,8 @@
 .reveal .markdown-body p > img { box-shadow: none; border-color: var(--border-soft); }
 
 /* ───────── chrome: footer, Bricolage number, a green line ending in a leaf ───────── */
-.reveal .orz-footer { color: var(--text-muted); font-size: 1.03em; letter-spacing: 0.01em; }
-.reveal .orz-chrome { font-family: var(--font-heading); }
+.reveal .orz-footer { color: var(--text-muted); font-size: 1em; letter-spacing: 0.01em; }
+.reveal .orz-chrome { font-family: var(--font-heading); font-size: 20px; }   /* chrome text >= 20px on a 1280 x 720 slide */
 .reveal .orz-chrome::before {      /* the track: a hairline across the band's top */
   content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x); top: 0; height: 1px; background: var(--border);
 }
@@ -87,9 +89,9 @@
   content: ''; position: absolute; right: -9px; top: -6px; width: 15px; height: 15px;
   border-radius: 0 75% 0 75%; background: var(--accent);
 }
-.reveal .orz-chrome-num { font-size: 1.32em; font-weight: 600; color: var(--accent-strong); gap: 0.22em; letter-spacing: -0.01em; }
+.reveal .orz-chrome-num { font-size: 1.2em; font-weight: 600; color: var(--accent-strong); gap: 0.22em; letter-spacing: -0.01em; }
 .reveal .orz-chrome-num i { font-style: normal; color: var(--border-strong); font-weight: 500; }
-.reveal .orz-chrome-num span { color: var(--text-muted); font-weight: 500; font-size: 0.72em; }
+.reveal .orz-chrome-num span { color: var(--text-muted); font-weight: 500; font-size: 0.84em; }
 
 /* ───────── floats: a leaf-cut wash note pinned over the figure ───────── */
 .reveal .orz-float {
@@ -233,3 +235,6 @@
 .reveal .markdown-body pre { padding: 0.75em 0.95em; }
 .reveal .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .reveal .markdown-body .task-list-item-checkbox:not(:checked) { border: 2px solid var(--accent); }
+
+/* breathing room between the content and the chrome line (fit scales into it) */
+.reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 14px; }

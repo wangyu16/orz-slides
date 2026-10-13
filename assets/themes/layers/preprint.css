@@ -1,0 +1,208 @@
+/* Preprint — the slide layer over orz-markdown light-academic-2 ("the journal
+   preprint"; orz-slides 1.0, ported from the concept on branch concepts/themes).
+   A crisp white journal page for a seminar room: Fira Sans for the apparatus
+   (titles, labels, tables, folio), Vollkorn for the argument, one navy
+   accent. Structure is drawn with rules only: a running head over a hairline
+   that fills with navy as the talk advances, a 2px rule under the paper's
+   title, booktabs everywhere, square marks for the current step. */
+
+:root {
+  --navy: var(--link-color);
+  --sl-size: 29px;
+  --sl-lh: 1.42;
+  --sl-bg: var(--bg-color);
+  --sl-viewport: #e9ecf0;
+  --sl-ink: var(--text-main);
+  --sl-mono: var(--code-font);
+  --sl-title-size: 1.5em;
+  --sl-title-gap: 24px;
+  --sl-pad-t: 80px;
+  --sl-chrome: 58px;
+  --sl-controls: var(--link-color);
+
+  --chart-1: #0b4a8b; --chart-2: #c51e21; --chart-3: #007f35; --chart-4: #be7200;
+  --chart-text: #343a44;
+  --chart-grid: #e2e5ea;
+  --chart-font: 'Fira Sans', 'Helvetica Neue', sans-serif;
+  --chart-font-size: 20;
+  --chart-surface: #fdfdfc;
+  --mm-font: 'Fira Sans', 'Helvetica Neue', sans-serif;
+  --mm-font-size: 20;
+  --mm-node: #f5f6f8;
+  --mm-border: #16191f;
+  --mm-text: #16191f;
+  --mm-line: #343a44;
+  --mm-surface: #fdfdfc;
+}
+
+.reveal .orz-slide { font-family: var(--main-font); }
+
+/* ───────── title band: the source's ruled section head, in Fira ───────── */
+.reveal .orz-title h2 {
+  font-family: var(--header-font);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--heading);
+  margin: 0;
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid var(--border-soft);
+}
+.reveal .orz-title h2 .katex { font-size: 1em; }
+
+/* column splits: a hairline gutter rule, as between a paper's two columns */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  border-left: 1px solid var(--border-soft);
+  padding-left: 26px;
+  margin-left: -14px;
+}
+
+/* ───────── running head (section) over a hairline; progress fills it in navy ───────── */
+.reveal .orz-chrome { font-family: var(--header-font); font-size: 20px; }   /* chrome text >= 20px on a 1280 x 720 slide */
+.reveal .orz-chrome::before {
+  content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x);
+  top: calc(var(--sl-chrome) - 668px); height: 1px; background: var(--border-soft);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x); bottom: auto; top: calc(var(--sl-chrome) - 668.5px); height: 2px;
+  width: calc(var(--progress, 0) * (100% - 2 * var(--sl-pad-x)));
+  background: var(--navy);
+}
+.reveal .orz-head {      /* the running head: section number and title over the hairline */
+  display: flex; inset: 20px 0 auto 0; height: 26px;
+  font-family: var(--header-font); font-size: 20px; font-weight: 500; color: var(--text-muted);
+}
+.reveal .orz-head-deck { display: none; }
+.reveal .orz-head-sec::before { content: attr(data-sec); color: var(--navy); font-weight: 700; margin-right: 0.9em; font-variant-numeric: tabular-nums; }
+.reveal .orz-head-sec[data-sec=""]::before { display: none; }
+.reveal .orz-slide[data-kind="template"] .orz-head { visibility: hidden; }
+
+/* folio "4 / 11" in Fira, the page in navy */
+.reveal .orz-chrome-num { font-size: 1em; color: var(--text-muted); gap: 0.35em; }
+.reveal .orz-chrome-num b { color: var(--navy); font-weight: 700; }
+.reveal .orz-chrome-num i { font-style: normal; color: var(--border-soft); }
+.reveal .orz-footer { font-family: var(--header-font); color: var(--text-muted); font-size: 1em; letter-spacing: 0.01em; }
+
+/* ───────── floats: an inset label on a figure — white, framed, navy top rule ───────── */
+.reveal .orz-float {
+  background: var(--bg-color);
+  border: 1px solid var(--border-soft);
+  border-top: 3px solid var(--navy);
+  padding: 0.45em 0.7em;
+  font-family: var(--header-font);
+  font-size: 0.76em;
+  line-height: 1.3;
+  color: var(--text-soft);
+  display: flex; align-items: center;
+}
+.reveal .orz-float .markdown-body { font-family: var(--header-font); }
+.reveal .orz-float strong { color: var(--navy); font-weight: 700; }
+
+/* ───────── fragments: the current step carries a navy square in the margin ───────── */
+.reveal .orz-region .fragment.current-fragment { position: relative; color: var(--heading); }
+.reveal .orz-region p.fragment.current-fragment::before {
+  content: ''; position: absolute; left: -0.85em; top: 0.48em; width: 0.36em; height: 0.36em; background: var(--navy);
+}
+.reveal .orz-region li.fragment.current-fragment::marker { color: var(--navy); }
+.reveal .orz-region ul > li.fragment.current-fragment { list-style-type: square; }
+
+/* content tweaks for the projected page */
+/* code: 21px Fira Mono, long lines wrap instead of running out of the column */
+.reveal .orz-region .markdown-body pre { font-size: 0.72em; padding: 0.8em 1em; line-height: 1.45; }
+.reveal .orz-region .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reveal .markdown-body ul > li::marker { color: var(--text-muted); }
+.reveal .orz-region .markdown-body > div:is(.info, .success, .warning, .danger) { margin-top: 0.2em; }
+.reveal .markdown-body .katex-display { padding: 0.3em 0.3em; }
+.reveal .orz-region .markdown-body > p.katex-block { margin-bottom: 0.3em; }
+.reveal .markdown-body blockquote { border-left-color: var(--border-soft); }
+
+/* ───────── title page: a paper's first page ───────── */
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"]) {
+  /* masthead: a navy tile and a hairline across the head of the page */
+  background:
+    linear-gradient(var(--navy), var(--navy)) var(--sl-pad-x) 40px / 14px 14px no-repeat,
+    linear-gradient(var(--border-color), var(--border-color)) calc(var(--sl-pad-x) + 26px) 47px / calc(100% - 2 * var(--sl-pad-x) - 26px) 1px no-repeat,
+    var(--bg-color);
+}
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"]) .orz-frame { justify-content: center; padding-top: 24px; }
+.reveal .orz-template-title, .reveal .orz-template-closing { align-items: stretch; text-align: left; padding-right: 40px; }
+.reveal .orz-title-main {
+  font-family: var(--header-font); font-weight: 700; color: var(--heading);
+  font-size: 1.95em; line-height: 1.13; letter-spacing: -0.018em; text-wrap: balance;
+  padding-bottom: 0.38em; border-bottom: 2px solid var(--border-color);
+}
+/* authors before the abstract, as on a paper */
+.reveal .orz-template-title .orz-title-main { order: 1; }
+.reveal .orz-template-title .orz-title-meta { order: 2; }
+.reveal .orz-template-title .orz-title-sub { order: 3; }
+.reveal .orz-title-meta { margin-top: 0.75em; font-size: 0.8em; color: var(--text-soft); line-height: 1.45; }
+.reveal .orz-title-meta strong { font-family: var(--header-font); font-weight: 600; color: var(--navy); }
+.reveal .orz-template-title .orz-title-sub {
+  margin-top: 1.15em; padding-top: 0.6em; border-top: 1px solid var(--border-soft);
+  font-style: italic; font-size: 1.02em; color: var(--text-main); max-width: 30em;
+}
+.reveal .orz-template-title .orz-title-sub::before {
+  content: 'Abstract'; font-style: normal; font-family: var(--header-font); font-weight: 700;
+  font-size: 0.66em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--navy);
+  margin-right: 1.1em; vertical-align: 0.12em;
+}
+
+/* the closing carries the masthead, so the running-head rule steps aside */
+.reveal .orz-slide[data-template="closing"] .orz-chrome-bar { display: none; }
+.reveal .orz-slide[data-template="closing"] .orz-chrome::before { display: none; }
+
+/* closing: correspondence block, the code set as a framed figure at the right */
+.reveal .orz-template-closing { padding-right: 7.2em; min-height: 13em; }
+.reveal .orz-template-closing .orz-title-sub { margin-top: 0.5em; font-size: 1.1em; color: var(--text-soft); }
+.reveal .orz-template-closing .orz-title-meta { margin-top: 1.6em; padding-top: 0.6em; border-top: 1px solid var(--border-soft); }
+.reveal .orz-template-closing .orz-title-meta::before {
+  content: 'Correspondence'; display: block; font-family: var(--header-font); font-weight: 700;
+  font-size: 0.74em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--navy); margin-bottom: 0.25em;
+}
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute; right: 0; top: 0.1em; margin: 0;
+  border: 1px solid var(--border-soft); border-top: 3px solid var(--navy); --sl-qr: 5.2em; border-radius: 0;
+}
+
+/* ───────── section: a numbered paper section ───────── */
+.reveal .orz-template-section { align-items: flex-start; padding: 0 4% 0 0; }
+.reveal .orz-section-main {
+  position: relative; font-family: var(--header-font); font-weight: 700; color: var(--heading);
+  font-size: 2.1em; line-height: 1.12; letter-spacing: -0.018em;
+  padding: 0.45em 0 0.4em 2.1em; border-top: 2px solid var(--border-color);
+  align-self: stretch;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec); position: absolute; left: 0; top: 0.45em;
+  color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: 0;
+}
+.reveal .orz-section-meta {
+  margin-top: 0.1em; padding-top: 0.55em; font-size: 1em; color: var(--text-soft); font-style: italic;
+  border-top: 1px solid var(--border-soft); align-self: stretch;
+  padding-left: 4.41em; /* aligns with the title text (2.1em at 2.1em) */
+}
+
+/* ───────── outline: Contents as a booktabs table, the current row tinted navy ───────── */
+.reveal .orz-template-outline { padding: 0 12% 0 0; }
+.reveal .orz-outline h2 {
+  font-family: var(--header-font); font-weight: 700; font-size: 0.72em; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--navy); margin: 0 0 0.7em; padding: 0; border: 0;
+}
+.reveal .orz-outline ol {
+  list-style: none; counter-reset: c; padding: 0; margin: 0;
+  border-top: 2px solid var(--border-color); border-bottom: 2px solid var(--border-color);
+}
+.reveal .orz-outline li {
+  counter-increment: c; position: relative; margin: 0; padding: 0.42em 0.6em 0.42em 2.6em;
+  font-size: 1.15em; line-height: 1.25; color: var(--text-soft);
+}
+.reveal .orz-outline li + li { border-top: 1px solid var(--border-soft); }
+.reveal .orz-outline li::before {
+  content: counter(c); position: absolute; left: 0.6em; top: 0.42em;
+  font-family: var(--header-font); font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.reveal .orz-outline li.orz-here { background: var(--info-bg); color: var(--navy); }
+.reveal .orz-outline li.orz-here::before { color: var(--navy); font-weight: 700; }
+.reveal .orz-outline li.orz-here::after {
+  content: ''; position: absolute; right: 0.7em; top: 50%; width: 0.4em; height: 0.4em; margin-top: -0.2em; background: var(--navy);
+}
+.reveal .orz-outline li strong { font-weight: 700; color: var(--navy); }

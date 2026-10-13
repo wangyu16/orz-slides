@@ -21,7 +21,7 @@ their owned files, interfaces, and the build order.
 > **Status: published (v0.8.5); rebuild 1.0 in progress on branch
 > `rebuild/1.0`** (family plan `../docs/REBUILD.md` §3c — owner decisions
 > 1–6 and the approved plan are binding; mirrors orz-mdhtml 1.0 and orz-paged
-> 1.0). Steps 1–3 done: orz-markdown `^2.3.0` (linked to the prepared,
+> 1.0). Steps 1–4 done: orz-markdown `^2.3.0` (linked to the prepared,
 > unpublished 2.4.0 checkout during step 3: `node_modules/orz-markdown` is a
 > symlink to `../../orz-markdown`, as orz-paged did), reveal.js pinned, no
 > shims; the 0.x shell is deleted — the bundle boots the kit's `carrier/app`
@@ -32,8 +32,11 @@ their owned files, interfaces, and the build order.
 > (`keyboard: false`, keys through the kit's `onKey`), fit, the speaker view,
 > the timer, Present and the print document — with the slide DOM of
 > `src/render-slide.ts` and the theme contract of `docs/dom-contract.md`;
-> one theme is built (Orchard: `scripts/build-themes.ts` →
-> `assets/themes/orchard.css`; the other 13 show in it until step 4). Claims
+> step 4 built the 14 themes (`scripts/build-themes.ts` →
+> `assets/themes/<id>.css`: a derived theme is orz-markdown's source theme +
+> `layers/slide-scale.css` + `layers/<id>.css`; an updated one
+> `layers/content.css` + `layers/<id>.css`; review page:
+> `npx tsx scripts/theme-sheets.ts`). Claims
 > in `notes/CLAIMS.md` (bound by `tests/claims.test.ts`); the kit's
 > conformance harness runs from
 > day one (`tests/conformance.test.ts`). There is no CLI until step 7. The

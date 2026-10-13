@@ -1,0 +1,516 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400%3B0,500%3B0,600%3B0,700%3B1,400%3B1,500%3B1,600&family=Inconsolata:wght@400%3B500%3B600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400%3B600&text=%E2%82%80%E2%82%81%E2%82%82%E2%82%83%E2%82%84%E2%82%85%E2%82%86%E2%82%87%E2%82%88%E2%82%89%E2%82%8A%E2%82%8B%E2%82%8C%E2%82%8D%E2%82%8E%E2%81%B0%C2%B9%C2%B2%C2%B3%E2%81%B4%E2%81%B5%E2%81%B6%E2%81%B7%E2%81%B8%E2%81%B9%E2%81%BA%E2%81%BB&display=swap');   /* EB Garamond has no inferior or superior figures: N₂ takes them from Noto Serif */
+
+/* Paper — an updated 0.x theme (LIGHT; orz-slides 1.0, ported from the concept
+   on branch concepts/themes, owner revision: the deck line in the footer).
+   A finely printed book in brown ink on warm laid stock. EB Garamond with
+   old-style figures and true small capitals; centred chapter-style titles
+   with a fleuron between thin double rules; a running foot (the deck footer)
+   in letter-spaced small capitals over a hairline that fills as the talk
+   proceeds; a footnote rule and the current part at the foot, the folio
+   centred. Sections open like chapters with a roman drop numeral; the
+   outline is a contents page with dot leaders; the title page is a book's
+   title page with the imprint at its foot. Callouts are tinted like pencil
+   highlighting between printed rules. */
+
+:root {
+  /* 0.8.5 token set (legacy-content) */
+  --bg: #fbf7ef;
+  --ink: #3e2723;
+  --accent: #8d6e63;
+  --muted: #74594f;
+  --rule: #ddd0c2;
+  --surface: #f4ece0;
+  --font-heading: 'EB Garamond', 'Noto Serif', Garamond, Georgia, serif;
+  --font-body: 'EB Garamond', 'Noto Serif', Garamond, Georgia, serif;
+  --font-mono: 'Inconsolata', ui-monospace, Menlo, monospace;
+  --code-bg: #f3ebde;
+  --code-color: #4a2f28;
+  --link-color: #6d4c41;
+  --mark-bg: #f6e3a1;
+  --table-head-bg: transparent;
+  --table-head-color: #3e2723;
+  --row-highlight: #f3e9dc;
+  --box-radius: 0;
+  --box-shadow: none;
+  --box-info: #4f7480;    --box-info-bg: #e9eff0;
+  --box-warning: #9c7a22; --box-warning-bg: #f8ecc6;
+  --box-danger: #9c3f33;  --box-danger-bg: #f5e0d9;
+  --box-success: #5f7d36; --box-success-bg: #e8edd8;
+  --span-red: #9c3f33; --span-green: #5f7d36; --span-blue: #4f7480; --span-yellow: #9c7a22;
+
+  --brown: #6d4c41;
+  --taupe: #8d6e63;
+  --hair: #cdbcab;
+
+  /* deck geometry: the title at the top, a running foot below */
+  --sl-size: 31px;
+  --sl-lh: 1.38;
+  --sl-pad-t: 50px;
+  --sl-pad-x: 84px;
+  --sl-chrome: 64px;
+  --sl-gap: 48px;
+  --sl-title-gap: 22px;
+  --sl-title-size: 1.5em;
+  --sl-bg: #fbf7ef;
+  --sl-viewport: #e9e1d2;
+  --sl-ink: #3e2723;
+  --sl-mono: 'Inconsolata', ui-monospace, Menlo, monospace;
+  --sl-controls: #8d6e63;
+
+  /* charts + diagrams in brown inks */
+  --chart-1: #6d3b2a; --chart-2: #3f6f7c; --chart-3: #b07d1e; --chart-4: #6b8a3a;
+  --chart-text: #4a342d;
+  --chart-grid: #e4d9cb;
+  --chart-font: 'EB Garamond', Georgia, serif;
+  --chart-font-size: 21;
+  --chart-surface: #fbf7ef;
+  --mm-font: 'EB Garamond', Georgia, serif;
+  --mm-font-size: 22;
+  --mm-node: #f5ede1;
+  --mm-border: #6d4c41;
+  --mm-text: #3e2723;
+  --mm-line: #8d6e63;
+  --mm-surface: #fbf7ef;
+}
+
+/* ───────── the page ───────── */
+.reveal .orz-slide {
+  font-family: var(--font-body);
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  font-kerning: normal;
+  font-feature-settings: 'liga' 1, 'kern' 1;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 45%, rgba(255, 253, 247, 0.9), rgba(255, 253, 247, 0) 70%),
+    linear-gradient(90deg, rgba(141, 110, 99, 0.05), transparent 6%, transparent 94%, rgba(141, 110, 99, 0.05)),
+    #fbf7ef;
+}
+.reveal .markdown-body { color: var(--ink); }
+
+/* ───────── title band: centred, a fleuron between thin double rules ───────── */
+.reveal .orz-title { text-align: center; }
+.reveal .orz-title h2 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: 0.005em;
+  line-height: 1.1;
+  margin: 0 auto;
+}
+.reveal .orz-title h2 .katex { font-size: 0.92em; }
+.reveal .orz-title::after {
+  content: '\2766';
+  display: block;
+  margin: 0.28em auto 0;
+  width: 15em;
+  max-width: 60%;
+  font-size: 0.72em;
+  line-height: 1;
+  color: var(--taupe);
+  background:
+    linear-gradient(to bottom, var(--hair) 0 1px, transparent 1px 3px, var(--hair) 3px 4px) left center / calc(50% - 1.1em) 4px no-repeat,
+    linear-gradient(to bottom, var(--hair) 0 1px, transparent 1px 3px, var(--hair) 3px 4px) right center / calc(50% - 1.1em) 4px no-repeat;
+}
+
+/* split regions: a gutter hairline, as in a two-column page */
+/* the divider sits in the column's own left padding (a box never shows overflow: the column reaches into the gap) */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) { position: relative; margin-left: 0; padding-left: calc(var(--sl-gap) / 2 + 1px); }
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.4em;
+  bottom: 0.4em;
+  width: 1px;
+  background: var(--rule);
+}
+
+/* ───────── text ───────── */
+.reveal .markdown-body p { hanging-punctuation: first; }
+.reveal .markdown-body strong { font-weight: 600; color: #2e1b17; }
+.reveal .markdown-body ul { list-style: none; padding-left: 1.15em; }
+.reveal .markdown-body ul > li { position: relative; }
+.reveal .markdown-body ul:not(.contains-task-list) > li::before {
+  content: '\2022';
+  position: absolute;
+  left: -0.85em;
+  color: var(--taupe);
+}
+.reveal .markdown-body ol > li::marker { color: var(--brown); font-variant-numeric: oldstyle-nums; }
+.reveal .markdown-body h3, .reveal .markdown-body h4 {
+  font-family: var(--font-heading); font-weight: 500; font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em; color: var(--brown); font-size: 1.05em;
+}
+.reveal .markdown-body a { color: var(--brown); text-decoration-color: var(--hair); text-decoration-thickness: 1px; }
+.reveal .markdown-body .katex { font-size: 1.0em; color: #2e1b17; }
+.reveal .markdown-body .katex-display { margin: 0.3em 0 0.5em; }
+
+/* code: set in a quiet tinted block, ruled like an extract */
+.reveal .markdown-body pre {
+  background: #f4ecdf;
+  border: 0;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  border-radius: 0;
+  padding: 0.6em 0.85em;
+}
+.reveal .markdown-body pre code { font-size: 0.68em; line-height: 1.5; color: var(--code-color); font-weight: 500; }
+.reveal .markdown-body :not(pre) > code { background: #f2e9dc; color: #4a2f28; font-size: 0.82em; border-radius: 1px; }
+
+/* tables: booktabs, small-capital heads */
+.reveal .markdown-body table { font-size: 0.88em; font-variant-numeric: oldstyle-nums tabular-nums; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+.reveal .markdown-body th {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 500;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+  font-size: 1.05em;
+  border-bottom: 0.75px solid var(--ink);
+  padding: 0.3em 0.6em 0.22em;
+  vertical-align: bottom;
+}
+.reveal .markdown-body th .katex { font-variant-caps: normal; }
+.reveal .markdown-body td { border-bottom: 0; padding: 0.24em 0.6em; }
+.reveal .markdown-body tbody tr:first-child td { padding-top: 0.42em; }
+.reveal .markdown-body tbody tr:last-child td { padding-bottom: 0.4em; }
+
+/* quotation: an epigraph — italic, a hanging taupe quote, attribution in small capitals */
+.reveal .markdown-body blockquote {
+  position: relative;
+  border: 0;
+  background: transparent;
+  padding: 0 0.6em 0 1.05em;
+  margin: 0.2em 0 0.35em;
+  font-style: italic;
+  font-size: 1.1em;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.reveal .markdown-body blockquote::before {
+  content: '\201C';
+  position: absolute;
+  left: 0;
+  top: -0.12em;
+  font-size: 2em;
+  line-height: 1;
+  font-style: normal;
+  color: var(--taupe);
+}
+.reveal .markdown-body blockquote + p { text-align: right; font-variant-caps: all-small-caps; letter-spacing: 0.08em; color: var(--muted); padding-right: 0.6em; }
+
+/* callouts: pencil highlighting between printed rules; the lead-in in small capitals */
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger) {
+  --c: var(--box-info);
+  --cb: var(--box-info-bg);
+  background: var(--cb);
+  border: 0;
+  border-top: 1px solid var(--c);
+  border-bottom: 1px solid var(--c);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0.5em 0.75em;
+  margin: 0.45em 0 0.5em;
+  color: var(--ink);
+  font-size: 0.95em;
+}
+.reveal .markdown-body div.warning { --c: var(--box-warning); --cb: var(--box-warning-bg); }
+.reveal .markdown-body div.danger { --c: var(--box-danger); --cb: var(--box-danger-bg); }
+.reveal .markdown-body div.success { --c: var(--box-success); --cb: var(--box-success-bg); }
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger) > p:first-child > strong:first-child {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.07em;
+  font-size: 1.08em;
+  font-weight: 600;
+  color: var(--c);
+}
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger) > p:first-child > strong:first-child { filter: brightness(0.82); }
+
+/* badges: small capitals in a fine printed box */
+.reveal .markdown-body :is(span.info, span.success, span.warning, span.danger) {
+  border-radius: 1px;
+  font-weight: 500;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.95em;
+  padding: 0.05em 0.45em 0.12em;
+  background: transparent;
+  border: 1px solid currentColor;
+  display: inline-block;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.reveal .markdown-body span.info { color: var(--box-info); }
+.reveal .markdown-body span.success { color: var(--box-success); }
+.reveal .markdown-body span.warning { color: var(--box-warning); }
+.reveal .markdown-body span.danger { color: var(--box-danger); }
+
+/* task list: printed boxes, ticked in brown ink */
+.reveal .markdown-body ul.contains-task-list { list-style: none; padding-left: 0.1em; }
+.reveal .markdown-body li.task-list-item { list-style: none; }
+.reveal .markdown-body .task-list-item-checkbox {
+  font-size: inherit;
+  flex: none;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 0.62em;
+  height: 0.62em;
+  margin: 0 0.5em 0 0;
+  vertical-align: 0;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+}
+.reveal .markdown-body .task-list-item-checkbox:checked {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3.5 10.5 L8 15 L17.5 3' stroke='%233e2723' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") center / 115% no-repeat;
+}
+
+/* graphics: plates — a fine frame around figures */
+.reveal .markdown-body .mermaid, .reveal .markdown-body .orz-chart-frame { background: transparent; box-shadow: none; padding: 0; }
+.reveal .markdown-body p:has(> img) { line-height: 0; width: fit-content; }
+.reveal .markdown-body p:has(> img) > img { display: block; padding: 5px; border: 1px solid var(--hair); background: #fffdf8; }
+
+/* float: a marginal note in a double-ruled frame */
+.reveal .orz-float {
+  background: #fbf7ef;
+  border: 3px double var(--taupe);
+  padding: 0.35em 0.55em;
+  font-style: italic;
+  font-size: 0.8em;
+  line-height: 1.2;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.reveal .orz-float .markdown-body { color: var(--ink); }
+.reveal .orz-float strong { font-style: normal; font-weight: 600; }
+
+/* fragments: the current step is marked with a hedera in the margin */
+.reveal .orz-region .fragment.current-fragment { position: relative; }
+.reveal .orz-region ul > li.fragment.current-fragment::before { content: '\2767'; left: -1.05em; color: var(--brown); }
+.reveal .orz-region li.fragment.current-fragment { color: #2e1b17; }
+.reveal .orz-region p.fragment.current-fragment::before { content: '\2767'; position: absolute; left: -1.05em; color: var(--brown); }
+
+/* ───────── chrome: the running foot — deck line left, folio centred, part right ───────── */
+.reveal .orz-footer {
+  left: var(--sl-pad-x);
+  right: calc(50% + 2.4em);
+  font-size: 1.1em;
+  font-variant-caps: small-caps;   /* (1.0: the author's capitals stay full size; all-small-caps read too small projected) */
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.reveal .orz-chrome { font-family: var(--font-body); font-size: 20px; }   /* chrome text >= 20px on a 1280 x 720 slide */
+/* a hairline above the foot; its brown part is the progress */
+.reveal .orz-chrome::before {
+  content: '';
+  position: absolute;
+  left: var(--sl-pad-x);
+  right: var(--sl-pad-x);
+  top: 6px;
+  height: 1px;
+  background: var(--rule);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x);
+  top: 6px;
+  bottom: auto;
+  height: 1px;
+  width: calc(var(--progress, 0) * (100% - 2 * var(--sl-pad-x)));
+  background: var(--taupe);
+}
+/* the folio, centred between em rules */
+.reveal .orz-chrome-num {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.15em;
+  color: var(--brown);
+  font-variant-numeric: oldstyle-nums;
+}
+.reveal .orz-chrome-num i, .reveal .orz-chrome-num span { display: none; }
+.reveal .orz-chrome-num b { font-weight: 400; }
+.reveal .orz-chrome-num b::before, .reveal .orz-chrome-num b::after { content: '\2014'; color: var(--hair); margin: 0 0.5em; }
+/* the current part, italic at the right of the foot */
+.reveal .orz-chrome-sec {
+  display: block;
+  position: absolute;
+  right: var(--sl-pad-x);
+  left: calc(50% + 2.2em);
+  bottom: 0;
+  height: var(--sl-chrome);
+  line-height: var(--sl-chrome);
+  text-align: right;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-style: italic;
+  font-size: 1.05em;
+  color: var(--muted);
+}
+.reveal .orz-chrome-sec::before { font-style: normal; font-variant-caps: all-small-caps; letter-spacing: 0.08em; color: var(--brown); margin-right: 0.35em; }
+.reveal .orz-chrome-sec[data-sec=""] { display: none; }
+/* chapter openings, the contents and the colophon: folio only */
+.reveal .orz-slide[data-kind="template"] .orz-footer,
+.reveal .orz-slide[data-kind="template"] .orz-chrome::before,
+.reveal .orz-slide[data-kind="template"] .orz-chrome-bar,
+.reveal .orz-slide[data-kind="template"] .orz-chrome-sec { display: none; }
+
+.reveal .orz-chrome-sec::before { content: 'Part ' attr(data-sec) ' \00B7'; }   /* data-sec is roman: Paper numbers sections I, II … */
+
+/* ───────── title page: a book's title page, the imprint at its foot ───────── */
+.reveal .orz-slide[data-template="title"] .orz-frame { justify-content: stretch; }
+.reveal .orz-template-title {
+  align-items: center;
+  text-align: center;
+  height: 100%;
+  padding: 0.4em 7% 0;
+  justify-content: flex-start;
+}
+.reveal .orz-template-title::before {
+  content: '\2767\2003\2766\2003\2619';
+  display: block;
+  font-size: 1.05em;
+  letter-spacing: 0;
+  color: var(--taupe);
+  margin: 0.2em 0 0.9em;
+}
+.reveal .orz-title-main {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.95em;
+  line-height: 1.12;
+  color: var(--ink);
+  letter-spacing: 0.002em;
+}
+.reveal .orz-title-sub {
+  font-style: italic;
+  font-size: 1.1em;
+  color: var(--brown);
+  margin-top: 0.55em;
+  padding-top: 0.55em;
+  background: linear-gradient(to bottom, var(--hair) 0 1px, transparent 1px 3px, var(--hair) 3px 4px) center top / 3.6em 4px no-repeat;
+}
+.reveal .orz-template-title .orz-title-meta {
+  margin-top: auto;
+  margin-bottom: 0.1em;
+  font-size: 0.74em;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.reveal .orz-template-title .orz-title-meta::before {
+  content: '\2766';
+  display: block;
+  font-size: 1.15em;
+  color: var(--taupe);
+  margin-bottom: 0.55em;
+}
+.reveal .orz-title-meta p { font-variant-caps: all-small-caps; letter-spacing: 0.09em; font-size: 1.12em; }
+.reveal .orz-title-meta strong { font-weight: 600; color: var(--ink); letter-spacing: 0.1em; }
+
+/* ───────── section: a chapter opening with a roman drop numeral ───────── */
+.reveal .orz-template-section { align-items: flex-start; padding: 0 8% 0.6em 30%; position: relative; min-height: 7.6em; }   /* the drop numeral stands in the box's left 30 %; tall enough for it */
+.reveal .orz-section-main {
+  position: static;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 2.1em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec);
+  position: absolute;
+  right: calc(70% + 0.13em);
+  top: 50%;
+  margin-top: -0.54em;
+  overflow: hidden;   /* a capital numeral: its font's tall content area must not read as the page's overflow */
+  font-size: 3.1em;
+  line-height: 1;
+  font-weight: 400;
+  color: var(--taupe);
+  padding-right: 0.32em;
+  border-right: 1px solid var(--hair);
+}
+.reveal .orz-section-meta { margin-top: 0.55em; font-size: 1em; font-style: italic; color: var(--muted); max-width: 26em; }
+.reveal .orz-section-meta::after { content: '\2766'; display: block; font-style: normal; color: var(--taupe); margin-top: 0.7em; font-size: 0.85em; }
+
+/* ───────── outline: Contents, dot leaders, the current chapter marked ───────── */
+.reveal .orz-template-outline { align-items: center; }
+.reveal .orz-outline { width: 62%; }
+.reveal .orz-outline h2 {
+  text-align: center;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.22em;
+  font-size: 1.15em;
+  color: var(--ink);
+  margin: 0 0 0.25em;
+}
+.reveal .orz-outline h2::after {
+  content: '\2766';
+  display: block;
+  margin: 0.15em auto 1.1em;
+  width: 9em;
+  font-size: 0.7em;
+  letter-spacing: 0;
+  color: var(--taupe);
+  background:
+    linear-gradient(to bottom, var(--hair) 0 1px, transparent 1px 3px, var(--hair) 3px 4px) left center / calc(50% - 1.1em) 4px no-repeat,
+    linear-gradient(to bottom, var(--hair) 0 1px, transparent 1px 3px, var(--hair) 3px 4px) right center / calc(50% - 1.1em) 4px no-repeat;
+}
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; }
+.reveal .orz-outline li {
+  counter-increment: c;
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  font-size: 1.1em;
+  line-height: 1.3;
+  margin: 0 0 0.45em;
+  color: var(--muted);
+}
+.reveal .orz-outline li::before {
+  content: '';
+  order: 1;
+  flex: 1 1 auto;
+  min-width: 1em;
+  height: 0.2em;
+  margin: 0 0.45em;
+  background: radial-gradient(circle, var(--hair) 0 1.6px, transparent 2px) left center / 0.42em 0.2em repeat-x;
+}
+.reveal .orz-outline li::after {
+  content: counter(c, upper-roman);
+  order: 2;
+  font-variant-caps: all-small-caps;
+  min-width: 2.2em;
+  text-align: right;
+  color: var(--taupe);
+}
+.reveal .orz-outline li.orz-here { color: var(--ink); }
+.reveal .orz-outline li.orz-here::after { color: var(--brown); }
+.reveal .orz-outline li.orz-here > strong { font-weight: 600; font-style: italic; }
+.reveal .orz-outline li.orz-here > strong::before {
+  content: '\2767';
+  position: absolute;
+  left: -1.3em;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--brown);
+}
+
+/* ───────── closing: a colophon — thanks, a fleuron, the plate ───────── */
+.reveal .orz-template-closing { align-items: center; text-align: center; }
+.reveal .orz-template-closing .orz-title-main { font-size: 2.2em; font-style: italic; font-weight: 400; }
+.reveal .orz-template-closing .orz-title-sub { font-style: normal; font-variant-caps: all-small-caps; letter-spacing: 0.12em; font-size: 1em; }
+.reveal .orz-template-closing .orz-title-meta { margin-top: 0.8em; font-size: 0.74em; color: var(--muted); }
+.reveal .orz-template-closing > .orz-qr-slot {
+  margin-top: 0.8em;
+  padding: 8px;
+  background: #fffdf8;
+  border: 3px double var(--taupe);
+  --sl-qr: 3.9em;
+}
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 0; background: none; }

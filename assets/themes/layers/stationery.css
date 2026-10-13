@@ -1,0 +1,224 @@
+/* Stationery — the slide layer over orz-markdown light-neat-2 (orz-slides 1.0; ported
+   from the concept on branch concepts/themes to the 1.0 slots).
+   A tidy desk: warm paper with one faint ruled margin line, teal ink,
+   Epilogue headings over Literata text. The deck is built from the theme's
+   stationery: the short teal pen stroke over every title, punched paper tags
+   (h3, the section number, the outline, the slide number), callouts as paper
+   slips with shaped coloured tabs, dashed teal rules, the hanging quote mark. */
+
+:root {
+  --sl-size: 29px;
+  --sl-lh: 1.5;
+  --sl-bg:
+    linear-gradient(90deg, transparent 0 44px, rgba(22, 122, 114, 0.16) 44px 45px, transparent 45px),
+    linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
+  --sl-viewport: #efeee6;
+  --sl-ink: var(--text);
+  --sl-mono: var(--font-code);
+  --sl-pad-t: 44px;
+  --sl-pad-x: 84px;
+  --sl-chrome: 60px;
+  --sl-gap: 44px;
+  --sl-title-size: 1.5em;
+  --sl-title-gap: 28px;
+  --sl-controls: var(--accent);
+
+  --dash: repeating-linear-gradient(90deg, rgba(22, 122, 114, 0.45) 0 10px, transparent 10px 18px);
+  /* a tag: pointed at the left, a hole punched through it (mask, so the paper shows) */
+  --tag-clip: polygon(0.5em 0, 100% 0, 100% 100%, 0.5em 100%, 0 50%);
+  --tag-hole: radial-gradient(circle at 0.72em 50%, transparent 0.13em, #000 0.15em);
+
+  --chart-1: #167a72; --chart-2: #d48f41; --chart-3: #3d63b8; --chart-4: #b83c3b;
+  --chart-text: #3f4641;
+  --chart-grid: #e4dfd4;
+  --chart-font: 'Epilogue', system-ui, sans-serif;
+  --chart-font-size: 19;
+  --chart-surface: #fffdf8;
+  --mm-font: 'Literata', Georgia, serif;
+  --mm-font-size: 20;
+  --mm-node: #fffdf8;
+  --mm-border: #167a72;
+  --mm-text: #181c1b;
+  --mm-line: #62685f;
+  --mm-surface: #f7f7f2;
+}
+
+.reveal .orz-slide { font-family: var(--font-body); }
+
+/* ───────── title band: the teal pen stroke over an Epilogue title ───────── */
+.reveal .orz-title h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--heading);
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+.reveal .orz-title h2::before {
+  content: ''; display: block; width: 1.5em; height: 5px; margin-bottom: 0.3em; border-radius: 2px;
+  background: var(--accent);
+}
+.reveal .orz-title h2 .katex { color: inherit; }
+
+/* the h3 tag: its hole is a real hole (the source draws it in the page colour) */
+.reveal .orz-region .markdown-body h3::before {
+  background: rgba(22, 122, 114, 0.12);
+  -webkit-mask: radial-gradient(circle at 0.62em 50%, transparent 0.12em, #000 0.135em);
+  mask: radial-gradient(circle at 0.62em 50%, transparent 0.12em, #000 0.135em);
+}
+
+/* ───────── regions: a dashed teal rule between columns ───────── */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  padding-left: 30px;
+  margin-left: -14px;
+  background: repeating-linear-gradient(180deg, rgba(22, 122, 114, 0.32) 0 8px, transparent 8px 15px) left top / 1px 100% no-repeat;
+}
+.reveal .orz-split[style*="rows"] > .orz-region:first-child { color: var(--text-soft); font-style: italic; }
+.reveal .markdown-body .katex-display { padding: 0.45em 0.8em; background: var(--surface); }
+.reveal .markdown-body div.mermaid { padding: 0.6em; background: var(--surface); }
+/* callout slips: the tab needs room above the slip on a tight slide */
+.reveal .orz-region .markdown-body :is(div.info, div.success, div.warning, div.danger, div.note) { margin-top: 0.42em; }
+.reveal .orz-region .markdown-body blockquote { margin-left: 1.3em; margin-right: 0.4em; }
+
+/* ───────── chrome: footer over a dashed teal rule; the pen inks it as you go ───────── */
+.reveal .orz-footer { color: var(--text-soft); font-family: var(--font-heading); font-weight: 500; font-size: 1em; letter-spacing: 0.02em; }
+.reveal .orz-chrome { font-family: var(--font-heading); font-size: 20px; }   /* chrome text >= 20px on a 1280 x 720 slide */
+.reveal .orz-chrome::before {
+  content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x); top: 0; height: 2px; background: var(--dash);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x); top: 0; bottom: auto; height: 2px;
+  width: calc(var(--progress) * (100% - 2 * var(--sl-pad-x)));
+  background: var(--accent);
+}
+.reveal .orz-chrome-num { gap: 0.4em; font-weight: 600; }
+.reveal .orz-chrome-num b {      /* the number on a small punched tag */
+  display: block; padding: 0.2em 0.6em 0.22em 1.2em;
+  font-size: 1.08em; font-weight: 700; line-height: 1.2; color: var(--accent-ink);
+  background: rgba(22, 122, 114, 0.14);
+  border-radius: 0 4px 4px 0;
+  clip-path: var(--tag-clip);
+  -webkit-mask: var(--tag-hole); mask: var(--tag-hole);
+}
+.reveal .orz-chrome-num i { display: none; }
+.reveal .orz-chrome-num span { color: var(--text-muted); font-weight: 500; }
+.reveal .orz-chrome-num span::before { content: 'of '; }
+
+/* ───────── floats: a paper slip with a teal tab ───────── */
+.reveal .orz-float {
+  overflow: visible;
+  background: var(--paper);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 0.55em 0.75em 0.45em;
+  font-size: 0.78em;
+  line-height: 1.3;
+  color: var(--text-soft);
+  display: flex; align-items: center;
+}
+.reveal .orz-float::before {
+  content: ''; position: absolute; top: -0.36em; left: 0.9em; width: 1.9em; height: 0.72em;
+  border-radius: 999px; background: var(--accent);
+}
+.reveal .orz-float strong { color: var(--accent-ink); font-family: var(--font-heading); }
+
+/* ───────── fragments: the current step is underlined with a teal highlighter ───────── */
+.reveal .orz-region .fragment.current-fragment {
+  width: fit-content;
+  color: var(--heading);
+  background: linear-gradient(180deg, transparent 56%, rgba(47, 159, 150, 0.24) 56% 90%, transparent 90%);
+}
+.reveal .orz-region li.fragment.current-fragment::before { background: var(--accent-ink); transform: rotate(45deg) scale(1.3); }
+
+/* ───────── title page: pen stroke, a big Epilogue title over a rule, Literata subtitle ───────── */
+.reveal .orz-template-title,
+.reveal .orz-template-closing { align-items: flex-start; text-align: left; padding: 0 20px 0 12px; }
+.reveal .orz-title-main {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--heading);
+  font-size: 2.1em;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  max-width: 18em;
+  padding-bottom: 0.42em;
+  border-bottom: 1px solid var(--border-strong);
+}
+.reveal .orz-title-main::before {
+  content: ''; display: block; width: 1.4em; height: 7px; margin-bottom: 0.42em; border-radius: 3px; background: var(--accent);
+}
+.reveal .orz-title-sub { margin-top: 0.55em; font-style: italic; font-size: 1.04em; color: var(--accent-ink); }
+.reveal .orz-title-meta { margin-top: 1.3em; font-family: var(--font-heading); font-size: 0.66em; color: var(--text-soft); line-height: 1.6; letter-spacing: 0.01em; }
+.reveal .orz-title-meta strong { color: var(--heading); }
+
+/* ───────── section: a large punched tag carries the number ───────── */
+.reveal .orz-template-section { align-items: flex-start; padding-left: 12px; }
+.reveal .orz-section-main {
+  font-family: var(--font-heading); font-weight: 700; color: var(--heading);
+  font-size: 2.3em; line-height: 1.06; letter-spacing: -0.035em; max-width: 15em;
+}
+.reveal .orz-section-main::before {
+  content: attr(data-sec);
+  display: block; width: fit-content;
+  margin-bottom: 0.4em;
+  padding: 0.12em 0.6em 0.14em 1.35em;
+  font-size: 1.15em; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+  color: #fffdf8; background: var(--accent);
+  border-radius: 0 0.14em 0.14em 0;
+  clip-path: polygon(0.45em 0, 100% 0, 100% 100%, 0.45em 100%, 0 50%);
+  -webkit-mask: radial-gradient(circle at 0.72em 50%, transparent 0.12em, #000 0.135em);
+  mask: radial-gradient(circle at 0.72em 50%, transparent 0.12em, #000 0.135em);
+}
+.reveal .orz-section-meta { margin-top: 0.8em; padding-top: 0.7em; font-size: 0.92em; font-style: italic; color: var(--text-soft); max-width: 28em; background: var(--dash) left top / 7em 2px no-repeat; }
+
+/* ───────── outline: a row of paper tags; the current one inked teal ───────── */
+.reveal .orz-template-outline { padding-left: 12px; }
+.reveal .orz-outline h2 {
+  font-family: var(--font-heading); font-size: 0.72em; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-ink); margin: 0 0 1.1em; padding: 0;
+}
+.reveal .orz-outline h2::before { content: ''; display: block; width: 3.2em; height: 5px; margin-bottom: 0.7em; border-radius: 2px; background: var(--accent); }
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; }
+.reveal .orz-outline li {
+  counter-increment: c; width: fit-content; margin: 0 0 0.42em;
+  padding: 0.2em 0.9em 0.24em 1.5em;
+  font-family: var(--font-heading); font-weight: 600; font-size: 1.16em; line-height: 1.2; letter-spacing: -0.02em;
+  color: var(--accent-ink);
+  background: rgba(22, 122, 114, 0.1);
+  border-radius: 0 6px 6px 0;
+  clip-path: polygon(0.5em 0, 100% 0, 100% 100%, 0.5em 100%, 0 50%);
+  -webkit-mask: radial-gradient(circle at 0.78em 50%, transparent 0.12em, #000 0.14em);
+  mask: radial-gradient(circle at 0.78em 50%, transparent 0.12em, #000 0.14em);
+}
+.reveal .orz-outline li::before { content: counter(c, decimal-leading-zero); margin-right: 0.6em; font-size: 0.8em; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.reveal .orz-outline li.orz-here { background: var(--accent); color: #fffdf8; }
+.reveal .orz-outline li.orz-here::before { opacity: 0.8; }
+.reveal .orz-outline li strong { color: inherit; font-weight: 700; }
+
+/* ───────── closing: same page; the code clipped to the right like a slip with a tab ───────── */
+.reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: 8.4em; }
+.reveal .orz-template-closing .orz-title-main { font-size: 2.4em; }
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute; right: 36px; top: 50%; transform: translateY(-50%); margin: 0;
+  --sl-qr: 6em; padding: 12px; border-radius: 3px; background: #fffdf8; box-shadow: none; border: 1px solid var(--border-strong);
+}
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 0; background: none; }
+.reveal .orz-template-closing > .orz-qr-slot::after {
+  content: ''; position: absolute; top: -9px; left: 18px; width: 48px; height: 18px; border-radius: 999px; background: var(--accent);
+}
+
+/* ───────── content at slide scale: tables and code that fit their column ───────── */
+.reveal .markdown-body :is(thead th, tbody td) { padding: 0.38em 0.62em; }
+.reveal .markdown-body th .katex { text-transform: none; }
+.reveal .markdown-body pre { padding: 0.75em 0.95em; }
+.reveal .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reveal .markdown-body .task-list-item-checkbox:not(:checked) { border: 2px solid var(--accent); }
+/* the hanging quote mark: the source's rem offset, restated in the mark's own em */
+.reveal .markdown-body blockquote::before { left: -0.62em; }
+/* slips: a crisp paper edge instead of a soft drop shadow */
+.reveal .markdown-body :is(div.info, div.success, div.warning, div.danger, div.note) { box-shadow: 2px 2px 0 rgba(120, 104, 76, 0.12); }
+.reveal .markdown-body ul.contains-task-list > li { padding-left: 1.65em; text-indent: -1.65em; }
+/* table heads: the source's spaced capitals cost a column on a slide; set them in the heading face instead */
+.reveal .markdown-body thead th { text-transform: none; letter-spacing: 0; font-family: var(--font-heading); font-size: 0.86em; }
+
+/* breathing room between the content and the chrome line (fit scales into it) */
+.reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 14px; }

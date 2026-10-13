@@ -4,16 +4,16 @@
  * `orz-deck-css` and `orz-slide-theme` (swapped when the header's theme
  * changes).
  *
- * REBUILD STEP 3: one theme is built (Orchard); every other theme id is
- * shown in Orchard's stylesheet (a stand-in, `data-theme-css` says which)
- * until rebuild step 4 builds the other 13.
+ * All 14 themes are built (rebuild step 4, scripts/build-themes.ts); an id
+ * the build lacks would show in the default theme's stylesheet
+ * (`data-theme-css` says which).
  */
 import { DECK_CSS, REVEAL_CSS, THEME_CSS } from 'orz-slides:themes';
 import { DEFAULT_THEME } from '../themes.js';
 
 export { DECK_CSS, REVEAL_CSS };
 
-/** The stylesheet a theme is shown in (its own, else the stand-in) and its id. */
+/** The stylesheet a theme is shown in (its own, else the default theme's) and its id. */
 export function themeStylesheet(id: string): { id: string; css: string } {
   if (Object.prototype.hasOwnProperty.call(THEME_CSS, id)) return { id, css: THEME_CSS[id] };
   return { id: DEFAULT_THEME, css: THEME_CSS[DEFAULT_THEME] ?? '' };

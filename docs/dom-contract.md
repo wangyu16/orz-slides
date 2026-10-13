@@ -8,7 +8,7 @@ a class, an attribute or a token here **and** in all of them together.
 
 It stays internal to orz-slides (family REBUILD §3c: no FC while no other
 repository styles decks). Rebuild step 3 wrote it with one theme (Orchard);
-step 4 ports the other 13 themes onto it.
+step 4 ported the other 13 themes onto it (14 in all, owner decision 5).
 
 ## 1. Logical size
 
@@ -113,10 +113,22 @@ and diagrams in a region take the room left (`flex: 1 1 0`, at least
 them. Fit runs on the visible slide only (and on every page of the print
 document).
 
+Boxes clip with `overflow: clip; overflow-clip-margin: 6px` (deck.css):
+nothing scrolls a box, and the glyphs of a big first or last line may stand
+a few px past their line box without being cut (the oracle honours the
+margin). A display formula clips sideways only.
+
 **Theme rules for fit:** size text in `em` (relative to the slide size
 `--sl-size`) so a box's scale reaches it; padding in px is fine; never set
-`overflow: visible` on `.orz-region` or `.orz-template`; do not give boxes a
-fixed height.
+`overflow: visible` (or `hidden`) on `.orz-region` or `.orz-template`; do not
+give boxes a fixed height. A decoration that hangs outside its box (a numeral
+in the margin, a column divider in the gap, a tick past a title's end) is
+cut by the box: give the box the room instead (a negative margin and the same
+padding, as Copper's outline, Paper's section page and Architect's title band
+do), or draw it with a shadow, which is not overflow. A decoration's
+untransformed box counts as overflow (fit would shrink the page): place it
+with margins, not `transform`. A template box's padding must leave room for
+tilted or stroked lettering. Charts and molecules are sized in `em`.
 
 ## 5. Tokens
 
@@ -134,10 +146,19 @@ Set by a theme on `:root` (defaults in deck.css):
 | `--sl-bg`, `--sl-ink`, `--sl-viewport`, `--sl-mono` | — | slide background, text colour, the page around the slide, code font |
 | `--sl-graphic-min` | 4em | the smallest height a picture or diagram keeps |
 | `--sl-qr` | 4.6em | the QR code's size in its slot |
-| `--chart-*`, `--mm-*` | the orz-markdown theme's | Chart.js and Mermaid colours and fonts (orz-markdown 2.4.0, read where drawn) |
-| `--chart-font-size` | 18 | Chart.js font size in logical px (carrier stop-gap until the kit reads one) |
+| `--chart-*`, `--mm-*` | the orz-markdown theme's | Chart.js and Mermaid colours and fonts (orz-markdown 2.4.0, read where drawn); a dark theme sets light ink on its dark (dark-native: no light panel) |
+| `--chart-font-size`, `--mm-font-size` | 18 | chart and diagram text in logical px (a theme sets 18–22) |
+| `--chart-aspect`, `--chart-max-width` | 1.6, `min(100%, 20.8em)` | a chart's shape and width cap (≤ 13em tall: fit scales it) |
+| `--mm-labels` | `svg` (deck root) | Mermaid labels as SVG text (reveal scales with a transform) |
+| `--orz-grid` | — | on `.orz-region > .markdown-body`: the kit's baseline grid (Notebook); fit re-aligns it at each scale |
 
 Read only: `--progress`, `--fit-scale`, `--sl-w`, `--sl-h`, `--sl-page-h` (print).
+
+**Chrome text:** every text a theme shows in the slots (running head,
+footer, section, number) is at least 20 px at the logical size — themes set
+`.orz-chrome { font-size: 20px }` (deck.css's default is 0.6em of the slide)
+and size the slot's parts from it. The footer's Markdown inherits the
+footer's font.
 
 ## 6. Header keys
 
@@ -153,11 +174,17 @@ A derived theme (`assets/themes/<id>.css`, generated — never edited) is
 orz-markdown's `common.css` and its source theme adapted to a slide, then
 `layers/slide-scale.css`, then the theme's layer `layers/<id>.css` (the only
 hand-written part: chrome slots, title band, templates and variants,
-outline, fragments, floats). The engine carries deck.css and the built
-themes inside its bundle (inline and cdn decks style the same) and installs
-them as `<style id="orz-deck-css">` and `<style id="orz-slide-theme"
-data-theme data-theme-css>`. The four updated 0.x themes (Architect, Chalk,
-Neon, Paper) are layers without a source theme (step 4).
+outline, fragments, floats). Notebook also keeps its source's screen
+notebook (the `@media screen` rules, rescoped to `.reveal .orz-region >
+.markdown-body`): region text is written on the slide's ruled lines by the
+kit's grid pass, and a region fit shrank becomes a ruled sheet. The four
+updated 0.x themes (Architect, Chalk, Neon, Paper) have no source theme:
+`layers/content.css` (Markdown content in theme tokens) then their layer.
+The engine carries deck.css and the 14 built themes inside its bundle
+(inline and cdn decks style the same) and installs them as `<style
+id="orz-deck-css">` and `<style id="orz-slide-theme" data-theme
+data-theme-css>`. The review page of all 14 on the sample deck is
+`npx tsx scripts/theme-sheets.ts` (the family test hub).
 
 Porting a concept layer (branch `concepts/themes`) to this contract:
 the footer now sits inside `.orz-chrome` (whose font size is 0.6em: scale
