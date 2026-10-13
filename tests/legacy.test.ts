@@ -118,3 +118,80 @@ describe('upgrading 0.x files', () => {
     expect(() => upgrade('<html></html>')).toThrow(/not an orz-slides file/);
   });
 });
+
+/*
+ * Closed-loop round A (notes/closed-loop.md): upgrade keeps what 0.x SHOWED.
+ * Each case failed on rebuild/1.0@817de2e before its fix.
+ */
+describe('round A: upgrade keeps what 0.x showed (FMT-1 … FMT-7, FMT-11)', () => {
+  it('[U.6] FMT-2: a 0.x file built with the CLI\'s --theme (no deck block) upgrades to that theme, not paper', () => {
+    const html = readFileSync(join(LEGACY_DIR, 'cli-theme/neon-0.8.5.slides.html'), 'utf8');
+    expect(readLegacy(html)!.defaultTheme).toBe('neon');
+    const up = upgrade(html, { uid: UID, delivery: 'cdn' });
+    expect(kit.readHeader(up.text)!.fields['theme']).toBe('neon');
+    expect(up.notes.join('\n')).not.toMatch(/paper written explicitly/);
+    // a dropped CLI theme maps to its successor; none at all is 0.x's paper
+    expect(kit.readHeader(upgradeText('<!-- slide -->\n## A\n', { uid: UID, file: { title: null, meta: null, defaultTheme: 'poppy' } }).text)!.fields['theme']).toBe('sticker');
+    expect(kit.readHeader(upgradeText('<!-- slide -->\n## A\n', { uid: UID, file: { title: null, meta: null, defaultTheme: null } }).text)!.fields['theme']).toBe('paper');
+    // the deck block still wins over the CLI flag (0.8.5: deck.config.theme || args.theme || 'paper')
+    expect(kit.readHeader(upgradeText('<!-- deck\ntheme: chalk\n-->\n<!-- slide -->\n## A\n', { uid: UID, file: { title: null, meta: null, defaultTheme: 'neon' } }).text)!.fields['theme']).toBe('chalk');
+  });
+
+  it('[U.4] FMT-3: a format-1 text with no theme gets no theme (orchard stays orchard)', () => {
+    const f1 = '{{nyml\nkind: document\ncarrier: slides\nuid: doc-0000000000\ntitle: F1\n}}\n\n<!-- slide -->\n## A\n';
+    const up = upgradeText(f1);
+    expect(up.text).toBe(f1);
+    expect(up.moved).toEqual({});
+  });
+
+  it('[U.6] FMT-4: every deck block is consumed — one pasted between slides, two before slide 1 — so the deck-block advice never loops', () => {
+    const between = upgradeText(`{{nyml\nkind: document\ncarrier: slides\nuid: ${UID}\n}}\n\n<!-- slide -->\n## A\n\n<!-- deck\ntheme: neon\nfooter: F\n-->\n\n<!-- slide -->\n## B\n`);
+    expect(parseDeck(between.text).lint).toEqual([]);
+    expect(kit.readHeader(between.text)!.fields).toMatchObject({ theme: 'neon', footer: 'F' });
+    expect(upgradeText(between.text).text).toBe(between.text);
+    const two = upgradeText('\n<!-- deck\ntheme: neon\n-->\n<!-- deck\ntitle: T\nfooter: Foot\ntheme: chalk\n-->\n\n<!-- slide -->\n## A\n', { uid: UID });
+    expect(readDocument(two.text).lint).toEqual([]);
+    expect(kit.readHeader(two.text)!.fields).toMatchObject({ theme: 'neon', title: 'T', footer: 'Foot' });
+    expect(two.notes.join('\n')).toMatch(/line \d+ \(0\.x ignored it\) was removed; its title, footer filled/);
+  });
+
+  it('[U.6] FMT-6: marker spellings 0.x read are normalised (@notes:, spaced tracks, key = value, BG=), a non-integer z dropped — each with a note', () => {
+    const src = '<!-- slide col 1 / 2 { a; b } BG=#123456 -->\n## T\n<!-- @a -->\nA\n<!-- @b -->\nB\n<!-- @float left = 50% TOP=10% z=2.5 -->\nF\n<!-- @notes: -->\nSecret\n';
+    const up = upgradeText(src, { uid: UID });
+    const d = parseDeck(up.text);
+    expect(d.lint).toEqual([]);
+    const s = d.slides[0];
+    expect(s.layoutSpec).toBe('col 1/2 { a; b }');
+    expect(s.options.bg).toBe('#123456');
+    expect(s.floats[0].geom).toEqual({ left: '50%', top: '10%' });
+    expect(s.notes).toBe('Secret');
+    expect(up.notes.join('\n')).toMatch(/z=2\.5 dropped/);
+    // an already-format-1 marker is never rewritten
+    const clean = `{{nyml\nkind: document\ncarrier: slides\nuid: ${UID}\ntheme: paper\n}}\n\n<!--  slide   2col  -->\n## A\n`;
+    expect(upgradeText(clean).text).toBe(clean);
+  });
+
+  it('[U.6] FMT-7: a v= the template has no variant for (coursewerk decks: outline/section/closing v=5) is dropped with a note — 0.x showed the first look; a defined one stays', () => {
+    const up = upgradeText('<!-- slide template=outline v=5 -->\n## Plan\n1. A\n\n<!-- slide template=title v=4 -->\n# T\n\n<!-- slide template=closing v=5 -->\n# Thanks\n', { uid: UID });
+    expect(readDocument(up.text).lint.filter((l) => l.level === 'error')).toEqual([]);
+    expect(parseDeck(up.text).slides.map((s) => s.templateVariant ?? 1)).toEqual([1, 4, 1]);
+    expect(up.notes.filter((n) => /v=5 dropped: the (outline|closing) template has variants 1 to 3/.test(n))).toHaveLength(2);
+  });
+
+  it('[U.6] FMT-1/FMT-5: a marker hidden in a raw HTML block gets its blank line, a fence left open is closed before the next marker — the slides 0.x showed', () => {
+    const src = '<!-- slide -->\n## Results\n<img src="a.png" width="40">\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## Code\n```python\nx = 1\n``\n<!-- slide -->\n## Last\n';
+    const up = upgradeText(src, { uid: UID });
+    const d = parseDeck(up.text);
+    expect(d.lint.filter((l) => l.level === 'error')).toEqual([]);
+    expect(d.slides.map((s) => s.title)).toEqual(['Results', 'Code', 'Last']);
+    expect(d.slides[0].notes).toBe('PRIVATE');
+    expect(up.notes.join('\n')).toMatch(/blank line added before the marker/);
+    expect(up.notes.join('\n')).toMatch(/code fence left open was closed/);
+  });
+
+  it('[U.6] FMT-11: a BOM before the deck block is kept (FC-18 §3)', () => {
+    const up = upgradeText('﻿<!-- deck\ntitle: Bom\n-->\n\n<!-- slide -->\n## A\n', { uid: UID });
+    expect(up.text.startsWith('﻿{{nyml')).toBe(true);
+    expect(up.text.split('﻿')).toHaveLength(2);
+  });
+});

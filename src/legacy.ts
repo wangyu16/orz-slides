@@ -28,9 +28,15 @@
  *   (`normalizeHeader`); the deck block's keys win a clash (it was the
  *   deck's config), with a note; beside a format-1 header (a text already
  *   upgraded by hand) the header's keys win — the deck block never applied;
- * - `theme`: the dropped 0.x themes map to their successors (executive →
- *   sky, poppy → sticker, sage → orchard), 0.x's implicit `paper` is written
- *   explicitly, a theme 0.x did not have (it showed paper) becomes `paper`;
+ * - `theme`: what 0.x SHOWED — the deck block's, else the 0.x file's
+ *   default (its CLI `--theme`), else 0.x's implicit `paper`, written
+ *   explicitly; the dropped 0.x themes map to their successors (executive →
+ *   sky, poppy → sticker, sage → orchard), a theme 0.x did not have (it
+ *   showed paper) becomes `paper`; a format-1 header keeps its own theme
+ *   (and none stays none);
+ * - every other deck block is consumed (it fills only keys still missing),
+ *   marker spellings 0.x read are normalised, markers a raw HTML block or an
+ *   unclosed fence swallowed are repaired (closed-loop round A);
  * - `carrier: slides` and a `uid` are added; everything else is kept as
  *   written, text before the first slide included (now a lint notice).
  *
@@ -41,7 +47,7 @@ import { editHeader, extract, mintUid, normalizeHeader, readHeader, readLegacyIs
 import { compareSemver } from 'orz-markdown/carrier/shell';
 import type { DocMeta } from 'orz-markdown/doc-meta';
 import { assemble, readDocument, type AssembleOptions } from './assemble.js';
-import { scanMarkers } from './deck/parse.js';
+import { normalizeMarker, parseDeck, scanMarkers } from './deck/parse.js';
 import { DROPPED_THEMES, resolveTheme } from './themes.js';
 import { VERSION } from './version.js';
 
@@ -113,56 +119,115 @@ export interface TextUpgrade {
 export interface UpgradeTextOptions {
   /** The uid to write when the text has no valid one (tests); default: minted. */
   uid?: string;
-  /** The 0.x file's facts (its `<title>`, `#orz-meta`), when the text comes from a file. */
-  file?: Pick<LegacyFile, 'title' | 'meta'>;
+  /**
+   * The 0.x file's facts (its `<title>`, `#orz-meta`, and the theme its
+   * config showed — the CLI's `--theme`), when the text comes from a file.
+   */
+  file?: Pick<LegacyFile, 'title' | 'meta'> & { defaultTheme?: string | null };
 }
 
 /** A value the header can hold as a single line (FC-18 §9). */
 const writable = (v: string): boolean => v.trim() !== '' && !/[\r\n\u0000]/.test(v) && !v.includes('}}');
+
+/** Apply text edits (non-overlapping), from the last to the first. */
+function applyEdits(text: string, edits: ReadonlyArray<{ from: number; to: number; insert: string }>): string {
+  let out = text;
+  for (const e of [...edits].sort((a, b) => b.from - a.from)) out = out.slice(0, e.from) + e.insert + out.slice(e.to);
+  return out;
+}
+
+/** The keys of a deck block, and the ones 0.x ignored. */
+function deckBlockKeys(content: string): { keys: Record<string, string>; ignored: string[] } {
+  const inner = content.replace(/^[ \t]*<!--\s*deck\b/, '').replace(/-->[\s\S]*$/, '');
+  const keys: Record<string, string> = {};
+  const ignored: string[] = [];
+  for (const line of inner.split('\n')) {
+    const kv = /^\s*([A-Za-z_][\w-]*)\s*:\s*(.*?)\s*$/.exec(line);
+    if (!kv || kv[2] === '') continue;
+    const key = kv[1].toLowerCase();
+    if ((DECK_KEYS as readonly string[]).includes(key)) keys[key] = kv[2];
+    else ignored.push(key);
+  }
+  return { keys, ignored };
+}
+
+/** A theme as 1.0 writes it: a dropped 0.x theme's successor, a slide theme (or alias) as is, else null. */
+function themeFor(id: string): { theme: string; dropped: boolean } | null {
+  if (Object.prototype.hasOwnProperty.call(DROPPED_THEMES, id)) return { theme: DROPPED_THEMES[id], dropped: true };
+  return resolveTheme(id) ? { theme: id, dropped: false } : null;
+}
 
 /**
  * Upgrade a 0.x deck text (or any slides text that still holds a
  * `<!-- deck -->` block) to text format 1 — see the module comment. A text
  * that is already format 1 without a deck block comes back with only
  * `carrier` and `uid` added when missing.
+ *
+ * Besides the header, what 0.x read and format 1 does not is rewritten so
+ * the deck shows what 0.x showed (closed-loop round A): every deck block is
+ * consumed (FMT-4), marker spellings are normalised (`normalizeMarker`:
+ * FMT-6, FMT-7), a marker hidden in a raw HTML block gets its blank line
+ * and a fence or `:::` container left open is closed before the next marker
+ * (0.x split at every marker line: FMT-1, FMT-5), each with a note.
  */
 export function upgradeText(source: string, options: UpgradeTextOptions = {}): TextUpgrade {
   const notes: string[] = [];
   let text = source;
-  // 1. the deck block: the first top-level one before the first slide marker
-  const markers = scanMarkers(text);
-  const firstSlide = markers.find((m) => m.type === 'slide');
-  const block = markers.find((m) => m.type === 'deck' && (!firstSlide || m.span.from < firstSlide.span.from));
+  const bom = text.startsWith('﻿') ? 1 : 0;
+  // 1. the deck blocks: the first one is the deck's config (0.x read it when it was the first thing in the
+  //    source; upgrade applies it wherever it stood); a later one fills only the keys still missing
+  const before0 = readHeader(text);
+  const deckWins = !before0 || before0.legacy !== null;
+  const blocks = scanMarkers(text).filter((m) => m.type === 'deck');
   const deck: Record<string, string> = {};
-  if (block) {
-    const effective = text.slice(0, block.span.from).replace(/^﻿/, '').trim() === '';
-    if (!effective) notes.push('0.x did not read this deck block (it was not the first thing in the source, so 0.x showed the paper theme and no footer); upgrade applies it as written');
-    const inner = block.content.replace(/^[ \t]*<!--\s*deck\b/, '').replace(/-->[\s\S]*$/, '');
-    const ignored: string[] = [];
-    for (const line of inner.split('\n')) {
-      const kv = /^\s*([A-Za-z_][\w-]*)\s*:\s*(.*?)\s*$/.exec(line);
-      if (!kv) continue;
-      const key = kv[1].toLowerCase();
-      if (kv[2] === '') continue;
-      if ((DECK_KEYS as readonly string[]).includes(key)) deck[key] = kv[2];
-      else ignored.push(key);
-    }
-    if (ignored.length > 0) notes.push(`deck block keys 0.x ignored were dropped: ${ignored.join(', ')}`);
-    // remove the block's lines and the blank lines after it
-    let end = block.span.to;
-    const rest = /^(?:\r\n|\n|\r)?(?:[ \t]*(?:\r\n|\n|\r))*/.exec(text.slice(end));
-    end += rest ? rest[0].length : 0;
-    // keep the line break that ends the line before the block
-    text = text.slice(0, block.span.from) + text.slice(end);
+  if (blocks.length > 0) {
+    const removals: Array<{ from: number; to: number; insert: string }> = [];
+    blocks.forEach((block, k) => {
+      const { keys, ignored } = deckBlockKeys(block.content);
+      if (k === 0) {
+        const effective = text.slice(0, block.span.from).replace(/^﻿/, '').trim() === '';
+        if (!effective && deckWins) notes.push('0.x did not read this deck block (it was not the first thing in the source, so 0.x showed the paper theme and no footer); upgrade applies it as written');
+        Object.assign(deck, keys);
+      } else {
+        const filled = Object.keys(keys).filter((key) => deck[key] === undefined);
+        for (const key of filled) deck[key] = keys[key];
+        notes.push(`the <!-- deck --> block on line ${block.span.line} (0.x ignored it) was removed${filled.length ? `; its ${filled.join(', ')} filled what the first block lacked` : ''}`);
+      }
+      if (ignored.length > 0) notes.push(`deck block keys 0.x ignored were dropped: ${ignored.join(', ')}`);
+      // remove the block's lines and the blank lines after it (a leading BOM stays: FC-18 §3)
+      let to = block.span.to;
+      const rest = /^(?:\r\n|\n|\r)?(?:[ \t]*(?:\r\n|\n|\r))*/.exec(text.slice(to));
+      to += rest ? rest[0].length : 0;
+      removals.push({ from: Math.max(block.span.from, bom), to, insert: '' });
+    });
+    text = applyEdits(text, removals);
   }
-  const laterBlocks = scanMarkers(text).filter((m) => m.type === 'deck');
-  if (laterBlocks.length > 0) notes.push(`${laterBlocks.length} more <!-- deck --> block${laterBlocks.length === 1 ? '' : 's'} inside the slides (0.x ignored them) kept as written: lint deck-block`);
 
-  // 2. a leading legacy kind: meta header becomes the format-1 header
+  // 2. marker spellings 0.x read (normalizeMarker), then markers a block swallowed
+  const rewrites: Array<{ from: number; to: number; insert: string }> = [];
+  for (const m of scanMarkers(text)) {
+    if (m.type === 'deck') continue;
+    const n = normalizeMarker(m.content);
+    if (!n) continue;
+    const eol = /\r\n|\r|\n/.exec(text.slice(m.span.from))?.[0] ?? '\n';
+    rewrites.push({ from: m.span.from, to: m.span.to, insert: n.content.replace(/\n/g, eol) });
+    for (const x of n.notes) notes.push(`line ${m.span.line}: ${x}`);
+  }
+  text = applyEdits(text, rewrites);
+  for (let guard = 0; guard < 50; guard++) {
+    const fix = parseDeck(text).lint.filter((l) => l.fix && /^(marker-in-html|unclosed-fence|unclosed-container)$/.test(l.code));
+    if (fix.length === 0) break;
+    // a marker hidden in raw HTML: every one at once; an unclosed block: the first (closing it may show the next)
+    const html = fix.filter((l) => l.code === 'marker-in-html');
+    const now = html.length ? html : [fix[0]];
+    for (const l of now) notes.push(l.code === 'marker-in-html' ? `line ${l.line}: a blank line added before the marker (it was inside a raw HTML block; 0.x read it)` : `line ${l.line}: ${l.code === 'unclosed-fence' ? 'the code fence' : 'the ::: container'} left open was closed before the next marker (0.x ended it there)`);
+    text = applyEdits(text, now.map((l) => l.fix!));
+  }
+
+  // 3. a leading legacy kind: meta header becomes the format-1 header
   const before = readHeader(text);
   // a format-1 header is the deck's config (a deck block beside it rendered nothing): its keys win; a legacy
   // meta header was never read by 0.x slides: the deck block's keys win
-  const deckWins = !before || before.legacy !== null;
   if (before?.legacy) {
     text = normalizeHeader(text);
     notes.push(`the leading {{nyml kind: meta}} block (0.x slides never read it) is now the header (kind: document)`);
@@ -171,14 +236,14 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
   const has = (k: string): boolean => !!header && Object.prototype.hasOwnProperty.call(header.fields, k);
   const current = (k: string): string | undefined => (header && has(k) ? header.fields[k].trim() : undefined);
 
-  // 3. the header changes
+  // 4. the header changes
   const changes: Array<[string, string]> = [];
   const set = (key: string, value: string, what: string, override = false): void => {
     if (!writable(value)) { notes.push(`${what} not moved into the header: the value cannot be a single header line`); return; }
     if (changes.some(([k]) => k === key)) return;
     const was = current(key);
     if (was !== undefined && !override) return;
-    if (was !== undefined && was !== value.trim()) notes.push(`${key}: ${JSON.stringify(value)} (${what}) replaces the header's ${JSON.stringify(was)}${what.startsWith('the deck block') ? ' (the deck block was the deck\'s config; 0.x slides never read a meta block)' : ''}`);
+    if (was !== undefined && was !== value.trim()) notes.push(`${key}: ${JSON.stringify(value)} (${what}) replaces the header's ${JSON.stringify(was)}${what.startsWith('the deck block') || what.startsWith('what 0.x showed') ? ' (the deck block and the 0.x file were the deck\'s config; 0.x slides never read a meta block)' : ''}`);
     if (was !== undefined && was === value.trim()) return;
     changes.push([key, value]);
   };
@@ -198,23 +263,36 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
     }
     set(key, deck[key], `the deck block's ${key}`, true);
   }
-  // theme: what 0.x showed, with the dropped themes' successors
-  const written = deckWins ? (deck['theme'] ?? current('theme')) : (current('theme') ?? deck['theme']);
-  if (!deckWins && deck['theme'] !== undefined && current('theme') !== undefined && deck['theme'] !== current('theme')) notes.push(`theme: the header's ${JSON.stringify(current('theme'))} is kept (the deck block's ${JSON.stringify(deck['theme'])} never applied to a format-1 text)`);
-  let theme: string;
-  if (written === undefined || written === '') {
-    theme = 'paper';
-    notes.push('theme: paper written explicitly (0.x showed paper when no theme was given; the 1.0 default is orchard)');
-  } else if (Object.prototype.hasOwnProperty.call(DROPPED_THEMES, written)) {
-    theme = DROPPED_THEMES[written];
-    notes.push(`theme: the 0.x theme ${written} was dropped in 1.0; its successor ${theme} is written`);
-  } else if (resolveTheme(written)) {
-    theme = written;
-  } else {
-    theme = 'paper';
-    notes.push(`theme: ${JSON.stringify(written)} is not a slide theme (0.x showed paper for it); paper is written`);
+  // theme: what 0.x SHOWED (FMT-2) — the deck block's, else the 0.x file's (its CLI --theme), else paper —
+  // with the dropped themes' successors; a format-1 header keeps its own (none stays none: FMT-3)
+  if (deckWins) {
+    const fileTheme = options.file?.defaultTheme ?? undefined;
+    const shown = deck['theme'] ?? fileTheme;
+    const what = deck['theme'] !== undefined ? 'the deck block\'s theme' : 'what 0.x showed (the file\'s --theme)';
+    let theme: string;
+    if (shown === undefined || shown === '') {
+      theme = 'paper';
+      notes.push('theme: paper written explicitly (0.x showed paper when no theme was given; the 1.0 default is orchard)');
+    } else {
+      const t = themeFor(shown);
+      if (!t) { theme = 'paper'; notes.push(`theme: ${JSON.stringify(shown)} is not a slide theme (0.x showed paper for it); paper is written`); }
+      else {
+        theme = t.theme;
+        if (t.dropped) notes.push(`theme: the 0.x theme ${shown} was dropped in 1.0; its successor ${theme} is written`);
+        else if (deck['theme'] === undefined) notes.push(`theme: ${theme} written (${what})`);
+      }
+    }
+    if (current('theme') !== undefined && current('theme') !== theme && before?.legacy) notes.push(`theme: ${theme} (what 0.x showed) replaces the meta block's ${JSON.stringify(current('theme'))} (0.x slides never read it)`);
+    if (current('theme') !== theme) changes.push(['theme', theme]);
+  } else if (deck['theme'] !== undefined) {
+    if (current('theme') !== undefined) {
+      if (current('theme') !== deck['theme']) notes.push(`theme: the header's ${JSON.stringify(current('theme'))} is kept (the deck block's ${JSON.stringify(deck['theme'])} never applied to a format-1 text)`);
+    } else {
+      const t = themeFor(deck['theme']);
+      if (t) { set('theme', t.theme, 'the deck block\'s theme'); if (t.dropped) notes.push(`theme: the 0.x theme ${deck['theme']} was dropped in 1.0; its successor ${t.theme} is written`); }
+      else notes.push(`theme: the deck block's ${JSON.stringify(deck['theme'])} is not a slide theme; not written`);
+    }
   }
-  set('theme', theme, 'theme', true);
 
   // the 0.x file's #orz-meta (the 0.x library's host metadata) for keys still missing
   const meta = options.file?.meta ?? {};
@@ -236,7 +314,7 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
     moved[k] = v;
   }
   text = editHeader(text, record);
-  // 4. the 0.x <title> (the CLI's --title, by default the file name) only when the text derives no title of its own
+  // 5. the 0.x <title> (the CLI's --title, by default the file name) only when the text derives no title of its own
   const fileTitle = options.file?.title;
   if (fileTitle && fileTitle !== 'Untitled' && !readHeader(text)?.fields['title']) {
     const derived = readDocument(text, { kind: 'slides' }).title;
@@ -297,6 +375,6 @@ export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResu
     const includes = assembleOptions.includes ?? ex.includes;
     return { text: ex.text, html: assemble(ex.text, { ...assembleOptions, ...(includes ? { includes } : {}) }), from: 'format-1', version: null, moved: {}, notes: [] };
   }
-  const up = upgradeText(legacy.text, { ...(uid !== undefined ? { uid } : {}), file: { title: legacy.title, meta: legacy.meta } });
+  const up = upgradeText(legacy.text, { ...(uid !== undefined ? { uid } : {}), file: { title: legacy.title, meta: legacy.meta, defaultTheme: legacy.defaultTheme } });
   return { text: up.text, html: assemble(up.text, assembleOptions), from: 'legacy', version: legacy.version, moved: up.moved, notes: [...legacy.notes, ...up.notes] };
 }

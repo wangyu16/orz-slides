@@ -136,6 +136,11 @@ export interface SlideOptions {
 export interface SlideLint extends Lint {
   /** The CLI command that resolves it (e.g. `upgrade` for a `deck-block`). */
   next?: string;
+  /**
+   * A quick fix: one text edit that resolves it (FC-19 `applyEdits` shape),
+   * e.g. the blank line a marker hidden in a raw HTML block needs.
+   */
+  fix?: { from: number; to: number; insert: string; label: string };
 }
 
 export type SlideKind = 'normal' | 'template';

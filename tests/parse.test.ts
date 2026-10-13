@@ -5,7 +5,7 @@
  * cases are kept where their meaning is unchanged.
  */
 import { describe, it, expect } from 'vitest';
-import { parseDeck, readMarkerArgs } from '../src/deck/parse.js';
+import { deckTokens, parseDeck, readMarkerArgs } from '../src/deck/parse.js';
 import { deckConfig, headerLint } from '../src/deck/config.js';
 import { readDocument } from '../src/assemble.js';
 import { lintHeader } from 'orz-markdown/carrier';
@@ -241,5 +241,120 @@ describe('the corpus', () => {
       expect(info.title, c.path).toBe(c.derivedTitle);
       expect(info.kind).toBe('slides');
     }
+  });
+});
+
+/*
+ * Closed-loop round A (notes/closed-loop.md): the format findings, each a
+ * probe that failed on rebuild/1.0@817de2e before its fix.
+ */
+describe('marker hygiene (round A: FMT-1, FMT-5, FMT-6, FMT-9)', () => {
+  it('[P.13] FMT-1: a marker line inside a raw HTML block is not read (FC-18 §7.2 keeps that rule) but is the error marker-in-html with the blank line as its quick fix', () => {
+    const text = '<!-- slide -->\n## Results\n<img src="a.png" width="40">\n<!-- @notes -->\nPRIVATE\n<!-- slide -->\n<div class="note">Image credit</div>\n<!-- slide -->\n## Second\n';
+    const d = parseDeck(text);
+    expect(d.slides).toHaveLength(1); // the split rule is unchanged: the <img> line's HTML block runs to the end
+    const hits = d.lint.filter((l) => l.code === 'marker-in-html');
+    expect(hits.map((l) => [l.level, l.line])).toEqual([['error', 4], ['error', 6], ['error', 8]]);
+    for (const l of hits) {
+      expect(l.fix).toMatchObject({ insert: '\n', from: l.from, to: l.from });
+      expect(l.message).toMatch(/add a blank line before it/);
+    }
+    // applying the quick fixes gives the deck the author meant
+    let fixed = text;
+    for (const l of [...hits].sort((a, b) => b.from! - a.from!)) fixed = fixed.slice(0, l.fix!.from) + l.fix!.insert + fixed.slice(l.fix!.to);
+    const f = parseDeck(fixed);
+    expect(f.slides).toHaveLength(3);
+    expect(f.slides[0].notes).toBe('PRIVATE');
+    expect(f.lint.filter((l) => l.level === 'error')).toEqual([]);
+  });
+
+  it('[P.13] FMT-5: a fence or ::: container never closed swallows the markers after it — unclosed-fence / unclosed-container, with a fix that closes it before the next marker; a closed one that shows markers is fine', () => {
+    const slides = Array.from({ length: 19 }, (_, i) => `<!-- slide -->\n## S${i + 2}\n`).join('\n');
+    const text = `<!-- slide -->\n## S1\n\n\`\`\`python\nx = 1\n\`\`\n\n${slides}`;
+    const d = parseDeck(text);
+    expect(d.slides).toHaveLength(1);
+    const l = d.lint.find((x) => x.code === 'unclosed-fence')!;
+    expect(l).toMatchObject({ level: 'error', line: 4 });
+    expect(l.message).toMatch(/never closed.*19 marker lines/);
+    const fixed = text.slice(0, l.fix!.from) + l.fix!.insert + text.slice(l.fix!.to);
+    expect(parseDeck(fixed).slides).toHaveLength(20);
+    expect(codes('<!-- slide -->\n## A\n::: info\nhello\n<!-- slide -->\n## B\n')).toContain('unclosed-container');
+    expect(codes('<!-- slide -->\n## A\n~~~\n<!-- slide -->\n~~~\n')).toEqual([]);
+    expect(codes('<!-- slide -->\n## A\n```\nno markers, just open\n')).toEqual([]);
+  });
+
+  it('[P.13] FMT-6: punctuation 0.x read after a region name (@notes:, @notes., @right,) is the marker, noticed — the notes never show on the slide', () => {
+    for (const p of [':', '.', ',']) {
+      const d = parseDeck(`<!-- slide 2col -->\n## T\nL\n<!-- @right${p} -->\nR\n<!-- @notes${p} -->\nSecret\n`);
+      expect(d.slides[0].notes, p).toBe('Secret');
+      expect(d.slides[0].regions.map((r) => [r.name, r.markdown]), p).toEqual([['left', 'L'], ['right', 'R']]);
+      expect(d.lint.map((l) => [l.level, l.code]), p).toEqual([['warning', 'marker-punctuation'], ['warning', 'marker-punctuation']]);
+    }
+  });
+
+  it('[P.13] FMT-9: a comment that reads like a marker (<!-- notes -->, <!-- @ notes -->, <!-- speaker notes -->) is the warning marker-lookalike; an author comment is not', () => {
+    for (const c of ['<!-- notes -->', '<!-- @ notes -->', '<!-- speaker notes -->', '<!-- Notes: -->', '<!-- footer -->']) {
+      const d = parseDeck(`<!-- slide -->\n## T\n${c}\nSecret note\n`);
+      expect(d.lint.map((l) => [l.level, l.code]), c).toEqual([['warning', 'marker-lookalike']]);
+      expect(d.lint[0].message, c).toMatch(/write <!-- @(notes|footer) -->/);
+    }
+    expect(codes('<!-- slide -->\n## T\n<!-- TODO: add a figure -->\ntext\n')).toEqual([]);
+    expect(codes('<!-- slide -->\n## T\n<!-- see the notes below for the derivation -->\ntext\n')).toEqual([]);
+  });
+
+  it('[P.12] no hygiene lint fires on the corpus (markers-in-code shows markers in closed fences, indented code and directives on purpose)', () => {
+    for (const c of corpus('slides')) expect(parseDeck(c.text).lint.filter((l) => /marker-|unclosed-/.test(l.code)), c.path).toEqual([]);
+  });
+});
+
+describe('round A: the smaller format findings (FMT-6, FMT-10, FMT-12)', () => {
+  it('[P.9] FMT-6: float lengths take every CSS length unit 0.x wrote (in, pt, pc, cm, mm, ch, ex, vmin, vmax), any case', () => {
+    const d = parseDeck('<!-- slide -->\n## T\n<!-- @float top=2in w=40vmin h=12pt left=1.5CM -->\nF\n');
+    expect(d.slides[0].floats[0].geom).toEqual({ top: '2in', w: '40vmin', h: '12pt', left: '1.5CM' });
+    expect(d.lint).toEqual([]);
+  });
+
+  it('[P.10] FMT-10: an author comment between the title and the first region marker is not leading text (no region-twice)', () => {
+    const d = parseDeck('<!-- slide 2col -->\n## Compare\n<!-- TODO: add a figure -->\n<!-- @left -->\nL\n<!-- @right -->\nR\n');
+    expect(d.lint).toEqual([]);
+    expect(d.slides[0].regions.map((r) => [r.name, r.markdown])).toEqual([['left', 'L'], ['right', 'R']]);
+  });
+
+  it('[P.4] FMT-12: a comment that only starts with "deck" (<!-- deck-notes: draft -->) is no deck block', () => {
+    expect(codes('<!-- deck-notes: draft -->\n<!-- slide -->\n## A\n')).toEqual(['text-before-first-slide']);
+    expect(codes('<!-- deck\ntheme: neon\n-->\n<!-- slide -->\n## A\n')).toEqual(['deck-block']);
+    expect(codes('<!-- deck-->\n<!-- slide -->\n## A\n')).toEqual(['deck-block']);
+    expect(readDocument('<!-- deck-notes: draft -->\n<!-- slide -->\n## A\n').lint.map((l) => l.code)).toEqual(['text-before-first-slide']);
+  });
+});
+
+describe('parse cost (round A: FMT-8)', () => {
+  const deck = (n: number, salt: string): string => {
+    let s = '';
+    for (let i = 0; i < n; i++) s += `<!-- slide 2col -->\n## S${i}\n\n- a\n- b\n<!-- @right -->\nR $x^2$\n<!-- @notes -->\nN\n\n`;
+    return `${s}<!-- ${salt} -->\n`;
+  };
+  const time = (n: number, k: number): number => {
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t = deck(n, `${k}-${i}`);
+      const tokens = deckTokens(t);
+      const a = performance.now();
+      parseDeck(t, tokens);
+      best = Math.min(best, performance.now() - a);
+    }
+    return best;
+  };
+
+  it('[P.14] parseDeck is linear: 500 slides parse (tokens given) under 50 ms, 2000 slides under 8 × that (quadratic was 14.5 ×: 402 → 5851 ms before round A); the same text parses once (memoised, frozen)', () => {
+    time(200, 0); // warm the JIT
+    const t500 = time(500, 1);
+    const t2000 = time(2000, 2);
+    expect(t500).toBeLessThan(50);
+    expect(t2000).toBeLessThan(8 * Math.max(t500, 5));
+    const t = deck(300, 'memo');
+    const a = parseDeck(t);
+    expect(parseDeck(t)).toBe(a);
+    expect(Object.isFrozen(a.slides[0])).toBe(true);
   });
 });

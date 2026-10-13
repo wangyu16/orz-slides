@@ -44,11 +44,19 @@ export function createReadView(doc: Document): SlidesReadView {
   }
   const view = main;
   let text = '';
+  // the document's facts, read once per text (FMT-8: the title and lang were a full read — parse and lint — each time)
+  let facts: { text: string; title: string; lang: string } | null = null;
+  const factsOf = (t: string): { title: string; lang: string } => {
+    if (facts?.text !== t) {
+      try { const d = readDocument(t, { kind: 'slides' }); facts = { text: t, title: d.title, lang: d.lang }; } catch { facts = { text: t, title: doc.title, lang: 'en' }; }
+    }
+    return facts;
+  };
   const engine = createDeckEngine(view, {
     onPresent: (p) => appHandle()?.setChromeVisible?.(!p),
     notify: (m) => appHandle()?.toast?.(m),
-    lang: () => { try { return readDocument(text, { kind: 'slides' }).lang; } catch { return 'en'; } },
-    title: () => { try { return readDocument(text, { kind: 'slides' }).title; } catch { return doc.title; } },
+    lang: () => factsOf(text).lang,
+    title: () => factsOf(text).title,
   });
 
   const enableStylesheets = (): void => {
@@ -67,10 +75,8 @@ export function createReadView(doc: Document): SlidesReadView {
     if (scheme && scheme.getAttribute('content') !== p.theme.scheme) scheme.setAttribute('content', p.theme.scheme);
     view.setAttribute('data-orz-theme', p.theme.id);
     view.setAttribute('data-orz-ratio', p.ratio);
-    try {
-      const title = readDocument(t, { kind: 'slides' }).title;
-      if (doc.title !== title) doc.title = title;
-    } catch { /* the title stays */ }
+    const title = factsOf(t).title;
+    if (doc.title !== title) doc.title = title;
     return { scheme: p.theme.scheme };
   };
 

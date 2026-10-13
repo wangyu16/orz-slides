@@ -28,9 +28,17 @@
  *   default 2026-10-13: image-only slides are normal); no h1
  *   (`h1-on-slide`) and no second h2 (`second-h2`) outside the speaker
  *   notes (errors).
+ * - Marker hygiene (closed-loop round A): a marker line the grammar does not
+ *   read is noticed, never silent — `marker-in-html`, `unclosed-fence`,
+ *   `unclosed-container` (errors with a quick fix), `marker-lookalike` and
+ *   `marker-punctuation` (warnings).
+ *
+ * Linear in the text (tokens indexed once, every per-slide lookup a binary
+ * search over its own range) and memoised by text (a frozen result).
  *
  * Every lint carries its line and offsets. Pure apart from the parser
- * instance (created once, on first use): no DOM, no Node built-ins, no clock.
+ * instance (created once, on first use) and the memo: no DOM, no Node
+ * built-ins, no clock.
  */
 import { kitParser, readHeader, type KitToken } from 'orz-markdown/carrier';
 import type { Deck, FloatGeom, FloatRegion, LayoutNode, Region, RegionSource, Slide, SlideLint, SlideOptions, Span, TemplateName } from '../types.js';
@@ -47,15 +55,27 @@ export type Token = KitToken;
  * serves `parseDeck` and `readDocument({ tokens })`.
  */
 export function deckTokens(text: string): Token[] {
-  return kitParser().parse(text, {});
+  if (lastTokens?.text === text) return lastTokens.tokens;
+  const tokens = kitParser().parse(text, {});
+  lastTokens = { text, tokens };
+  return tokens;
 }
+/** The last text's tokens (a read and a render of the same text tokenize once; never changed by a reader). */
+let lastTokens: { text: string; tokens: Token[] } | null = null;
 
 /** A slide marker comment: `<!-- slide [args] -->`, args possibly over several lines. */
 const SLIDE_MARKER = /^[ \t]*<!--\s*slide\b([\s\S]*?)-->([\s\S]*)$/;
-/** A region marker comment: `<!-- @name [attrs] -->`. */
-const REGION_MARKER = /^[ \t]*<!--\s*@([A-Za-z0-9_-]+?)(?:\s+([\s\S]*?))?\s*-->([\s\S]*)$/;
-/** The retired 0.x deck block. */
-const DECK_BLOCK = /^[ \t]*<!--\s*deck\b/;
+/**
+ * A region marker comment: `<!-- @name [attrs] -->`. A punctuation mark right
+ * after the name (`@notes:`, `@right,` — 0.x read any character there) is
+ * read as the marker and noticed (`marker-punctuation`), never left on the
+ * slide as text.
+ */
+const REGION_MARKER = /^[ \t]*<!--\s*@([A-Za-z0-9_-]+?)([:.,;])?(?:\s+([\s\S]*?))?\s*-->([\s\S]*)$/;
+/** The retired 0.x deck block: a comment whose first word is `deck` itself (not `<!-- deck-notes -->`; the kit's rule). */
+const DECK_BLOCK = /^[ \t]*<!--\s*deck(?!\w|-(?!->))/;
+/** A line that starts like a slide or region marker (for the markers a block swallowed). */
+const MARKER_LINE = /^ {0,3}<!--\s*(?:slide\b|@[A-Za-z0-9_-])/;
 /** Any HTML comment block (not content for the title rule). */
 const COMMENT_BLOCK = /^[ \t]*<!--[\s\S]*-->\s*$/;
 
@@ -68,8 +88,8 @@ export const SLIDE_OPTIONS: readonly string[] = Object.freeze(['bg', 't', 'fit',
 /** The reveal transitions (`t=`, header `transition`): a name, optionally with `-in` / `-out`, or two such words. */
 export const TRANSITION = /^(?:none|fade|slide|convex|concave|zoom)(?:-in|-out)?(?: (?:none|fade|slide|convex|concave|zoom)(?:-in|-out)?)?$/;
 
-/** A float length (`58%`, `300px`, `2.5em`, `0`). */
-const LENGTH = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|em|rem|vw|vh)?$/;
+/** A float length (`58%`, `300px`, `2.5em`, `2in`, `40vmin`, `0`): a number with a CSS length unit (0.x wrote any). */
+const LENGTH = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|em|rem|ex|ch|lh|vw|vh|vmin|vmax|cm|mm|q|in|pt|pc)?$/i;
 const FLOAT_KEYS: Readonly<Record<string, keyof FloatGeom>> = Object.freeze({ left: 'left', right: 'right', top: 'top', bottom: 'bottom', w: 'w', width: 'w', h: 'h', height: 'h', z: 'z' });
 
 /* ───────────────────────── lines ───────────────────────── */
@@ -127,6 +147,8 @@ interface Marker {
   name?: string;
   /** Text after `-->` on the marker's last line. */
   trailing: string;
+  /** A punctuation mark written right after a region marker's name (`@notes:`). */
+  punct?: string;
 }
 
 /** The top-level comment-block markers of a text, in order (the token scanner). */
@@ -137,7 +159,7 @@ function markersOf(tokens: readonly Token[], from: number): Marker[] {
     const c = t.content.replace(/\n$/, '');
     let m: RegExpExecArray | null;
     if ((m = SLIDE_MARKER.exec(c))) out.push({ type: 'slide', start: t.map[0], end: t.map[1], args: m[1].replace(/\s+/g, ' ').trim(), trailing: m[2].trim() });
-    else if ((m = REGION_MARKER.exec(c))) out.push({ type: 'region', start: t.map[0], end: t.map[1], name: m[1], args: (m[2] ?? '').replace(/\s+/g, ' ').trim(), trailing: m[3].trim() });
+    else if ((m = REGION_MARKER.exec(c))) out.push({ type: 'region', start: t.map[0], end: t.map[1], name: m[1], args: (m[3] ?? '').replace(/\s+/g, ' ').trim(), trailing: m[4].trim(), ...(m[2] ? { punct: m[2] } : {}) });
     else if (DECK_BLOCK.test(c)) out.push({ type: 'deck', start: t.map[0], end: t.map[1], args: '', trailing: '' });
   }
   return out;
@@ -321,14 +343,154 @@ export function readFloatAttrs(attrs: string): { geom: FloatGeom; problems: stri
   return { geom, problems };
 }
 
+/**
+ * The marker spellings 0.x read that format 1 does not, normalised (for
+ * `upgrade`, FMT-6/FMT-7 of closed-loop round A): `key = value` and
+ * `col 1 / 2` lose their spaces, option and float keys are lower-cased
+ * (`BG=` → `bg=`), the punctuation 0.x let follow a region name goes
+ * (`@notes:` → `@notes`), a `v=` the template has no variant for and a float
+ * `z=` that is no integer are dropped (0.x showed the first look and CSS
+ * ignored the z-index). Returns the new comment text and what changed, or
+ * null when the marker is already format 1 (it is then never rewritten).
+ */
+export function normalizeMarker(content: string): { content: string; notes: string[] } | null {
+  const notes: string[] = [];
+  const indent = /^[ \t]*/.exec(content)![0];
+  const squeeze = (args: string, slashes: boolean): string => {
+    // outside quotes: no spaces around '=' (and around '/' between tracks, before any '{')
+    let out = '';
+    let quote = '';
+    let depth = 0;
+    for (let i = 0; i < args.length; i++) {
+      const c = args[i];
+      if (quote) { out += c; if (c === quote) quote = ''; continue; }
+      if (c === '"' || c === "'") { quote = c; out += c; continue; }
+      if (c === '{') depth++;
+      if (c === '}') depth = Math.max(0, depth - 1);
+      if ((c === '=' || (slashes && c === '/' && depth === 0)) && out !== '') {
+        out = out.replace(/\s+$/, '') + c;
+        while (i + 1 < args.length && /\s/.test(args[i + 1])) i++;
+        continue;
+      }
+      out += c;
+    }
+    return out.replace(/\s+/g, ' ').trim();
+  };
+  let m: RegExpExecArray | null;
+  if ((m = SLIDE_MARKER.exec(content))) {
+    const was = m[1].replace(/\s+/g, ' ').trim();
+    const toks = tokenizeMarker(squeeze(m[1], true)).map((tok) => {
+      const o = tok.startsWith('{') ? null : OPTION_TOKEN.exec(tok);
+      return o && o[1] !== o[1].toLowerCase() && SLIDE_OPTIONS.includes(o[1].toLowerCase()) ? `${o[1].toLowerCase()}=${o[2]}` : tok;
+    });
+    const read = readMarkerArgs(toks.join(' '));
+    const kept = toks.filter((tok) => {
+      const o = tok.startsWith('{') ? null : OPTION_TOKEN.exec(tok);
+      if (!o || o[1] !== 'v' || read.templateVariant !== undefined) return true;
+      notes.push(read.template ? `v=${o[2]} dropped: the ${read.template} template has variants 1 to ${TEMPLATES[read.template]} (0.x showed its first look for it)` : `v=${o[2]} dropped: a variant needs template= (0.x ignored it)`);
+      return false;
+    });
+    const args = kept.join(' ');
+    if (args === was && notes.length === 0) return null;
+    if (notes.length === 0) notes.push(`<!-- slide ${was} --> written <!-- slide ${args} -->`);
+    return { content: `${indent}<!-- slide${args ? ` ${args}` : ''} -->${m[2]}`, notes };
+  }
+  if ((m = REGION_MARKER.exec(content))) {
+    const name = m[1];
+    const was = (m[3] ?? '').replace(/\s+/g, ' ').trim();
+    let args = was;
+    if (name.toLowerCase() === 'float') {
+      const toks = tokenizeMarker(squeeze(m[3] ?? '', false)).flatMap((tok) => {
+        const o = OPTION_TOKEN.exec(tok);
+        if (!o) return [tok];
+        const key = o[1].toLowerCase();
+        if (key === 'z' && !/^-?\d+$/.test(unquote(o[2]))) { notes.push(`float z=${o[2]} dropped: not an integer (CSS ignored the z-index 0.x wrote)`); return []; }
+        return [FLOAT_KEYS[key] ? `${key}=${o[2]}` : tok];
+      });
+      args = toks.join(' ');
+    }
+    if (args === was && !m[2] && notes.length === 0) return null;
+    if (m[2]) notes.push(`@${name}${m[2]} written @${name}`);
+    else if (args !== was) notes.push(`<!-- @${name} ${was} --> written <!-- @${name} ${args} -->`);
+    return { content: `${indent}<!-- @${name}${args ? ` ${args}` : ''} -->${m[4]}`, notes };
+  }
+  return null;
+}
+
 /* ───────────────────────── the deck ───────────────────────── */
+
+/**
+ * The tokens indexed once for the per-slide lookups (FMT-8: every lookup a
+ * slide makes is a binary search over its own range, so a parse is linear
+ * in the text, not in slides × tokens).
+ */
+interface TokenIndex {
+  /** Level-0 block openers (and leaves) with a map, in text order, with their token index. */
+  blocks: Array<{ token: Token; index: number }>;
+  blockStarts: number[];
+  /** Every heading opener (any level) with a map, in text order. */
+  headings: Token[];
+  headingStarts: number[];
+}
+
+function indexTokens(tokens: readonly Token[]): TokenIndex {
+  const blocks: TokenIndex['blocks'] = [];
+  const headings: Token[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (!t.map) continue;
+    if (t.level === 0 && t.nesting !== -1) blocks.push({ token: t, index: i });
+    if (t.type === 'heading_open') headings.push(t);
+  }
+  return { blocks, blockStarts: blocks.map((b) => b.token.map![0]), headings, headingStarts: headings.map((h) => h.map![0]) };
+}
+
+/** The first position in a sorted array whose value is ≥ x. */
+function lowerBound(a: readonly number[], x: number): number {
+  let lo = 0;
+  let hi = a.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (a[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** The last parses, by text (the read view, its title and lang, the renderer and the lint ask for the same text). */
+const parsed: Array<{ text: string; deck: Deck }> = [];
+const PARSED_KEEP = 4;
+
+function deepFreeze<T>(o: T): T {
+  if (o && typeof o === 'object' && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const v of Object.values(o as Record<string, unknown>)) deepFreeze(v);
+  }
+  return o;
+}
 
 /**
  * Parse a format-1 slides text (see the module comment). `tokens`: the
  * text's tokens from {@link deckTokens} when the caller has them (one parse
- * shared with the kit's `readDocument`).
+ * shared with the kit's `readDocument`). Linear in the text; the last few
+ * results are memoised by text, so the result is frozen (copy it to change
+ * it).
  */
-export function parseDeck(text: string, tokens: readonly Token[] = deckTokens(text)): Deck {
+export function parseDeck(text: string, tokens?: readonly Token[]): Deck {
+  for (let i = 0; i < parsed.length; i++) {
+    if (parsed[i].text === text) {
+      const hit = parsed[i];
+      if (i > 0) { parsed.splice(i, 1); parsed.unshift(hit); }
+      return hit.deck;
+    }
+  }
+  const deck = deepFreeze(parseDeckNow(text, tokens ?? deckTokens(text)));
+  parsed.unshift({ text, deck });
+  if (parsed.length > PARSED_KEEP) parsed.pop();
+  return deck;
+}
+
+function parseDeckNow(text: string, tokens: readonly Token[]): Deck {
   const L = linesOf(text);
   const header = readHeader(text);
   // the header's last line (0-based), so markers start after it
@@ -338,6 +500,7 @@ export function parseDeck(text: string, tokens: readonly Token[] = deckTokens(te
     bodyLine = endLine + 1;
   }
   const markers = markersOf(tokens, bodyLine);
+  const ix = indexTokens(tokens);
   const lint: SlideLint[] = [];
   const at = (s: Span): Pick<SlideLint, 'line' | 'from' | 'to'> => ({ line: s.line, from: s.from, to: s.to });
 
@@ -346,6 +509,7 @@ export function parseDeck(text: string, tokens: readonly Token[] = deckTokens(te
       lint.push({ level: 'error', code: 'deck-block', message: 'a <!-- deck … --> block is the 0.x deck config: in text format 1 the header is the deck config and this block renders nothing (run upgrade to move its keys into the header)', next: 'upgrade', ...at(spanOf(L, m.start, m.end)) });
     }
   }
+  lint.push(...hiddenMarkers(text, L, ix, bodyLine));
 
   const slideMarkers = markers.filter((m) => m.type === 'slide');
   const firstSlideLine = slideMarkers.length > 0 ? slideMarkers[0].start : L.starts.length;
@@ -370,34 +534,137 @@ export function parseDeck(text: string, tokens: readonly Token[] = deckTokens(te
     }
   }
 
+  // one forward pass: each slide takes the region markers in its own range
+  const regionMarkers = markers.filter((m) => m.type === 'region');
   const slides: Slide[] = [];
+  let r = 0;
   for (let i = 0; i < slideMarkers.length; i++) {
     const m = slideMarkers[i];
     const end = i + 1 < slideMarkers.length ? slideMarkers[i + 1].start : L.starts.length;
-    const regionMarkers = markers.filter((r) => r.type === 'region' && r.start >= m.end && r.start < end);
-    const slide = parseSlide(text, L, tokens, i, m, end, regionMarkers);
-    slides.push(slide);
+    while (r < regionMarkers.length && regionMarkers[r].start < m.end) r++;
+    const mine: Marker[] = [];
+    while (r < regionMarkers.length && regionMarkers[r].start < end) mine.push(regionMarkers[r++]);
+    slides.push(parseSlide(text, L, tokens, ix, i, m, end, mine));
   }
   for (const s of slides) lint.push(...s.lint);
   lint.sort((a, b) => (a.from ?? 0) - (b.from ?? 0));
   return { config: deckConfig(text), slides, preamble, lint };
 }
 
+/** The lines of a text range [a, b) (0-based). */
+function linesIn(text: string, L: Lines, a: number, b: number): string[] {
+  const out: string[] = [];
+  for (let i = a; i < b && i < L.starts.length; i++) out.push(text.slice(L.starts[i], L.ends[i]));
+  return out;
+}
+
+/** A closing fence for an opening `markup` (``` or ~~~, at least as long). */
+const closesFence = (line: string, markup: string): boolean => {
+  const m = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
+  return !!m && m[1][0] === markup[0] && m[1].length >= markup.length;
+};
+
+/**
+ * Marker hygiene (FMT-1, FMT-5, FMT-9 of closed-loop round A): marker lines
+ * the grammar does not read — FC-18 §7.2 recognises markers only as
+ * top-level comment blocks, and that rule stays — are noticed instead of
+ * silently changing the deck:
+ * - `marker-in-html` (error): a marker line inside a raw HTML block (an
+ *   `<img>`, `<div>` … line runs on until a blank line), with the blank line
+ *   it needs as the quick fix;
+ * - `unclosed-fence` / `unclosed-container` (error): a code fence or a
+ *   `:::` container that is never closed runs to the end of the text, so the
+ *   slide markers after it are code (a fence or container that IS closed
+ *   may show markers: the documented way to write about them);
+ * - `marker-lookalike` (warning): a short comment that reads like a marker
+ *   but is not one (`<!-- notes -->`, `<!-- @ notes -->`), whose text would
+ *   otherwise show on the slide.
+ */
+function hiddenMarkers(text: string, L: Lines, ix: TokenIndex, bodyLine: number): SlideLint[] {
+  const out: SlideLint[] = [];
+  const lastLine = (() => { let n = L.starts.length; while (n > 0 && text.slice(L.starts[n - 1], L.ends[n - 1]).trim() === '') n--; return n; })();
+  for (const { token: t } of ix.blocks) {
+    const [a, b] = t.map!;
+    if (a < bodyLine) continue;
+    if (t.type === 'html_block') {
+      const c = t.content.replace(/\n$/, '');
+      const isMarker = SLIDE_MARKER.test(c) || REGION_MARKER.test(c) || DECK_BLOCK.test(c);
+      if (!isMarker) {
+        const lines = linesIn(text, L, a, b);
+        for (let k = 1; k < lines.length; k++) {
+          if (!MARKER_LINE.test(lines[k])) continue;
+          const line = a + k;
+          const s = spanOf(L, line, line + 1);
+          out.push({ level: 'error', code: 'marker-in-html', message: `the marker on line ${line + 1} is inside a raw HTML block (the HTML that starts on line ${a + 1} runs on until a blank line), so it is not read: add a blank line before it`, line: s.line, from: s.from, to: s.to, fix: { from: s.from, to: s.from, insert: '\n', label: 'Add a blank line before the marker' } });
+        }
+        if (COMMENT_BLOCK.test(c)) {
+          const look = lookalike(c);
+          if (look) { const s = spanOf(L, a, b); out.push({ level: 'warning', code: 'marker-lookalike', message: `this comment looks like a marker but is not one: it is not read, and the text after it stays where it is (write ${look})`, ...{ line: s.line, from: s.from, to: s.to } }); }
+        }
+      }
+      continue;
+    }
+    if (t.type === 'fence' || /^container_.*_open$/.test(t.type)) {
+      if (b < lastLine) continue; // closed before the end of the text
+      const lines = linesIn(text, L, a, b);
+      const closed = lines.length > 1 && (t.type === 'fence' ? closesFence(lines[lines.length - 1], t.markup) : /^ {0,3}:{3,}\s*$/.test(lines[lines.length - 1]));
+      if (closed) continue;
+      const hidden = lines.slice(1).filter((x) => MARKER_LINE.test(x)).length;
+      if (hidden === 0) continue;
+      const s = spanOf(L, a, a + 1);
+      const fence = t.type === 'fence';
+      const close = fence ? t.markup : ':::';
+      // the quick fix closes it before its first marker line (where 0.x, which split at every marker line, ended it)
+      const first = a + 1 + lines.slice(1).findIndex((x) => MARKER_LINE.test(x));
+      const at = L.starts[first];
+      out.push({ level: 'error', code: fence ? 'unclosed-fence' : 'unclosed-container', message: fence
+        ? `the code fence opened on line ${a + 1} (${t.markup}) is never closed, so the rest of the text — ${hidden} marker line${hidden === 1 ? '' : 's'} — is code: close it with ${t.markup}`
+        : `the ::: container opened on line ${a + 1} is never closed, so the rest of the text — ${hidden} marker line${hidden === 1 ? '' : 's'} — is inside it: close it with :::`, line: s.line, from: s.from, to: s.to,
+        fix: { from: at, to: at, insert: `${close}\n`, label: `Close it before the marker on line ${first + 1}` } });
+    }
+  }
+  return out;
+}
+
+/** The words a marker is made of (a short comment of these reads as one). */
+const MARKER_WORDS = /^(?:notes?|speaker|footer|float|slide|region)$/i;
+
+/** When a comment reads like a region marker (`<!-- notes -->`, `<!-- @ notes -->`, `<!-- speaker notes -->`): the marker to write. */
+function lookalike(comment: string): string | null {
+  const inner = comment.replace(/^\s*<!--/, '').replace(/-->\s*$/, '').trim();
+  if (inner === '' || inner.length > 40) return null;
+  const words = inner.replace(/^@\s*/, '').split(/[\s:.,;]+/).filter((w) => w !== '');
+  if (words.length === 0 || words.length > 3 || !words.every((w) => MARKER_WORDS.test(w))) return null;
+  const name = words.some((w) => /^notes?$/i.test(w)) ? 'notes' : words.find((w) => /^(?:footer|float)$/i.test(w))?.toLowerCase();
+  return name ? `<!-- @${name} -->` : null;
+}
+
 /** The first content token (a top-level block, comments skipped) whose first line is in [a, b). */
-function firstContent(tokens: readonly Token[], a: number, b: number): { token: Token; index: number } | null {
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (t.level !== 0 || t.nesting === -1 || !t.map) continue;
-    if (t.map[0] < a) continue;
-    if (t.map[0] >= b) return null;
+function firstContent(ix: TokenIndex, a: number, b: number): { token: Token; index: number } | null {
+  for (let k = lowerBound(ix.blockStarts, a); k < ix.blocks.length; k++) {
+    const { token: t, index } = ix.blocks[k];
+    if (t.map![0] >= b) return null;
     if (t.type === 'html_block' && COMMENT_BLOCK.test(t.content)) continue;
-    return { token: t, index: i };
+    return { token: t, index };
   }
   return null;
 }
 
+/** True when the lines [a, b) hold only comment blocks (and blank lines; the title's line `skip` aside). */
+function onlyComments(ix: TokenIndex, a: number, b: number, skip = -1): boolean {
+  let any = false;
+  for (let k = lowerBound(ix.blockStarts, a); k < ix.blocks.length; k++) {
+    const t = ix.blocks[k].token;
+    if (t.map![0] >= b) break;
+    if (t.map![0] === skip) continue;
+    if (!(t.type === 'html_block' && COMMENT_BLOCK.test(t.content))) return false;
+    any = true;
+  }
+  return any;
+}
+
 /** A slide (see parseDeck). */
-function parseSlide(text: string, L: Lines, tokens: readonly Token[], index: number, m: Marker, end: number, regionMarkers: Marker[]): Slide {
+function parseSlide(text: string, L: Lines, tokens: readonly Token[], ix: TokenIndex, index: number, m: Marker, end: number, regionMarkers: Marker[]): Slide {
   const lint: SlideLint[] = [];
   const markerSpan = spanOf(L, m.start, m.end);
   const span = spanOf(L, m.start, end);
@@ -440,7 +707,7 @@ function parseSlide(text: string, L: Lines, tokens: readonly Token[], index: num
     let first: { token: Token; index: number } | null = null;
     for (const b of blocks) {
       if (!isGridBlock(b)) continue;
-      first = firstContent(tokens, b.bodyStart, b.bodyEnd);
+      first = firstContent(ix, b.bodyStart, b.bodyEnd);
       if (first) break;
     }
     if (first && first.token.type === 'heading_open' && first.token.tag === 'h2') {
@@ -458,10 +725,11 @@ function parseSlide(text: string, L: Lines, tokens: readonly Token[], index: num
   if (!isTemplate) {
     for (const b of blocks) {
       if (b.marker && b.marker.name!.toLowerCase() === 'notes') continue;
-      for (const t of tokens) {
-        if (t.type !== 'heading_open' || !t.map || t.map[0] < b.bodyStart || t.map[0] >= b.bodyEnd) continue;
-        if (titleLines && t.map[0] === titleLines[0]) continue;
-        const s = spanOf(L, t.map[0], t.map[1]);
+      for (let k = lowerBound(ix.headingStarts, b.bodyStart); k < ix.headings.length && ix.headingStarts[k] < b.bodyEnd; k++) {
+        const t = ix.headings[k];
+        const map = t.map!;
+        if (titleLines && map[0] === titleLines[0]) continue;
+        const s = spanOf(L, map[0], map[1]);
         if (t.tag === 'h1') { if (!lint.some((x) => x.code === 'h1-on-slide' && x.from === s.from)) err('h1-on-slide', 'an h1 on a normal slide (a title page is template=title)', s); }
         else if (t.tag === 'h2') err('second-h2', 'a normal slide has one h2, its title', s);
       }
@@ -498,12 +766,14 @@ function parseSlide(text: string, L: Lines, tokens: readonly Token[], index: num
       body = after;
     }
     if (b.marker === null) {
-      if (md !== '') add(primary, { marker: null, body }, md);
+      // leading text of only author comments renders nothing: not content of the first region (FMT-10)
+      if (md !== '' && !onlyComments(ix, b.bodyStart, b.bodyEnd, titleLines ? titleLines[0] : -1)) add(primary, { marker: null, body }, md);
       continue;
     }
     const mk = b.marker;
     const ms = spanOf(L, mk.start, mk.end);
     if (mk.trailing !== '') err('marker-not-alone', `text after the region marker on its line ("${mk.trailing.slice(0, 40)}") is ignored; put it on the next line`, ms);
+    if (mk.punct) warn('marker-punctuation', `"@${mk.name}${mk.punct}" is read as the marker @${mk.name}; write <!-- @${mk.name} --> (0.x read any character after the name)`, ms);
     const name = mk.name!;
     const lower = name.toLowerCase();
     if (lower === 'float') {
