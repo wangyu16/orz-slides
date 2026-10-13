@@ -84,6 +84,16 @@ assembler) on branch `rebuild/1.0`. The read view is a stub until step 3.
 | N.1 | `newDocument()` writes a header first with `carrier: slides` and a freshly minted `uid` (`doc-` + 16 base36), then a title slide and a normal slide; it is lint-clean (header and body). | unit |
 | N.2 | `newDocument({ title, theme, ratio, uid })` writes them (the title also as the title slide's heading, Markdown-escaped) and refuses an unknown theme or ratio and a malformed uid. | unit |
 
+## U — 0.x files and texts (rebuild step 2; `upgrade`)
+
+| ID | Claim | Oracle |
+|---|---|---|
+| U.1 | `readLegacy` reads a 0.x file — fixtures made by the published 0.7.1, 0.8.0, 0.8.2 and 0.8.5 CLIs (cdn, and one inline 0.8.5 file) — giving the `#orz-deck` source exactly as the `.md` it was made from (`<\/script` restored), its version, delivery, generator and `<title>`; a format-1 file and other HTML are not 0.x files. | scenario |
+| U.2 | `upgradeText` turns a 0.x text into format 1: the deck block's keys become the header (with `carrier: slides` and a uid; 0.x's implicit `paper` written explicitly), the block is removed with the blank lines after it, the rest of the text is unchanged and lint-clean. | scenario |
+| U.3 | A `{{nyml kind: meta}}` block before the deck block (0.x read neither) becomes one header with the deck block's keys (they win a clash, said); the dropped theme is mapped; no other text is lost; text before the first slide stays (noticed). | scenario |
+| U.4 | `upgradeText` changes a format-1 text only by adding `carrier`/`uid`; the dropped 0.x themes map to their successors (executive → sky, poppy → sticker, sage → orchard; an unknown one → paper); beside a format-1 header a stray deck block fills only the keys the header lacks. | unit |
+| U.5 | `upgrade` turns every 0.x fixture into a format-1 file of this shell whose text is the upgraded source and has no lint error; upgrading the result again re-assembles it unchanged; anything else is refused. | scenario |
+
 ## E — engine pieces kept from 0.x (reworked in rebuild step 3)
 
 | ID | Claim | Oracle |

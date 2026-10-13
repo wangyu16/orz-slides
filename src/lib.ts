@@ -4,7 +4,7 @@
  * Text format 1 (FC-18, kind `slides`): a deck is its text twin
  * (`x.slides.md`); its self-editing file (`x.slides.html`) is
  * `assemble(text)`. Everything here is the isomorphic code of
- * src/assemble.ts and src/deck/ — the same functions the
+ * src/assemble.ts, src/deck/ and src/legacy.ts — the same functions the
  * browser bundle runs — except that an inline assembly needs no engine from
  * the caller: it carries this release's browser bundle (src/engine.ts, the
  * copy staged in `dist/` by the build, verified against its `release.json`),
@@ -18,9 +18,11 @@
  */
 import { VERSION as ORZ_MARKDOWN_VERSION } from 'orz-markdown/version';
 import { assemble as assembleText, type AssembleOptions } from './assemble.js';
+import { upgrade as upgradeFile, type UpgradeOptions, type UpgradeResult } from './legacy.js';
 import { engineSource } from './engine.js';
 
 export { extract, readDocument, newDocument, storedText, cdnBundleUrl, BUNDLE_FILE, FORMATS, type AssembleOptions, type NewDocumentOptions, type Extracted, type DocumentInfo, type Kind } from './assemble.js';
+export { readLegacy, upgradeText, type LegacyFile, type UpgradeResult, type UpgradeOptions, type TextUpgrade } from './legacy.js';
 export { parseDeck, scanMarkers, TEMPLATES as SLIDE_TEMPLATES, SLIDE_OPTIONS } from './deck/parse.js';
 export { deckConfig, RATIOS, SECTION_NUMBERS } from './deck/config.js';
 export { parseLayoutSpec, serialiseLayout, expandPreset, slideMarker, PRESETS, PRESET_REGIONS } from './deck/layout-spec.js';
@@ -43,4 +45,13 @@ const withEngine = <T extends AssembleOptions>(o: T): T =>
  */
 export function assemble(text: string, options: AssembleOptions = {}): string {
   return assembleText(text, withEngine(options));
+}
+
+/**
+ * Upgrade an orz-slides file to text format 1 with this shell (a 0.x file's
+ * `#orz-deck` source and `<!-- deck -->` block → one header; a format-1 file
+ * re-assembled). Inline by default, like {@link assemble}.
+ */
+export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResult {
+  return upgradeFile(html, withEngine(options));
 }

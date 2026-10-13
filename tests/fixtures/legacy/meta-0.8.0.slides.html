@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="present" data-theme="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>meta</title>
+<meta name="generator" content="orz-slides">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/katex.min.css">
+<link id="orz-theme-base" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-paper.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+  html { --orz-vsplit: 42%; }
+  .reveal { height: 100%; }
+  [data-mode="edit"] .reveal { height: calc(100% - var(--orz-vsplit)); }
+
+  /* Edit control — a circular, theme-tinted button (color = --accent) that
+     app.js positions just above reveal's left/right arrows, reading as part of
+     the control cluster. The unused up/down arrows are hidden to make room. */
+  .reveal .controls .navigate-up, .reveal .controls .navigate-down { display: none; }
+  .orz-edit-ctrl {
+    position: fixed; left: 24px; bottom: 18px; z-index: 30;
+    width: 40px; height: 40px; padding: 0; box-sizing: border-box;
+    border: 0; border-radius: 50%;
+    background: rgba(130,130,130,.16);
+    background: color-mix(in srgb, var(--accent, #888) 16%, transparent);
+    color: var(--accent, #888); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px; line-height: 1; opacity: .85;
+    transition: opacity .15s, transform .15s, background .15s;
+  }
+  .orz-edit-ctrl:hover {
+    opacity: 1; transform: scale(1.1);
+    background: color-mix(in srgb, var(--accent, #888) 30%, transparent);
+  }
+  [data-mode="edit"] .orz-edit-ctrl { display: none; }
+  .orz-edit-ctrl svg { width: 19px; height: 19px; display: block; }
+
+  #orz-panel {
+    display: flex; flex-direction: column;
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--orz-vsplit); z-index: 40;
+    background: #1f2228; border-top: 1px solid #333; box-shadow: 0 -2px 16px rgba(0,0,0,.3);
+    transform: translateY(calc(100% + 28px)); transition: transform .22s ease;
+  }
+  [data-mode="edit"] #orz-panel { transform: translateY(0); }
+  /* vertical resize handle on the panel's top edge (drag to set editor/deck split) */
+  #orz-vdivider { position: absolute; top: 0; left: 0; right: 0; height: 6px; z-index: 44; cursor: row-resize; }
+  #orz-vdivider:hover, #orz-vdivider.dragging { background: #3b82f6; }
+  /* close tab — a small handle on the editor's top edge that slides it away */
+  #orz-close {
+    position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
+    width: 50px; height: 19px; z-index: 46; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 8px 8px 0 0; background: #23262c; color: #c2c8d0;
+    cursor: pointer; box-shadow: 0 -2px 8px rgba(0,0,0,.18);
+  }
+  #orz-close:hover { background: #383d45; color: #fff; }
+  #orz-close svg { width: 15px; height: 15px; display: block; }
+  #orz-toolbar {
+    display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+    padding: 7px 10px; background: #23262c; border-bottom: 1px solid #34383f;
+  }
+  #orz-toolbar .ic {
+    width: 32px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 0; border-radius: 7px; color: #c2c8d0; cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  #orz-toolbar .ic:hover { background: #383d45; color: #fff; }
+  #orz-toolbar .ic:active { transform: translateY(1px); }
+  #orz-toolbar .ic svg { width: 17px; height: 17px; display: block; }
+  #orz-toolbar .ic.primary { background: #3b82f6; color: #fff; }
+  #orz-toolbar .ic.primary:hover { background: #2f6fe0; }
+  #orz-toolbar .ic.active { background: #3b82f6; color: #fff; }
+  #orz-toolbar .ic.danger:hover { background: #b4434333; color: #ff8a8a; }
+  #orz-toolbar select {
+    font: 500 12.5px/1 system-ui, sans-serif; color: #e6e8ec; background: #34383f;
+    border: 1px solid #454b55; border-radius: 7px; padding: 6px 8px; cursor: pointer; margin: 0 2px;
+  }
+  #orz-toolbar #orz-copy { font: 500 11px/1 system-ui, sans-serif; color: #6b7480; text-decoration: none;
+    padding: 0 4px; white-space: nowrap; }
+  #orz-toolbar #orz-copy:hover { color: #cdd3df; }
+  #orz-toolbar .orz-sep { width: 1px; height: 20px; background: #3c414a; margin: 0 5px; }
+  #orz-toolbar .orz-pos { color: #9aa3b2; font: 600 12px/1 system-ui, sans-serif; padding: 0 4px; min-width: 40px; text-align: center; }
+  #orz-toolbar .orz-spacer { flex: 1; }
+  #orz-toolbar #orz-brand {
+    display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+    color: #cdd3df; padding: 2px 7px; border-radius: 7px;
+  }
+  #orz-toolbar #orz-brand:hover { color: #fff; background: #383d45; }
+  #orz-toolbar #orz-brand .orz-logo svg { height: 22px; width: auto; display: block; }
+  #orz-toolbar #orz-brand .orz-brand-name { font: 700 13px/1 system-ui, sans-serif; letter-spacing: .01em; }
+  #orz-toolbar #orz-brand .orz-gh { display: inline-flex; opacity: .55; }
+  #orz-toolbar #orz-brand:hover .orz-gh { opacity: 1; }
+  #orz-toolbar #orz-brand .orz-gh svg { width: 15px; height: 15px; display: block; }
+  #orz-editor-host { flex: 1; min-height: 0; overflow: hidden; }
+  #orz-editor-host .CodeMirror { height: 100%; font-size: 14px; }
+  #orz-ta { width: 100%; height: 100%; box-sizing: border-box; border: 0; padding: 10px;
+    font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+
+  .orz-banner {
+    position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 60;
+    display: none; align-items: center; gap: 10px;
+    background: #2b2f36; color: #eee; border: 1px solid #444; border-radius: 8px;
+    padding: 9px 14px; font: 13px/1.3 system-ui, sans-serif; box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  }
+  .orz-banner.show { display: flex; }
+  .orz-banner button { font: 500 12.5px system-ui, sans-serif; color: #e6e8ec; background: #3a3f48;
+    border: 1px solid #4a505a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  #orz-toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(20px);
+    z-index: 70; background: #111; color: #fff; padding: 9px 16px; border-radius: 8px;
+    font: 13px system-ui, sans-serif; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  }
+  #orz-toast.show { opacity: .95; transform: translateX(-50%) translateY(0); }
+
+  /* layout picker popover */
+  #orz-layout-menu { position: fixed; z-index: 75; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    width: 320px; max-height: 64vh; overflow: auto; padding: 8px; box-sizing: border-box;
+    background: #23262c; border: 1px solid #3c414a; border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+  #orz-layout-menu[hidden] { display: none; }
+  .orz-layout-tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px;
+    background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer; color: #c2c8d0; }
+  .orz-layout-tile:hover { background: #2f343c; border-color: #454b55; color: #fff; }
+  .orz-layout-tile svg { width: 74px; height: 46px; display: block; }
+  .orz-layout-tile .lname { font: 500 11px/1.15 system-ui, sans-serif; text-align: center; }
+  .orz-layout-more { grid-column: 1 / -1; display: block; text-align: center; padding: 9px 8px 4px;
+    margin-top: 3px; border-top: 1px solid #3c414a; color: #9aa3b2; text-decoration: none;
+    font: 600 12px/1 system-ui, sans-serif; }
+  .orz-layout-more:hover { color: #fff; }
+</style>
+</head>
+<body>
+<!-- ═══════════ orz · editing this deck with an AI agent ═══════════
+  This is a self-contained, EDITABLE orz-slides deck (.slides.html). The editable
+  source of truth is the slide markdown in the embedded deck source island below
+  (kind: slides, format: 1) — NOT the rendered HTML.
+
+  To edit it correctly, load the official orz-slides agent skill first: it defines
+  the comment-based layout grammar (slide markers, title bands, region splits,
+  speaker notes) and guarantees a byte-identical round-trip.
+    - Fetch the skill: https://cdn.jsdelivr.net/npm/orz-slides/orz-slides-skills/SKILL.md
+    - Install routes:  https://markdown.orz.how/agents.html
+
+  Rules: edit ONLY the embedded deck source and re-embed it in place.
+═══════════════════════════════════════════════════════════════════ -->
+<div class="reveal"><div class="slides"></div></div>
+
+<button id="orz-edit-fab" class="orz-edit-ctrl" title="Edit this deck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>
+
+<div id="orz-panel">
+  <div id="orz-vdivider" title="Drag to resize"></div>
+  <button id="orz-close" title="Close editor — back to presenting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+  <div id="orz-toolbar">
+    <a id="orz-brand" href="https://github.com/wangyu16/orz-slides" target="_blank" rel="noopener noreferrer" title="orz-slides on GitHub"><span class="orz-logo"><svg viewBox="-5 -5 180 100" xmlns="http://www.w3.org/2000/svg" class="orz-mark" aria-hidden="true"><defs><filter id="orzlogo-rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G" /></filter><path d="M 20,23 C 33,16 57,17 84,13 C 111,8 137,4 153,6 C 165,7 170,13 169,25 L 167,66 C 166,79 159,87 146,89 C 121,93 92,92 60,91 C 41,90 27,92 16,89 C 6,86 1,79 1,67 L 1,50 C 1,35 7,25 20,23 Z" id="orzlogo-seal" /><filter id="orzlogo-stone" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="11" result="noise" /><feColorMatrix in="noise" type="saturate" values="0" result="mono" /><feComponentTransfer in="mono" result="grain"><feFuncA type="table" tableValues="0 0.16" /></feComponentTransfer></filter><mask id="orzlogo-mask"><use href="#orzlogo-seal" fill="white" /><path d="M37.81 80.31Q30.44 80.31 24.50 77Q18.56 73.69 15.25 67.75Q11.94 61.81 11.94 54.19L11.94 54.19Q11.94 41.69 21.13 35.56Q30.31 29.44 43.69 29.44L43.69 29.44Q49.81 29.44 55.13 32.44Q60.44 35.44 63.69 41.06Q66.94 46.69 66.94 54.06L66.94 54.06Q66.94 62.06 62.81 68Q58.69 73.94 52 77.13Q45.31 80.31 37.81 80.31L37.81 80.31ZM36.44 73.19Q48.06 73.19 54.06 67.94Q60.06 62.69 60.06 52.56L60.06 52.56Q60.06 45.69 55.38 40.69Q50.69 35.69 42.31 35.69L42.31 35.69Q36.69 35.69 30.94 37.81Q25.19 39.94 21.44 44.19Q17.69 48.44 17.69 54.44L17.69 54.44Q17.69 59.44 20.19 63.75Q22.69 68.06 27 70.63Q31.31 73.19 36.44 73.19L36.44 73.19ZM87.94 80.19Q82.81 70.19 79.88 56.69Q76.94 43.19 76.94 33.31L76.94 33.31Q76.94 29.44 78.69 28.31L78.69 28.31Q79.69 27.69 80.19 27.69L80.19 27.69Q81.06 27.69 81.50 29.06Q81.94 30.44 82.44 34.06L82.44 34.06L83.06 38.56Q84.44 31.81 88.38 27.88Q92.31 23.94 98.06 23.94L98.06 23.94Q104.44 23.94 107.56 26.38Q110.69 28.81 110.69 34.44L110.69 34.44Q104.44 31.44 99.31 31.44L99.31 31.44Q94.44 31.44 90.94 34.06Q87.44 36.69 86.06 41.81L86.06 41.81Q84.94 45.31 84.94 48.44L84.94 48.44Q84.94 51.81 85.88 54.75Q86.81 57.69 88.81 61.94L88.81 61.94Q90.69 66.31 91.75 69.44Q92.81 72.56 92.94 76.19L92.94 76.19Q92.94 78.31 91.44 79.25Q89.94 80.19 87.94 80.19L87.94 80.19ZM160.56 66.19Q163.06 68.06 163.06 70.19L163.06 70.19Q163.06 73.56 157.31 75.81Q151.56 78.06 144.31 79.13Q137.06 80.19 132.81 80.19L132.81 80.19Q128.06 80.19 123.75 78.63Q119.44 77.06 119.44 73.19L119.44 73.19Q119.44 69.44 123.63 63.44Q127.81 57.44 133.69 51.19L133.69 51.19L117.56 51.19Q116.31 51.19 116.31 48.94L116.31 48.94Q116.31 47.19 116.69 46.50Q117.06 45.81 117.69 45.69Q118.31 45.56 120.06 45.56L120.06 45.56L139.31 45.56Q143.94 39.69 146.38 35.50Q148.81 31.31 148.81 27.69L148.81 27.69Q148.81 24.06 146.31 21.19L146.31 21.19Q142.44 20.44 138.81 20.44L138.81 20.44Q131.94 20.44 127.19 22.75Q122.44 25.06 121.94 28.81L121.94 28.81Q119.06 28.81 118.13 27.81Q117.19 26.81 117.19 24.44L117.19 24.44Q117.19 21.94 119.75 19.63Q122.31 17.31 126.94 15.88Q131.56 14.44 137.31 14.44L137.31 14.44Q142.06 14.44 147.31 15.56L147.31 15.56Q150.56 16.19 152.81 19.69Q155.06 23.19 155.06 27.44L155.06 27.44Q155.06 31.19 152.75 35.31Q150.44 39.44 145.94 45.56L145.94 45.56L152.06 45.56Q156.81 45.56 158.38 46.06Q159.94 46.56 159.94 48.06L159.94 48.06Q159.94 49.31 159.13 50.19Q158.31 51.06 157.44 51.06L157.44 51.06L140.19 51.06Q134.06 57.94 130.81 63.25Q127.56 68.56 128.19 70.81L128.19 70.81Q128.69 73.19 135.94 74.06L135.94 74.06Q144.06 74.06 149.69 72.13Q155.31 70.19 160.56 66.19L160.56 66.19Z" fill="black" stroke="black" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" /></mask></defs><g filter="url(#orzlogo-rough)"><use href="#orzlogo-seal" fill="#96d969" mask="url(#orzlogo-mask)" /><use href="#orzlogo-seal" fill="#6ea84d" opacity="0.28" filter="url(#orzlogo-stone)" mask="url(#orzlogo-mask)" /><use href="#orzlogo-seal" fill="none" stroke="#c8f7a5" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.42" mask="url(#orzlogo-mask)" /><use href="#orzlogo-seal" fill="none" stroke="#5f8f44" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.35" mask="url(#orzlogo-mask)" /></g></svg></span><span class="orz-brand-name">slides</span><span class="orz-gh"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></span></a>
+    <span class="orz-sep"></span>
+    <button id="orz-save" class="ic primary" title="Save (Ctrl/Cmd+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></button>
+    <button id="orz-download" class="ic" title="Download a copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>
+    <span class="orz-sep"></span>
+    <button id="orz-prev" class="ic" title="Previous slide"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
+    <span id="orz-pos" class="orz-pos">1 / 1</span>
+    <button id="orz-next" class="ic" title="Next slide"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
+    <span class="orz-sep"></span>
+    <button id="orz-add" class="ic" title="Add a slide after this one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg></button>
+    <button id="orz-dup" class="ic" title="Duplicate this slide"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="7.3" height="7.3" rx="1.3"/><path d="M3.2 10V4.3A1.1 1.1 0 0 1 4.3 3.2h5.7"/></svg></button>
+    <button id="orz-del" class="ic danger" title="Delete this slide"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.2 4.5V3.3a.8.8 0 0 1 .8-.8h2a.8.8 0 0 1 .8.8v1.2M4.9 4.5l.5 8a1 1 0 0 0 1 .95h3.2a1 1 0 0 0 1-.95l.5-8"/></svg></button>
+    <button id="orz-up" class="ic" title="Move slide earlier"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.4M4 7.2l4-4 4 4"/></svg></button>
+    <button id="orz-down" class="ic" title="Move slide later"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v9.6M4 8.8l4 4 4-4"/></svg></button>
+    <span class="orz-spacer"></span>
+    <button id="orz-ai" class="ic" title="AI assistant — improve this slide" aria-label="AI assistant" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg></button>
+    <button id="orz-layout-btn" class="ic" title="Slide layout" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+    <button id="orz-deck-btn" class="ic" title="Deck settings (theme, footer, ratio, title)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5h6M2.5 11h2.5M8 11h5.5"/><circle cx="10" cy="5" r="1.7"/><circle cx="5.5" cy="11" r="1.7"/></svg></button>
+    <select id="orz-theme" title="Theme"></select>
+    <a id="orz-copy" href="https://markdown.orz.how" target="_blank" rel="noopener noreferrer" title="orz-markdown">© orz-markdown</a>
+  </div>
+  <div id="orz-editor-host"><textarea id="orz-ta" spellcheck="false"></textarea></div>
+</div>
+
+<div id="orz-layout-menu" hidden role="menu" aria-label="Slide layouts"></div>
+
+<div id="orz-update" class="orz-banner"><span class="upd-text"></span><button id="orz-upd-apply" class="upd-primary">Update</button><button id="orz-upd-dismiss">Dismiss</button></div>
+<div id="orz-served-note" class="orz-banner"><span>This is a published page &mdash; edits can&rsquo;t be saved back to the server.</span><button id="orz-served-download">Download copy</button><button id="orz-served-dismiss">Dismiss</button></div>
+<div id="orz-toast"></div>
+
+<script type="text/orz-slides" id="orz-deck">
+{{nyml
+kind: meta
+title: Buffers — a legacy deck
+author: Yu Wang
+license: CC-BY-4.0
+}}
+
+<!-- deck
+title: Buffers in five minutes
+theme: executive
+ratio: 4:3
+footer: CHEM 101 · week 3
+transition: fade
+-->
+
+Text before the first slide (0.x never showed it).
+
+<!-- slide -->
+## What a buffer does
+
+A weak acid and its conjugate base resist changes in pH. <\/script> stays text.
+
+```html
+<!-- slide 2col -->
+```
+
+<!-- slide main-side -->
+## Henderson–Hasselbalch
+<!-- @main -->
+$$\mathrm{pH} = \mathrm{p}K_a + \log\frac{[\mathrm{A^-}]}{[\mathrm{HA}]}$$
+<!-- @side -->
+- acetate
+- phosphate
+<!-- @notes -->
+Ask for an example first.
+
+</script>
+
+<script data-orz-asset="engine" src="https://cdn.jsdelivr.net/npm/orz-slides-browser@0.8.0/orz-slides.browser.js"></script>
+<script data-orz-asset="config">window.__ORZ_SLIDES__ = {"version":"0.8.0","docId":"42af5ec9-b6c0-4d8d-aafa-1cc0fb3b583b","filename":"meta","rendererVersion":"0.8.0","defaultTheme":"paper","themes":[{"id":"paper","name":"Paper","scheme":"light","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-paper.css"},{"id":"architect","name":"Architect","scheme":"light","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-architect.css"},{"id":"executive","name":"Executive","scheme":"light","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-executive.css"},{"id":"sage","name":"Sage","scheme":"light","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-sage.css"},{"id":"poppy","name":"Poppy","scheme":"light","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-poppy.css"},{"id":"neon","name":"Neon","scheme":"dark","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-neon.css"},{"id":"chalk","name":"Chalk","scheme":"dark","href":"https://cdn.jsdelivr.net/npm/orz-slides@0.8.0/assets/themes/theme-chalk.css"}],"ratio":"16:9","enhancers":{"mermaidJs":"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js","smilesJs":"https://unpkg.com/smiles-drawer@1.0.10/dist/smiles-drawer.min.js","chartJs":"https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"},"editorLibs":{"codemirrorCss":"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css","codemirrorLightThemeCss":"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/eclipse.min.css","codemirrorDarkThemeCss":"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css","codemirrorJs":"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js","codemirrorMarkdownJs":"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js","codemirrorContinuelistJs":"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/continuelist.min.js"}};</script>
+<script>
+  (function () {
+    function boot() { if (window.orzslides) window.orzslides.mount(); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+  })();
+</script>
+<script>
+(function (global) {
+  var expandedQr = null;
+  var expandedSourceQr = null;
+
+  function collapseQr() {
+    if (!expandedQr) return;
+
+    if (expandedSourceQr) {
+      expandedSourceQr.classList.remove('is-expanded');
+      expandedSourceQr.setAttribute('aria-expanded', 'false');
+    }
+
+    if (expandedQr.parentNode) {
+      expandedQr.parentNode.removeChild(expandedQr);
+    }
+
+    if (global.document && global.document.body) {
+      global.document.body.style.overflow = '';
+    }
+    expandedQr = null;
+    expandedSourceQr = null;
+  }
+
+  function toggleQr(node) {
+    if (expandedSourceQr === node) {
+      collapseQr();
+      return;
+    }
+
+    collapseQr();
+    if (!global.document || !global.document.body) {
+      return;
+    }
+
+    expandedSourceQr = node;
+    expandedSourceQr.classList.add('is-expanded');
+    expandedSourceQr.setAttribute('aria-expanded', 'true');
+
+    expandedQr = node.cloneNode(true);
+    expandedQr.classList.add('qrcode-overlay', 'is-expanded');
+    expandedQr.setAttribute('aria-hidden', 'true');
+    expandedQr.removeAttribute('aria-expanded');
+    expandedQr.removeAttribute('tabindex');
+    expandedQr.removeAttribute('role');
+    expandedQr.addEventListener('click', function (event) {
+      event.stopPropagation();
+      collapseQr();
+    });
+
+    global.document.body.appendChild(expandedQr);
+
+    if (global.document && global.document.body) {
+      global.document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function initQrCodes(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+
+    Array.prototype.slice.call(root.querySelectorAll('.qrcode')).forEach(function (node) {
+      if (node.getAttribute('data-qr-ready') === '1') return;
+
+      node.setAttribute('data-qr-ready', '1');
+      node.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleQr(node);
+      });
+      node.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggleQr(node);
+        }
+        if (event.key === 'Escape') {
+          collapseQr();
+        }
+      });
+    });
+  }
+
+  function initTabs(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    Array.prototype.slice.call(root.querySelectorAll('.tabs')).forEach(function (tabs) {
+      // data-js both guards re-init and switches the theme CSS from the no-JS
+      // fallback (all panels shown) to JS mode (only the .active panel shown).
+      if (tabs.getAttribute('data-js') === '1') return;
+      var panels = Array.prototype.slice.call(tabs.querySelectorAll(':scope > .tab'));
+      if (!panels.length) return;
+      tabs.setAttribute('data-js', '1');
+
+      var bar = global.document.createElement('div');
+      bar.className = 'tabs-bar';
+      panels.forEach(function (panel, i) {
+        var label = panel.getAttribute('data-label') || 'Tab ' + (i + 1);
+        var btn = global.document.createElement('button');
+        btn.className = 'tabs-bar-btn' + (i === 0 ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', function () {
+          Array.prototype.slice.call(tabs.querySelectorAll('.tabs-bar-btn')).forEach(function (b) { b.classList.remove('active'); });
+          panels.forEach(function (p) { p.classList.remove('active'); });
+          btn.classList.add('active');
+          panel.classList.add('active');
+        });
+        bar.appendChild(btn);
+      });
+      tabs.insertBefore(bar, tabs.firstChild);
+      panels[0].classList.add('active');
+    });
+  }
+
+  function init(root) {
+    var r = root || global.document;
+    initQrCodes(r);
+    initTabs(r);
+  }
+
+  // ---- copy-as-markdown: DOM -> Markdown walker ---------------------------
+  // Converts a selected DOM fragment back to Markdown so that copying rendered
+  // content yields source, not HTML. Standard constructs are reconstructed from
+  // their tags; generated constructs (math, mermaid, smiles, qr, youtube, chart) carry
+  // a [data-md] breadcrumb that is emitted verbatim. Written without template
+  // literals/backticks because this whole file is a String.raw template.
+  var BT = String.fromCharCode(96);
+  var FENCE = BT + BT + BT;
+
+  function rt_repeat(s, n) {
+    var out = '';
+    for (var i = 0; i < n; i++) out += s;
+    return out;
+  }
+
+  function rt_attr(node, name) {
+    return node && node.getAttribute ? node.getAttribute(name) : null;
+  }
+
+  function rt_isBlockElement(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (rt_attr(node, 'data-md') != null) return true;
+    var tag = node.tagName.toLowerCase();
+    if (/^(p|div|section|article|figure|h[1-6]|ul|ol|li|blockquote|pre|table|thead|tbody|tr|hr|details)$/.test(tag)) return true;
+    if (node.classList && (node.classList.contains('katex-display') || node.classList.contains('mermaid'))) return true;
+    return false;
+  }
+
+  function rt_katex(node, display) {
+    var ann = node.querySelector ? node.querySelector('annotation[encoding="application/x-tex"]') : null;
+    var tex = (ann ? ann.textContent : node.textContent) || '';
+    tex = tex.replace(/^\s+|\s+$/g, '');
+    if (display) return '$$\n' + tex + '\n$$';
+    return '$' + tex + '$';
+  }
+
+  function rt_img(node) {
+    var alt = rt_attr(node, 'alt') || '';
+    var src = rt_attr(node, 'src') || '';
+    var title = rt_attr(node, 'title');
+    return '![' + alt + '](' + src + (title ? ' "' + title + '"' : '') + ')';
+  }
+
+  function rt_inlineChildren(node) {
+    var out = '';
+    var kids = node.childNodes;
+    for (var i = 0; i < kids.length; i++) out += rt_inlineNode(kids[i]);
+    return out;
+  }
+
+  function rt_inlineNode(node) {
+    if (node.nodeType === 3) return node.nodeValue.replace(/\s+/g, ' ');
+    if (node.nodeType !== 1) return '';
+    var dm = rt_attr(node, 'data-md');
+    if (dm != null) return dm;
+    if (node.classList && node.classList.contains('katex')) return rt_katex(node, false);
+    var tag = node.tagName.toLowerCase();
+    switch (tag) {
+      case 'strong': case 'b': return '**' + rt_inlineChildren(node) + '**';
+      case 'em': case 'i': return '*' + rt_inlineChildren(node) + '*';
+      case 'code': return BT + (node.textContent || '') + BT;
+      case 'a':
+        var href = rt_attr(node, 'href') || '';
+        var title = rt_attr(node, 'title');
+        return '[' + rt_inlineChildren(node) + '](' + href + (title ? ' "' + title + '"' : '') + ')';
+      case 'del': case 's': return '~~' + rt_inlineChildren(node) + '~~';
+      case 'ins': return '++' + rt_inlineChildren(node) + '++';
+      case 'mark': return '==' + rt_inlineChildren(node) + '==';
+      case 'sub': return '~' + rt_inlineChildren(node) + '~';
+      case 'sup': return '^' + rt_inlineChildren(node) + '^';
+      case 'br': return '  \n';
+      case 'img': return rt_img(node);
+      case 'input': return '';
+      case 'span':
+        var spCls = (rt_attr(node, 'class') || '').trim();
+        return spCls ? '{{sp[' + spCls + '] ' + rt_inlineChildren(node) + '}}' : rt_inlineChildren(node);
+      default: return rt_inlineChildren(node);
+    }
+  }
+
+  function rt_align(cell) {
+    var style = (rt_attr(cell, 'style') || '').toLowerCase();
+    if (style.indexOf('center') !== -1) return 'center';
+    if (style.indexOf('right') !== -1) return 'right';
+    if (style.indexOf('left') !== -1) return 'left';
+    return '';
+  }
+
+  function rt_sep(align) {
+    if (align === 'center') return ':---:';
+    if (align === 'right') return '---:';
+    if (align === 'left') return ':---';
+    return '---';
+  }
+
+  function rt_tableRows(headRow, bodyRows) {
+    var rows = [];
+    var header = [];
+    var aligns = [];
+    if (headRow) {
+      var hc = headRow.children;
+      for (var i = 0; i < hc.length; i++) { header.push(rt_inlineChildren(hc[i]).trim()); aligns.push(rt_align(hc[i])); }
+    }
+    rows.push('| ' + header.join(' | ') + ' |');
+    var seps = [];
+    for (var s = 0; s < header.length; s++) seps.push(rt_sep(aligns[s]));
+    rows.push('| ' + seps.join(' | ') + ' |');
+    for (var r = 0; r < bodyRows.length; r++) {
+      var cells = [];
+      var tds = bodyRows[r].children;
+      for (var c = 0; c < tds.length; c++) cells.push(rt_inlineChildren(tds[c]).trim());
+      rows.push('| ' + cells.join(' | ') + ' |');
+    }
+    return rows.join('\n');
+  }
+
+  function rt_table(tbl) {
+    var headRow = tbl.querySelector ? tbl.querySelector('thead tr') : null;
+    var bodyRows = tbl.querySelectorAll ? tbl.querySelectorAll('tbody tr') : [];
+    return rt_tableRows(headRow, bodyRows);
+  }
+
+  // Reconstruct a table from bare table-internal nodes (thead/tbody/tr), e.g.
+  // when a selection inside a table loses its <table> wrapper.
+  function rt_tableFromParts(parts) {
+    var headRow = null;
+    var bodyRows = [];
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      var tag = p.tagName.toLowerCase();
+      if (tag === 'thead') { var tr = p.querySelector ? p.querySelector('tr') : null; if (tr && !headRow) headRow = tr; }
+      else if (tag === 'tbody') { var trs = p.querySelectorAll ? p.querySelectorAll('tr') : []; for (var j = 0; j < trs.length; j++) bodyRows.push(trs[j]); }
+      else if (tag === 'tr') { if (!headRow) headRow = p; else bodyRows.push(p); }
+    }
+    return rt_tableRows(headRow, bodyRows);
+  }
+
+  function rt_codeBlock(pre) {
+    var code = pre.querySelector ? (pre.querySelector('code') || pre) : pre;
+    var lang = '';
+    var cls = rt_attr(code, 'class') || '';
+    var m = cls.match(/language-([A-Za-z0-9_+#-]+)/);
+    if (m) lang = m[1];
+    var text = (code.textContent || '').replace(/\n$/, '');
+    return FENCE + lang + '\n' + text + '\n' + FENCE;
+  }
+
+  function rt_list(node, ordered, depth) {
+    var items = [];
+    var idx = 1;
+    var kids = node.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var li = kids[i];
+      if (li.nodeType !== 1 || li.tagName.toLowerCase() !== 'li') continue;
+      items.push(rt_listItem(li, ordered, idx, depth));
+      idx++;
+    }
+    return items.join('\n');
+  }
+
+  function rt_listItem(li, ordered, idx, depth) {
+    var indent = rt_repeat('  ', depth);
+    var marker = ordered ? (idx + '. ') : '- ';
+    var task = '';
+    var cb = li.querySelector ? li.querySelector('input[type="checkbox"]') : null;
+    if (cb) task = (cb.checked || rt_attr(cb, 'checked') != null) ? '[x] ' : '[ ] ';
+    var inlineParts = '';
+    var nested = '';
+    var kids = li.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c.nodeType === 1 && /^(ul|ol)$/.test(c.tagName.toLowerCase())) {
+        nested += '\n' + rt_list(c, c.tagName.toLowerCase() === 'ol', depth + 1);
+      } else {
+        inlineParts += rt_inlineNode(c);
+      }
+    }
+    inlineParts = inlineParts.replace(/\s+/g, ' ').trim();
+    return indent + marker + task + inlineParts + nested;
+  }
+
+  function rt_blockquote(node) {
+    var inner = rt_blockChildren(node);
+    var lines = inner.split('\n');
+    var out = [];
+    for (var i = 0; i < lines.length; i++) out.push(lines[i] ? '> ' + lines[i] : '>');
+    return out.join('\n');
+  }
+
+  function rt_blockChildren(node) {
+    var parts = [];
+    var kids = node.childNodes;
+    var i = 0;
+    while (i < kids.length) {
+      var k = kids[i];
+      // A selection can contain bare <li> elements (when the user selects a
+      // list's contents rather than the <ul>/<ol> wrapper). Group a run of them
+      // into a bullet list instead of emitting each as a separate block.
+      if (k.nodeType === 1 && k.tagName.toLowerCase() === 'li') {
+        var lis = [];
+        while (i < kids.length) {
+          var kk = kids[i];
+          if (kk.nodeType === 1 && kk.tagName.toLowerCase() === 'li') { lis.push(kk); i++; }
+          else if (kk.nodeType === 3 && !(kk.nodeValue || '').trim()) { i++; }
+          else break;
+        }
+        var items = [];
+        for (var j = 0; j < lis.length; j++) items.push(rt_listItem(lis[j], false, j + 1, 0));
+        parts.push(items.join('\n'));
+        continue;
+      }
+      // Bare table-internal nodes (selection inside a table that lost its
+      // <table> wrapper) — reconstruct a Markdown table.
+      if (k.nodeType === 1 && /^(thead|tbody|tr)$/.test(k.tagName.toLowerCase())) {
+        var trows = [];
+        while (i < kids.length) {
+          var tk = kids[i];
+          if (tk.nodeType === 1 && /^(thead|tbody|tr)$/.test(tk.tagName.toLowerCase())) { trows.push(tk); i++; }
+          else if (tk.nodeType === 3 && !(tk.nodeValue || '').trim()) { i++; }
+          else break;
+        }
+        parts.push(rt_tableFromParts(trows));
+        continue;
+      }
+      var s = rt_blockNode(k);
+      if (s && s.replace(/\s/g, '') !== '') parts.push(s.replace(/\s+$/, ''));
+      i++;
+    }
+    return parts.join('\n\n');
+  }
+
+  var rt_containerNames = ['info', 'success', 'warning', 'danger', 'left', 'right', 'center', 'cols', 'col', 'tabs', 'tab'];
+  // A markdown-it-container div.name (or details.spoil) -> its ::: name
+  // directive name, or null if the node is not a container.
+  function rt_containerName(node) {
+    if (node.nodeType !== 1 || !node.classList) return null;
+    var tag = node.tagName.toLowerCase();
+    if (tag === 'details' && node.classList.contains('spoil')) {
+      var sum = node.querySelector ? node.querySelector('summary') : null;
+      var title = sum ? (sum.textContent || '').trim() : '';
+      return title ? 'spoil ' + title : 'spoil';
+    }
+    if (tag !== 'div') return null;
+    for (var i = 0; i < rt_containerNames.length; i++) {
+      var n = rt_containerNames[i];
+      if (node.classList.contains(n)) {
+        if (n === 'tab') { var lbl = rt_attr(node, 'data-label'); return lbl ? 'tab ' + lbl : 'tab'; }
+        return n;
+      }
+    }
+    return null;
+  }
+  // Emit a ::: name ... ::: block, using a fence longer than any inner fence so
+  // nested containers (cols > col, tabs > tab) re-parse correctly.
+  function rt_containerMd(node, name) {
+    var parts = [];
+    var kids = node.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.nodeType === 1) {
+        var ktag = k.tagName.toLowerCase();
+        if (ktag === 'summary') continue; // spoil title, captured in the name
+        if (k.classList && k.classList.contains('tabs-bar')) continue; // JS-injected tab buttons
+      }
+      var m = rt_blockNode(k);
+      if (m && m.trim()) parts.push(m.trim());
+    }
+    var inner = parts.join('\n\n');
+    var maxFence = 2;
+    var lines = inner.split('\n');
+    for (var j = 0; j < lines.length; j++) {
+      var mm = lines[j].match(/^(:{3,})/);
+      if (mm && mm[1].length > maxFence) maxFence = mm[1].length;
+    }
+    var fence = rt_repeat(':', Math.max(3, maxFence + 1));
+    return fence + ' ' + name + '\n' + inner + '\n' + fence;
+  }
+
+  function rt_blockNode(node) {
+    if (node.nodeType === 3) {
+      var t = node.nodeValue;
+      return (t && t.trim()) ? t.replace(/\s+/g, ' ').trim() : '';
+    }
+    if (node.nodeType !== 1) return '';
+    var dm = rt_attr(node, 'data-md');
+    if (dm != null) return dm;
+    if (node.classList) {
+      // Display math: the katex-display span OR its katex-block <p> wrapper.
+      // Without this the wrapper is walked as a paragraph and the inner katex is
+      // emitted as inline math instead of a block equation.
+      if (node.classList.contains('katex-display') || node.classList.contains('katex-block')) {
+        var k = node.querySelector ? node.querySelector('.katex') : null;
+        return rt_katex(k || node, true);
+      }
+      if (node.classList.contains('mermaid')) return '{{mermaid\n' + (node.textContent || '').trim() + '\n}}';
+    }
+    var tag = node.tagName.toLowerCase();
+    var hm = tag.match(/^h([1-6])$/);
+    if (hm) return rt_repeat('#', parseInt(hm[1], 10)) + ' ' + rt_inlineChildren(node).trim();
+    switch (tag) {
+      case 'p': return rt_inlineChildren(node).trim();
+      case 'ul': return rt_list(node, false, 0);
+      case 'ol': return rt_list(node, true, 0);
+      case 'pre': return rt_codeBlock(node);
+      case 'blockquote': return rt_blockquote(node);
+      case 'table': return rt_table(node);
+      case 'hr': return '---';
+      case 'li': return rt_inlineChildren(node).trim();
+      case 'figure': case 'div': case 'section': case 'article': case 'details': case 'summary':
+        var cn = rt_containerName(node);
+        if (cn) return rt_containerMd(node, cn);
+        return rt_blockChildren(node);
+      default: return rt_inlineNode(node).trim();
+    }
+  }
+
+  function elementToMarkdown(root) {
+    if (!root) return '';
+    var hasBlock = false;
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (rt_isBlockElement(kids[i])) { hasBlock = true; break; }
+    }
+    var out = hasBlock ? rt_blockChildren(root) : rt_inlineChildren(root);
+    return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
+  }
+
+  function rt_isEditable(node) {
+    while (node) {
+      if (node.nodeType === 1) {
+        var tag = node.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return true;
+        if (node.isContentEditable) return true;
+      }
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  function rt_isCopyRoot(node) {
+    return node.nodeType === 1 && node.classList &&
+      (node.classList.contains('markdown-body') || rt_attr(node, 'data-orz-copy') != null);
+  }
+  function rt_withinCopyRoot(node) {
+    while (node) {
+      if (rt_isCopyRoot(node)) return true;
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  // When a selection sits entirely within one table/blockquote/pre — or inside a
+  // ::: container — copy that whole block, so the wrapper is included (a partial
+  // table/quote fragment isn't valid Markdown, and a copied container should keep
+  // its ::: fence). Browsers often clone such selections without the wrapper.
+  // Tables/quotes/code don't nest, so the innermost wins; containers DO nest
+  // (cols > col, tabs > tab), so promote to the OUTERMOST one.
+  function rt_promotableBlock(node) {
+    var container = null;
+    while (node && !rt_isCopyRoot(node)) {
+      if (node.nodeType === 1) {
+        var tag = node.tagName.toLowerCase();
+        if (tag === 'table' || tag === 'blockquote' || tag === 'pre') return node;
+        // A selection inside a display equation copies the whole block equation;
+        // a partial KaTeX fragment is not valid Markdown.
+        if (node.classList &&
+            (node.classList.contains('katex-block') || node.classList.contains('katex-display'))) return node;
+        if (rt_containerName(node)) container = node;
+      }
+      node = node.parentNode;
+    }
+    return container;
+  }
+
+  function onCopy(event) {
+    if (!global.document) return;
+    var sel = global.getSelection ? global.getSelection()
+      : (global.document.getSelection ? global.document.getSelection() : null);
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    if (rt_isEditable(sel.anchorNode) || rt_isEditable(sel.focusNode)) return;
+    if (!rt_withinCopyRoot(sel.anchorNode) && !rt_withinCopyRoot(sel.focusNode)) return;
+
+    var md;
+    var range0 = sel.getRangeAt(0);
+    var common = range0.commonAncestorContainer;
+    var promoted = rt_promotableBlock(common.nodeType === 1 ? common : common.parentNode);
+    if (promoted && sel.rangeCount === 1) {
+      var pwrap = global.document.createElement('div');
+      pwrap.appendChild(promoted.cloneNode(true));
+      md = elementToMarkdown(pwrap);
+    } else {
+      var container = global.document.createElement('div');
+      for (var i = 0; i < sel.rangeCount; i++) container.appendChild(sel.getRangeAt(i).cloneContents());
+      md = elementToMarkdown(container);
+    }
+    if (!md) return;
+    var cd = event.clipboardData || global.clipboardData;
+    if (cd && cd.setData) {
+      cd.setData('text/plain', md);
+      if (event.preventDefault) event.preventDefault();
+    }
+  }
+
+  function bindGlobalHandlers() {
+    if (!global.document || global.__orzMarkdownRuntimeBound) return;
+    global.__orzMarkdownRuntimeBound = true;
+
+    global.document.addEventListener('click', function (event) {
+      if (expandedQr && !expandedQr.contains(event.target)) {
+        collapseQr();
+      }
+    });
+
+    global.document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        collapseQr();
+      }
+    });
+
+    // Copy rendered selections as Markdown source.
+    global.document.addEventListener('copy', onCopy);
+  }
+
+  global.OrzMarkdownRuntime = Object.assign({}, global.OrzMarkdownRuntime, {
+    init: init,
+    initQrCodes: initQrCodes,
+    initTabs: initTabs,
+    collapseQr: collapseQr,
+    elementToMarkdown: elementToMarkdown,
+  });
+
+  bindGlobalHandlers();
+
+  if (global.document) {
+    if (global.document.readyState === 'loading') {
+      global.document.addEventListener('DOMContentLoaded', function () {
+        init(global.document);
+      }, { once: true });
+    } else {
+      init(global.document);
+    }
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+</script>
+<script data-orz-asset="app">/*
+ * orz-slides in-file runtime — present + edit.
+ *
+ * Present mode is reveal.js (driven by the bundled engine, window.orzslides).
+ * Edit mode docks a CodeMirror panel under the deck: it shows the CURRENT
+ * slide's source, and the live preview is the real reveal slide, re-rendered as
+ * you type. The embedded #orz-deck source is the single source of truth; Save
+ * re-serialises the whole document with the updated source (self-reproducing).
+ *
+ * Ported from orz-mdhtml's app.js (save / IndexedDB handle / version check /
+ * served-page notice), adapted to the per-slide deck model.
+ */
+(function () {
+  var CFG = window.__ORZ_SLIDES__ || {};
+  var root = document.documentElement;
+  var API = window.orzslides;
+
+  var dirty = false;
+  var fileHandle = null;
+  var editing = false;
+  var editingDeck = false; // editing the <!-- deck --> preamble vs a slide
+  var cm = null;
+  var curIndex = 0;
+  var suppressChange = false;
+  var rerenderTimer = null;
+  var rerenderAllTimer = null;
+  var currentTheme = CFG.defaultTheme;
+
+  // Deck source split into preamble (the <!-- deck --> block) + per-slide chunks.
+  var preamble = '';
+  var slides = [];
+
+  // ---- source helpers ------------------------------------------------------
+  function escapeSource(s) { return String(s).replace(/<\/(script)/gi, '<\\/$1'); }
+  function unescapeSource(s) { return String(s).replace(/<\\\/(script)/gi, '</$1'); }
+
+  function embeddedSource() {
+    var el = document.getElementById('orz-deck');
+    var raw = el ? el.textContent || '' : '';
+    return unescapeSource(raw).replace(/^\n/, '').replace(/\n\s*$/, '');
+  }
+
+  // Split on the slide markers, keeping each marker with its slide.
+  function splitDeck(src) {
+    var i = src.search(/<!--\s*slide\b/);
+    var pre = i >= 0 ? src.slice(0, i) : src;
+    var rest = i >= 0 ? src.slice(i) : '';
+    var parts = rest ? rest.split(/(?=<!--\s*slide\b)/) : [];
+    return { preamble: pre, slides: parts };
+  }
+  function fullSource() { return preamble + slides.join(''); }
+
+  function loadParts() {
+    var p = splitDeck(embeddedSource());
+    preamble = p.preamble;
+    slides = p.slides.length ? p.slides : ['<!-- slide -->\n## New slide\n'];
+  }
+  function writeDeck() {
+    var el = document.getElementById('orz-deck');
+    if (el) el.textContent = '\n' + escapeSource(fullSource()) + '\n';
+  }
+
+  function themeById(id) {
+    var list = CFG.themes || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return list[0] || { id: id, scheme: 'light', href: '' };
+  }
+
+  // ---- live rendering ------------------------------------------------------
+  function sections() { return document.querySelectorAll('.reveal .slides > section.orz-slide'); }
+
+  function renderCurrentSlide() {
+    var src = renderSource();
+    var deck = API.parseDeck(src);
+    var secs = sections();
+    // structural change (a slide added/removed in-place) → full re-render
+    if (deck.slides.length !== secs.length) { API.renderAll(src); return; }
+    var section = secs[curIndex];
+    var slide = deck.slides[curIndex];
+    if (!section || !slide) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = API.renderSlide(slide, API.md, deck.config);
+    var fresh = tmp.firstElementChild;
+    if (!fresh) return;
+    // Update the existing <section> in place — replacing the element would
+    // orphan reveal.js's reference to the current slide (it would lose its
+    // `present` class). Copy the rendered content + render-time attributes; let
+    // reveal keep managing the state classes (present/past/future).
+    section.innerHTML = fresh.innerHTML;
+    ['data-fit', 'data-kind', 'data-template', 'data-background-color', 'data-transition', 'data-step'].forEach(function (a) {
+      if (fresh.hasAttribute(a)) section.setAttribute(a, fresh.getAttribute(a));
+      else section.removeAttribute(a);
+    });
+    try { API.reveal.sync(); } catch (e) {}
+    API.refresh();
+  }
+  function scheduleRerender() {
+    if (rerenderTimer) clearTimeout(rerenderTimer);
+    rerenderTimer = setTimeout(renderCurrentSlide, 160);
+  }
+  // Deck-config edits affect every slide (footer, etc.) → re-render the whole deck.
+  function scheduleRerenderAll() {
+    if (rerenderAllTimer) clearTimeout(rerenderAllTimer);
+    rerenderAllTimer = setTimeout(function () { API.renderAll(renderSource()); }, 240);
+  }
+
+  function curH() { return (API.reveal && API.reveal.getIndices) ? API.reveal.getIndices().h : 0; }
+  function gotoSlide(i) { if (API.reveal) API.reveal.slide(Math.max(0, Math.min(slides.length - 1, i)), 0); }
+
+  // ---- editor --------------------------------------------------------------
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      if (!src || document.querySelector('script[data-lib="' + src + '"]')) return res();
+      var s = document.createElement('script');
+      s.src = src; s.async = true; s.setAttribute('data-lib', src);
+      s.onload = function () { res(); }; s.onerror = function () { rej(); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadCss(href) {
+    if (!href || document.querySelector('link[data-lib="' + href + '"]')) return;
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href; l.setAttribute('data-lib', href);
+    document.head.appendChild(l);
+  }
+  function ensureEditorLibs() {
+    var L = CFG.editorLibs || {};
+    loadCss(L.codemirrorCss);
+    // Load BOTH editor themes so cmTheme() can switch freely (dark editor on
+    // dark slide themes, light on light) without a reload.
+    loadCss(L.codemirrorLightThemeCss);
+    loadCss(L.codemirrorDarkThemeCss);
+    return loadScript(L.codemirrorJs)
+      .then(function () { return loadScript(L.codemirrorMarkdownJs); })
+      .then(function () { return loadScript(L.codemirrorContinuelistJs); });
+  }
+  function cmTheme() { return themeById(currentTheme).scheme === 'dark' ? 'material-darker' : 'eclipse'; }
+
+  function initEditor() {
+    return ensureEditorLibs().then(function () {
+      if (cm || !window.CodeMirror) return;
+      var ta = document.getElementById('orz-ta');
+      cm = window.CodeMirror.fromTextArea(ta, {
+        mode: 'markdown', theme: cmTheme(), lineNumbers: true, lineWrapping: true,
+        viewportMargin: Infinity,
+        extraKeys: { Enter: 'newlineAndIndentContinueMarkdownList' },
+      });
+      cm.on('change', function () {
+        aiHideAll();
+        if (suppressChange) return;
+        markDirty();
+        if (editingDeck) {
+          preamble = cm.getValue();
+          writeDeck();
+          scheduleRerenderAll();
+        } else {
+          slides[curIndex] = cm.getValue();
+          writeDeck();
+          scheduleRerender();
+        }
+      });
+      cm.on('cursorActivity', function () { aiRefresh(); });
+    });
+  }
+
+  function loadSlideIntoEditor(i) {
+    editingDeck = false;
+    curIndex = i;
+    if (!cm) return;
+    suppressChange = true;
+    cm.setValue(slides[i] != null ? slides[i] : '');
+    suppressChange = false;
+    updatePos();
+    setTimeout(function () { cm.refresh(); }, 0);
+  }
+  function updatePos() {
+    var el = document.getElementById('orz-pos');
+    if (!el) return;
+    el.textContent = editingDeck ? 'Deck config' : ((curIndex + 1) + ' / ' + slides.length);
+    var deckBtn = document.getElementById('orz-deck-btn');
+    if (deckBtn) deckBtn.classList.toggle('active', editingDeck);
+  }
+
+  function enterEdit() {
+    editing = true;
+    editingDeck = false;
+    root.setAttribute('data-mode', 'edit');
+    checkVersion(); // edit view only — broad viewers never see the update banner
+    initEditor().then(function () {
+      curIndex = curH();
+      loadSlideIntoEditor(curIndex);
+      if (API.reveal) API.reveal.layout();
+    });
+  }
+  // Load the <!-- deck --> preamble into the editor (theme/footer/ratio/title).
+  function editDeck() {
+    editing = true;
+    root.setAttribute('data-mode', 'edit');
+    initEditor().then(function () {
+      editingDeck = true;
+      suppressChange = true;
+      if (cm) cm.setValue(preamble);
+      suppressChange = false;
+      updatePos();
+      if (API.reveal) API.reveal.layout();
+      if (cm) setTimeout(function () { cm.refresh(); cm.focus(); }, 0);
+    });
+  }
+  function done() {
+    editing = false;
+    root.setAttribute('data-mode', 'present');
+    aiHideAll();
+    if (API.reveal) { API.reveal.layout(); API.refresh(); }
+  }
+
+  // Drag the panel's top edge to set the editor/deck height split (--orz-vsplit);
+  // the deck refits live (rAF-throttled) and on release.
+  function wireVDivider() {
+    var d = document.getElementById('orz-vdivider'); if (!d || d.__wired) return; d.__wired = true;
+    var dragging = false, rafPending = false;
+    d.addEventListener('mousedown', function (e) {
+      dragging = true; d.classList.add('dragging'); e.preventDefault();
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      var pct = Math.max(20, Math.min(80, ((window.innerHeight - e.clientY) / window.innerHeight) * 100));
+      root.style.setProperty('--orz-vsplit', pct + '%');
+      if (!rafPending) { rafPending = true; requestAnimationFrame(function () { rafPending = false; if (API.reveal) API.reveal.layout(); }); }
+    });
+    document.addEventListener('mouseup', function () {
+      if (!dragging) return;
+      dragging = false; d.classList.remove('dragging'); document.body.style.userSelect = '';
+      if (cm) cm.refresh(); if (API.reveal) API.reveal.layout();
+    });
+  }
+
+  // ---- deck ops ------------------------------------------------------------
+  function rebuildFrom(newSlides, focus) {
+    slides = newSlides;
+    writeDeck();
+    API.renderAll(renderSource());
+    markDirty();
+    setTimeout(function () {
+      gotoSlide(focus);
+      curIndex = focus;
+      if (editing) loadSlideIntoEditor(focus);
+      updatePos();
+    }, 30);
+  }
+  function addSlide() {
+    var s = slides.slice();
+    s.splice(curIndex + 1, 0, '<!-- slide -->\n## New slide\n\n');
+    rebuildFrom(s, curIndex + 1);
+  }
+  function dupSlide() {
+    var s = slides.slice();
+    s.splice(curIndex + 1, 0, slides[curIndex]);
+    rebuildFrom(s, curIndex + 1);
+  }
+  function delSlide() {
+    if (slides.length <= 1) { toast('Cannot delete the only slide'); return; }
+    var s = slides.slice();
+    s.splice(curIndex, 1);
+    rebuildFrom(s, Math.max(0, curIndex - 1));
+  }
+  function moveSlide(dir) {
+    var j = curIndex + dir;
+    if (j < 0 || j >= slides.length) return;
+    var s = slides.slice();
+    var tmp = s[curIndex]; s[curIndex] = s[j]; s[j] = tmp;
+    rebuildFrom(s, j);
+  }
+
+  // ---- theme ---------------------------------------------------------------
+  // Inline mode embeds every theme as a <style data-theme-css>; activate one by
+  // matching media. Returns false if no inline themes (CDN mode).
+  function applyInlineTheme(id) {
+    var blocks = document.querySelectorAll('style[data-theme-css]');
+    if (!blocks.length) return false;
+    for (var i = 0; i < blocks.length; i++) {
+      blocks[i].media = blocks[i].getAttribute('data-theme-css') === id ? 'all' : 'not all';
+    }
+    return true;
+  }
+  // Self-reproducing: a theme picked from the toolbar must land IN the source,
+  // not just the DOM — rewrite (or insert) the `theme:` line of the leading
+  // `<!-- deck ... -->` block so `fullSource()` always states the deck's actual
+  // theme, standalone and inside a host alike. No deck block yet → create a
+  // minimal one rather than silently dropping the pick.
+  function rewriteDeckTheme(id) {
+    var m = preamble.match(/^([ \t]*<!--\s*deck\b)([\s\S]*?)(-->)/);
+    if (!m) { preamble = '<!-- deck\ntheme: ' + id + '\n-->\n' + preamble; return; }
+    var head = m[1], body = m[2], tail = m[3];
+    var hasTheme = /(^|\n)[ \t]*theme[ \t]*:/.test(body);
+    var newBody = hasTheme
+      ? body.replace(/((^|\n)[ \t]*theme[ \t]*:)[^\n]*/, function (_, prefix) { return prefix + ' ' + id; })
+      : body.replace(/\n?$/, '\ntheme: ' + id + '\n');
+    preamble = preamble.slice(0, m.index) + head + newBody + tail + preamble.slice(m.index + m[0].length);
+  }
+  function setTheme(id) {
+    currentTheme = id;
+    root.setAttribute('data-theme', id);
+    if (!applyInlineTheme(id)) {
+      // CDN mode: swap the theme link (loads from jsDelivr).
+      var link = document.getElementById('orz-theme-override');
+      if (!link) {
+        link = document.createElement('link');
+        link.id = 'orz-theme-override'; link.rel = 'stylesheet';
+        document.head.appendChild(link);
+      }
+      link.href = themeById(id).href;
+    }
+    rewriteDeckTheme(id);
+    writeDeck();
+    if (editingDeck && cm) {
+      // The "deck settings" editor is open on this exact text — keep it in
+      // sync without re-triggering the change handler (already handled below).
+      suppressChange = true;
+      cm.setValue(preamble);
+      suppressChange = false;
+    }
+    if (cm) cm.setOption('theme', cmTheme());
+    markDirty();
+    if (API.reveal) setTimeout(function () { API.reveal.layout(); API.refresh(); }, 60);
+  }
+
+  // ---- dirty / save (self-reproducing) -------------------------------------
+  function markDirty() { if (!dirty) { dirty = true; root.setAttribute('data-dirty', '1'); hostPostDirty(true); } }
+  function clearDirty() { if (dirty) hostPostDirty(false); dirty = false; root.setAttribute('data-dirty', '0'); }
+
+  // ---- host embedding (orz-host-save@1) -------------------------------------
+  // When a platform embeds this file in an iframe and announces the
+  // orz-host-save protocol (spec: PROTOCOL.md in the orz-mdhtml repo), Save
+  // posts the document to the host instead of touching the file system. Never
+  // enabled without the host's hello; protocol messages are accepted only from
+  // window.parent, and after the handshake only from the recorded host origin.
+  // Message content is read as data, never evaluated. Export keeps working.
+  var HOST_PROTOCOL = 'orz-host-save';
+  var HOST_VERSION = 1;
+  var hostOrigin = null;    // recorded at handshake; null = unhosted
+  var hostSaveTimer = null; // watchdog for a save awaiting acknowledgement
+
+  function isHosted() { return hostOrigin !== null; }
+  // An opaque embedder (sandboxed/srcdoc host) serializes as the string 'null',
+  // which postMessage rejects as a targetOrigin — fall back to '*' (the payload
+  // contains nothing the host doesn't already have).
+  function hostTarget() { return hostOrigin && hostOrigin !== 'null' ? hostOrigin : '*'; }
+  function hostPost(msg) { try { window.parent.postMessage(msg, hostTarget()); } catch (e) {} }
+  function hostPostDirty(d) {
+    if (!isHosted()) return;
+    hostPost({ type: 'orz-host-dirty', protocol: HOST_PROTOCOL, version: HOST_VERSION, dirty: !!d });
+  }
+  function hostSave(src, html) {
+    if (hostSaveTimer) return; // one save in flight at a time
+    hostSaveTimer = setTimeout(function () {
+      hostSaveTimer = null;
+      toast('Save failed — no response from the host'); // document intact, still dirty
+    }, 10000);
+    hostPost({ type: 'orz-host-save', protocol: HOST_PROTOCOL, version: HOST_VERSION, source: src, html: html, theme: currentTheme });
+  }
+
+  // ---- host AI assistant (orz-host-ai@1) ------------------------------------
+  // When the host advertises AI operations, selecting text in the editor shows
+  // an "Improve selection" affordance; picking an op sends the passage to the
+  // host, which returns a suggested replacement to apply. File owns the UI; the
+  // host owns the model + governance. Additive — no host, no affordance.
+  var AI_PROTOCOL = 'orz-host-ai';
+  var AI_VERSION = 1;
+  var aiOps = null;      // advertised operations, or null when no AI host
+  var aiOrigin = null;   // recorded at the AI handshake
+  var aiSeq = 0;
+  var aiPending = {};    // requestId -> resolve
+  var aiTrigger = null;  // the floating "Improve selection" chip
+  var aiPanel = null;    // the menu / result popover
+  var aiRect = null;     // anchor rect {left,top,bottom} for the active popover
+
+  function aiTarget() { return aiOrigin && aiOrigin !== 'null' ? aiOrigin : '*'; }
+  function aiPost(msg) { try { window.parent.postMessage(msg, aiTarget()); } catch (e) {} }
+  function aiRequest(op, text, sel) {
+    return new Promise(function (resolve) {
+      var id = 'ai' + (++aiSeq);
+      aiPending[id] = resolve;
+      aiPost({ type: 'orz-host-ai-request', protocol: AI_PROTOCOL, version: AI_VERSION, requestId: id, op: op, text: text, selection: !!sel });
+      setTimeout(function () { if (aiPending[id]) { delete aiPending[id]; resolve({ ok: false, error: 'No response from the host.' }); } }, 30000);
+    });
+  }
+
+  function aiBox() {
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;z-index:80;background:Canvas;color:CanvasText;border:1px solid GrayText;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.28);font:13px system-ui,sans-serif;padding:4px;';
+    return b;
+  }
+  // Position `el` (already in the DOM, so it can be measured) just below the
+  // selection end; if it would overflow the bottom, flip it ABOVE the selection;
+  // if it fits neither, pin near the top and let it scroll. Clamp horizontally.
+  function aiSelRect() {
+    var to = cm.cursorCoords(cm.getCursor('to'), 'window');
+    var fr = cm.cursorCoords(cm.getCursor('from'), 'window');
+    return { left: to.left, top: fr.top, bottom: to.bottom };
+  }
+  function aiElRect(el) { var b = el.getBoundingClientRect(); return { left: b.left, top: b.top, bottom: b.bottom }; }
+  function aiPlace(el) {
+    if (!el) return;
+    var r = aiRect || (cm ? aiSelRect() : { left: 8, top: 8, bottom: 40 });
+    var w = el.offsetWidth || 240;
+    var h = el.offsetHeight || 40;
+    var left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+    var top = r.bottom + 6;
+    if (top + h > window.innerHeight - 8) {
+      var above = r.top - h - 6;
+      if (above >= 8) {
+        top = above;
+      } else {
+        top = 8;
+        el.style.maxHeight = (window.innerHeight - 16) + 'px';
+        el.style.overflowY = 'auto';
+      }
+    }
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+  function aiHidePanel() { if (aiPanel) { try { aiPanel.remove(); } catch (e) {} aiPanel = null; } }
+  function aiHideTrigger() { if (aiTrigger) { try { aiTrigger.remove(); } catch (e) {} aiTrigger = null; } }
+  function aiHideAll() { aiHidePanel(); aiHideTrigger(); }
+
+  // Open the ops menu anchored at `rect`, operating on `text` (a selection when
+  // isSel, else the whole editor buffer — the current slide or the deck config).
+  function aiOpen(rect, text, isSel) {
+    aiHideAll();
+    aiRect = rect;
+    aiPanel = aiBox();
+    aiOps.forEach(function (op) {
+      var btn = document.createElement('button');
+      btn.textContent = op.title;
+      btn.style.cssText = 'display:block;width:220px;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:6px 10px;border-radius:6px;cursor:pointer;';
+      btn.onmouseenter = function () { btn.style.background = 'rgba(127,127,127,.16)'; };
+      btn.onmouseleave = function () { btn.style.background = 'none'; };
+      btn.onclick = function () { aiRun(op, text, isSel); };
+      aiPanel.appendChild(btn);
+    });
+    document.body.appendChild(aiPanel);
+    aiPlace(aiPanel);
+  }
+
+  function aiRun(op, text, isSel) {
+    aiHideAll();
+    aiPanel = aiBox();
+    aiPanel.style.padding = '10px';
+    aiPanel.style.width = (isSel ? '340px' : '460px');
+    aiPanel.textContent = 'Thinking…';
+    document.body.appendChild(aiPanel);
+    aiPlace(aiPanel);
+    aiRequest(op.id, text, isSel).then(function (r) {
+      if (!aiPanel) return;
+      aiPanel.textContent = '';
+      if (!r.ok) { aiPanel.textContent = r.error || 'That didn’t work.'; aiPlace(aiPanel); return; }
+      var label = document.createElement('div');
+      label.textContent = isSel ? 'Suggested replacement — edit before applying'
+                                 : 'Suggested rewrite — edit before applying';
+      label.style.cssText = 'font-size:11px;opacity:.7;margin-bottom:4px;';
+      var ta = document.createElement('textarea');
+      ta.value = r.proposed || '';
+      ta.style.cssText = 'width:100%;height:' + (isSel ? '130px' : '240px') + ';box-sizing:border-box;font:12px ui-monospace,monospace;resize:vertical;';
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:flex-end;gap:6px;margin-top:6px;';
+      var cancel = document.createElement('button');
+      cancel.textContent = 'Cancel'; cancel.style.cssText = 'padding:4px 10px;cursor:pointer;';
+      cancel.onclick = aiHidePanel;
+      var apply = document.createElement('button');
+      apply.textContent = isSel ? 'Replace' : 'Replace all'; apply.style.cssText = 'padding:4px 10px;cursor:pointer;font-weight:600;';
+      apply.onclick = function () {
+        if (isSel) { cm.replaceSelection(ta.value); }
+        else { var c = cm.getCursor(); cm.setValue(ta.value); try { cm.setCursor(c); } catch (e) {} }
+        aiHidePanel(); markDirty();
+      };
+      row.appendChild(cancel); row.appendChild(apply);
+      aiPanel.appendChild(label); aiPanel.appendChild(ta); aiPanel.appendChild(row);
+      aiPlace(aiPanel);
+      ta.focus();
+    });
+  }
+
+  // Called on selection change: show the chip when there's a usable selection.
+  function aiRefresh() {
+    if (!aiOps || !aiOps.length || !cm || !editing) { aiHideAll(); return; }
+    if (aiPanel) return; // don't fight an open menu/result
+    var sel = cm.getSelection();
+    if (!sel || sel.trim().length < 2) { aiHideTrigger(); return; }
+    if (!aiTrigger) {
+      aiTrigger = document.createElement('button');
+      aiTrigger.textContent = '✦ Improve selection';
+      aiTrigger.style.cssText = 'position:fixed;z-index:78;background:Canvas;color:CanvasText;border:1px solid GrayText;border-radius:999px;font:12px system-ui,sans-serif;padding:4px 10px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.22);';
+      aiTrigger.onmousedown = function (e) { e.preventDefault(); }; // keep the cm selection
+      aiTrigger.onclick = function (e) { e.stopPropagation(); aiOpen(aiSelRect(), cm.getSelection(), true); };
+      document.body.appendChild(aiTrigger);
+    }
+    aiRect = aiSelRect();
+    aiPlace(aiTrigger);
+  }
+  document.addEventListener('mousedown', function (e) {
+    if (aiPanel && !aiPanel.contains(e.target)) aiHidePanel();
+  });
+
+  // ---- host-provided includes (orz-host-include@1) --------------------------
+  // When a host offers include resolution, `{{md-include URL}}` / `{{markdown
+  // URL}}` directives are resolved by the host (which owns the fetch + allowlist)
+  // and inlined into the PREVIEW render only. The deck source keeps the
+  // directive. STANDALONE (no host) the directives are left as-is — the file
+  // NEVER auto-fetches a URL. (See PROTOCOL.md.)
+  var INCLUDE_PROTOCOL = 'orz-host-include';
+  var INCLUDE_VERSION = 1;
+  var includeOrigin = null, includeSeq = 0, includePending = {}, includeCache = {}, includeInflight = {};
+  function includeTarget() { return includeOrigin && includeOrigin !== 'null' ? includeOrigin : '*'; }
+  function includePost(msg) { try { window.parent.postMessage(msg, includeTarget()); } catch (e) {} }
+  function includeRequest(url) {
+    return new Promise(function (resolve) {
+      var id = 'inc' + (++includeSeq);
+      includePending[id] = resolve;
+      includePost({ type: 'orz-host-include-request', protocol: INCLUDE_PROTOCOL, version: INCLUDE_VERSION, requestId: id, url: url });
+      setTimeout(function () { if (includePending[id]) { delete includePending[id]; resolve(null); } }, 30000);
+    });
+  }
+  function applyIncludes(src) {
+    if (!includeOrigin) return src;
+    return src.replace(/\{\{(?:markdown|md-include)\s+(https?:\/\/[^\s}]+)\}\}/g, function (whole, url) {
+      var v = includeCache[url]; return (typeof v === 'string') ? v : whole;
+    });
+  }
+  function ensureIncludes(src) {
+    if (!includeOrigin) return;
+    var re = /\{\{(?:markdown|md-include)\s+(https?:\/\/[^\s}]+)\}\}/g, m, seen = {};
+    while ((m = re.exec(src))) {
+      var url = m[1];
+      if (seen[url]) continue; seen[url] = true;
+      if (Object.prototype.hasOwnProperty.call(includeCache, url) || includeInflight[url]) continue;
+      includeInflight[url] = true;
+      (function (u) { includeRequest(u).then(function (md) { includeCache[u] = (typeof md === 'string') ? md : null; delete includeInflight[u]; scheduleIncludeRerender(); }); })(url);
+    }
+  }
+  // The source used for RENDERING (web includes inlined); save always uses the
+  // raw `fullSource()`, so the deck keeps its `{{md-include}}` directives.
+  function renderSource() { var s = fullSource(); ensureIncludes(s); return applyIncludes(s); }
+
+  // Re-render EVERY slide's content in place when an include resolves — update
+  // each <section>'s innerHTML without rebuilding the section list, so reveal.js
+  // keeps its slide count + current position (a full renderAll would reset them).
+  function rerenderAllInPlace() {
+    var deck = API.parseDeck(renderSource());
+    var secs = sections();
+    if (deck.slides.length !== secs.length) { API.renderAll(renderSource()); return; }
+    for (var i = 0; i < secs.length; i++) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = API.renderSlide(deck.slides[i], API.md, deck.config);
+      var fresh = tmp.firstElementChild;
+      if (fresh) secs[i].innerHTML = fresh.innerHTML;
+    }
+    try { API.reveal.sync(); } catch (e) {}
+    API.refresh();
+  }
+  var includeRerenderTimer = null;
+  function scheduleIncludeRerender() {
+    if (includeRerenderTimer) clearTimeout(includeRerenderTimer);
+    includeRerenderTimer = setTimeout(rerenderAllInPlace, 80);
+  }
+
+  function onHostMessage(event) {
+    // only the embedding parent may speak the protocol
+    if (window.parent === window || event.source !== window.parent) return;
+    var d = event.data;
+    if (!d || typeof d !== 'object') return;
+    // after the handshake, hold the parent to the origin it introduced itself with
+    if (isHosted() && hostOrigin !== 'null' && event.origin !== hostOrigin) return;
+    if (d.type === 'orz-host-hello' && d.protocol === HOST_PROTOCOL && typeof d.version === 'number' && d.version >= 1) {
+      hostOrigin = event.origin;
+      // reply with the highest version we support ≤ the host's (we speak only 1)
+      hostPost({ type: 'orz-host-ready', protocol: HOST_PROTOCOL, version: HOST_VERSION, kind: 'slides' });
+      if (dirty) hostPostDirty(true); // catch the host up on edits made pre-handshake
+    } else if (d.type === 'orz-host-saved' && hostSaveTimer) {
+      clearTimeout(hostSaveTimer); hostSaveTimer = null;
+      if (d.ok) { clearDirty(); toast('Saved'); }
+      else { toast('Save failed' + (d.error ? ' — ' + String(d.error) : '')); }
+    } else if (d.type === 'orz-host-ai-hello' && d.protocol === AI_PROTOCOL && Array.isArray(d.operations)) {
+      aiOrigin = event.origin;
+      aiOps = d.operations.filter(function (o) { return o && o.id && o.title; });
+      aiPost({ type: 'orz-host-ai-ready', protocol: AI_PROTOCOL, version: AI_VERSION });
+      // Reveal the toolbar's page-wide AI button — runs an op on the editor buffer.
+      var aiBtn = document.getElementById('orz-ai');
+      if (aiBtn && aiOps.length) {
+        aiBtn.style.display = '';
+        aiBtn.onclick = function () { if (cm) aiOpen(aiElRect(aiBtn), cm.getValue(), false); };
+      }
+    } else if (d.type === 'orz-host-ai-result' && d.requestId && aiPending[d.requestId]) {
+      var aiRes = aiPending[d.requestId]; delete aiPending[d.requestId];
+      aiRes({ ok: !!d.ok, proposed: d.proposed, error: d.error });
+    } else if (d.type === 'orz-host-include-hello' && d.protocol === INCLUDE_PROTOCOL && typeof d.version === 'number' && d.version >= 1) {
+      includeOrigin = event.origin;
+      includePost({ type: 'orz-host-include-ready', protocol: INCLUDE_PROTOCOL, version: INCLUDE_VERSION, kind: 'slides' });
+      scheduleIncludeRerender(); // request + render now that web includes can resolve
+    } else if (d.type === 'orz-host-include-result' && d.requestId && includePending[d.requestId]) {
+      var incRes = includePending[d.requestId]; delete includePending[d.requestId];
+      incRes(d.ok ? d.markdown : null);
+    }
+  }
+  // listen from script load so an early hello isn't missed
+  window.addEventListener('message', onHostMessage);
+
+  function serializeDoc() {
+    var clone = root.cloneNode(true);
+    var deckEl = clone.querySelector('#orz-deck');
+    if (deckEl) deckEl.textContent = '\n' + escapeSource(fullSource()) + '\n';
+    clone.setAttribute('data-mode', 'present');
+    clone.setAttribute('data-theme', currentTheme);
+    clone.removeAttribute('data-dirty');
+    // never bake in the (edit-only) update banner so a viewer can't see it
+    var ub = clone.querySelector('#orz-update'); if (ub) { ub.classList.remove('show'); ub.removeAttribute('data-latest'); }
+    // Reset reveal's rendered DOM so the reopened file re-renders from #orz-deck.
+    var reveal = clone.querySelector('.reveal');
+    if (reveal) { reveal.className = 'reveal'; reveal.innerHTML = '<div class="slides"></div>'; }
+    // Reset the live editor back to a clean textarea.
+    var ed = clone.querySelector('#orz-editor-host');
+    if (ed) ed.innerHTML = '<textarea id="orz-ta" spellcheck="false"></textarea>';
+    return '<!DOCTYPE html>\n' + clone.outerHTML + '\n';
+  }
+
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open('orz-slides', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('handles'); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbGet(key) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var t = db.transaction('handles', 'readonly');
+        var g = t.objectStore('handles').get(key);
+        g.onsuccess = function () { res(g.result || null); };
+        g.onerror = function () { rej(g.error); };
+      });
+    }).catch(function () { return null; });
+  }
+  function idbPut(key, val) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var t = db.transaction('handles', 'readwrite');
+        var p = t.objectStore('handles').put(val, key);
+        p.onsuccess = function () { res(); };
+        p.onerror = function () { rej(p.error); };
+      });
+    }).catch(function () {});
+  }
+  function pickAndStore() {
+    return window.showSaveFilePicker({
+      suggestedName: (CFG.filename || 'deck') + '.slides.html',
+      types: [{ description: 'Slides HTML', accept: { 'text/html': ['.slides.html', '.html'] } }],
+    }).then(function (h) { fileHandle = h; if (CFG.docId) idbPut(CFG.docId, h); return h; });
+  }
+  function acquireHandle() {
+    if (fileHandle) return Promise.resolve(fileHandle);
+    if (!CFG.docId) return pickAndStore();
+    return idbGet(CFG.docId).then(function (saved) {
+      if (!saved || !saved.queryPermission) return pickAndStore();
+      return saved.queryPermission({ mode: 'readwrite' }).then(function (p) {
+        if (p === 'granted') return saved;
+        return saved.requestPermission({ mode: 'readwrite' }).then(function (p2) {
+          return p2 === 'granted' ? saved : null;
+        });
+      }).then(function (h) { if (h) { fileHandle = h; return h; } return pickAndStore(); });
+    }).catch(function () { return pickAndStore(); });
+  }
+  function isServed() { return location.protocol === 'http:' || location.protocol === 'https:'; }
+
+  function save() {
+    if (cm) { slides[curIndex] = cm.getValue(); writeDeck(); }
+    var html = serializeDoc();
+    // A hosting platform (verified handshake) receives the save instead of the
+    // file system; the host acknowledges with orz-host-saved (see PROTOCOL.md).
+    if (isHosted()) { hostSave(fullSource(), html); return; }
+    if (isServed() && !fileHandle) { if (dirty) showServedNote(); return; }
+    if (window.showSaveFilePicker) {
+      acquireHandle()
+        .then(function (h) { return h.createWritable(); })
+        .then(function (w) { return Promise.resolve(w.write(html)).then(function () { return w.close(); }); })
+        .then(function () { clearDirty(); toast('Saved'); })
+        .catch(function (err) { if (err && err.name === 'AbortError') return; downloadFile(html); clearDirty(); toast('Saved a local copy'); });
+    } else {
+      downloadFile(html); clearDirty(); toast('Saved a local copy');
+    }
+  }
+  function downloadFile(text) {
+    var blob = new Blob([text], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = (CFG.filename || 'deck') + '.slides.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportCopy() {
+    if (cm) { slides[curIndex] = cm.getValue(); writeDeck(); }
+    downloadFile(serializeDoc()); toast('Downloaded a local copy');
+  }
+  function showServedNote() { var n = document.getElementById('orz-served-note'); if (n) n.classList.add('show'); }
+
+  // ---- version check -------------------------------------------------------
+  function isNewer(a, b) {
+    var pa = String(a).split('.'), pb = String(b).split('.');
+    for (var i = 0; i < 3; i++) {
+      var x = parseInt(pa[i], 10) || 0, y = parseInt(pb[i], 10) || 0;
+      if (x > y) return true; if (x < y) return false;
+    }
+    return false;
+  }
+  // SECURITY: the update source is HARDCODED here, never read from the file's
+  // config — a tampered/forged file cannot redirect "Update" to attacker code.
+  // Host is fixed to jsDelivr/HTTPS; the exact URLs are confirmed with the user.
+  // (Protects genuine files; a wholly-malicious file controls this code too — see
+  // the README security note. Clicking Update trusts npm + jsDelivr.)
+  var UPD = {
+    host: 'https://cdn.jsdelivr.net/npm/',
+    manifest: 'https://data.jsdelivr.com/v1/packages/npm/orz-slides-browser/resolved',
+    enginePkg: 'orz-slides-browser', engineFile: 'orz-slides.browser.js', appPkg: 'orz-slides'
+  };
+  function checkVersion() {
+    if (!CFG.rendererVersion) return;
+    try {
+      var cached = JSON.parse(localStorage.getItem('orz-slides:vercheck') || 'null');
+      if (cached && (Date.now() - cached.t) < 86400000) {
+        if (cached.v && isNewer(cached.v, CFG.rendererVersion)) showUpdate(cached.v);
+        return;
+      }
+    } catch (e) {}
+    fetch(UPD.manifest).then(function (r) { return r.json(); }).then(function (j) {
+      var latest = j && j.version;
+      try { localStorage.setItem('orz-slides:vercheck', JSON.stringify({ t: Date.now(), v: latest })); } catch (e) {}
+      if (latest && isNewer(latest, CFG.rendererVersion)) showUpdate(latest);
+    }).catch(function () {});
+  }
+  function showUpdate(latest) {
+    var bar = document.getElementById('orz-update'); if (!bar) return;
+    bar.querySelector('.upd-text').textContent = 'Framework ' + latest + ' available (file uses ' + CFG.rendererVersion + ').';
+    bar.setAttribute('data-latest', latest);
+    bar.classList.add('show');
+  }
+  /** One-click update: re-fetch the engine bundle + app.js at the latest version,
+   *  re-inline them, bump the version, save in place, and reload. */
+  function applyUpdate() {
+    var bar = document.getElementById('orz-update'); var latest = bar && bar.getAttribute('data-latest'); if (!latest) return;
+    var engineUrl = UPD.host + UPD.enginePkg + '@' + latest + '/' + UPD.engineFile;
+    var appUrl = UPD.host + UPD.appPkg + '@' + latest + '/assets/app.js';
+    if (!window.confirm('Update the framework to ' + latest + '?\n\nThis downloads and runs code from:\n  ' + engineUrl + '\n  ' + appUrl + '\n\nOnly proceed if you trust this document and its publisher.')) return;
+    toast('Downloading framework ' + latest + '…');
+    Promise.all([
+      fetch(engineUrl).then(function (r) { if (!r.ok) throw new Error('engine'); return r.text(); }),
+      fetch(appUrl).then(function (r) { if (!r.ok) throw new Error('app'); return r.text(); }),
+    ]).then(function (res) {
+      var es = document.querySelector('script[data-orz-asset="engine"]');
+      if (es) { if (es.getAttribute('src')) es.setAttribute('src', engineUrl); else es.textContent = res[0]; }
+      var as = document.querySelector('script[data-orz-asset="app"]');
+      if (as) as.textContent = res[1];
+      var cs = document.querySelector('script[data-orz-asset="config"]');
+      if (cs) { CFG.version = latest; CFG.rendererVersion = latest; cs.textContent = 'window.__ORZ_SLIDES__ = ' + JSON.stringify(CFG) + ';'; }
+      bar.classList.remove('show');
+      var html = serializeDoc();
+      if (isServed() && !fileHandle) { showServedNote(); return; }
+      if (window.showSaveFilePicker) {
+        return acquireHandle()
+          .then(function (h) { return h.createWritable(); })
+          .then(function (w) { return Promise.resolve(w.write(html)).then(function () { return w.close(); }); })
+          .then(function () { toast('Updated to ' + latest + ' — reloading…'); setTimeout(function () { location.reload(); }, 700); });
+      }
+      downloadFile(html); toast('Updated copy downloaded — reopen it to use the new framework.');
+    }).catch(function () { toast('Update failed — check your connection.'); });
+  }
+
+  // ---- toast ---------------------------------------------------------------
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById('orz-toast'); if (!t) return;
+    t.textContent = msg; t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  // Position the edit control just above reveal's left/right arrows, centered on
+  // the cluster — it reads as part of the controls. Kept in sync on nav/resize.
+  // (reveal's .controls box is a 0-size anchor, so we measure the arrows.)
+  function positionEditCtrl() {
+    var btn = document.getElementById('orz-edit-fab');
+    if (!btn) return;
+    var left = document.querySelector('.reveal .controls .navigate-left');
+    var right = document.querySelector('.reveal .controls .navigate-right');
+    if (!left || !right) return;
+    var lr = left.getBoundingClientRect(), rr = right.getBoundingClientRect();
+    if (!lr.width && !rr.width) return; // controls hidden → keep the corner default
+    // Bottom-left corner, vertically centered on the arrow row.
+    var rowCenterY = (lr.top + lr.height / 2 + rr.top + rr.height / 2) / 2;
+    btn.style.left = '24px';
+    btn.style.top = (rowCenterY - btn.offsetHeight / 2) + 'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+
+  // ---- layout picker -------------------------------------------------------
+  // Tiny SVG thumbnails (currentColor) + the markdown skeleton each layout inserts.
+  function lsvg(inner) {
+    return '<svg viewBox="0 0 64 40" fill="none" aria-hidden="true">' +
+      '<rect x="1.5" y="1.5" width="61" height="37" rx="3" stroke="currentColor" stroke-opacity="0.4"/>' + inner + '</svg>';
+  }
+  function lbox(x, y, w, h) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-opacity="0.3"/>';
+  }
+  function lbar(x, y, w, h, op) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1" fill="currentColor" fill-opacity="' + (op == null ? 0.5 : op) + '"/>';
+  }
+  function lrow(y, w) { return '<circle cx="9" cy="' + (y + 1.5) + '" r="1.4" fill="currentColor" fill-opacity="0.5"/>' + lbar(13, y, w, 3, 0.3); }
+
+  var LAYOUTS = [
+    { key: 'title', name: 'Title', thumb: lsvg(lbar(16, 15, 32, 6) + lbar(22, 25, 20, 3, 0.28)),
+      md: '<!-- slide template=title -->\n# Title\n## Subtitle\nAuthor · Date\n' },
+    { key: 'section', name: 'Section', thumb: lsvg(lbar(8, 16, 32, 7) + lbar(8, 27, 16, 3, 0.28)),
+      md: '<!-- slide template=section -->\n# Section title\nOptional subtitle\n' },
+    { key: 'bullets', name: 'Bullets', thumb: lsvg(lbar(7, 7, 24, 4) + lrow(16, 44) + lrow(23, 44) + lrow(30, 34)),
+      md: '<!-- slide -->\n## Slide title\n\n- Point one\n- Point two\n- Point three\n' },
+    { key: '2col', name: 'Two columns', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 25, 21) + lbox(33, 13, 25, 21)),
+      md: '<!-- slide 2col -->\n## Slide title\n\n<!-- @left -->\n\n\n<!-- @right -->\n\n' },
+    { key: 'main-side', name: 'Main + side', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 34, 21) + lbox(42, 13, 16, 21)),
+      md: '<!-- slide main-side -->\n## Slide title\n\n<!-- @main -->\n\n\n<!-- @side -->\n\n' },
+    { key: '3col', name: 'Three columns', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 16, 21) + lbox(24, 13, 16, 21) + lbox(42, 13, 16, 21)),
+      md: '<!-- slide 3col -->\n## Slide title\n\n<!-- @left -->\n\n\n<!-- @mid -->\n\n\n<!-- @right -->\n\n' },
+    { key: '2row', name: 'Two rows', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 52, 10) + lbox(6, 25, 52, 10)),
+      md: '<!-- slide 2row -->\n## Slide title\n\n<!-- @top -->\n\n\n<!-- @bottom -->\n\n' },
+    { key: 'quad', name: 'Quad (2×2)', thumb: lsvg(lbar(6, 6, 30, 4) + lbox(6, 13, 25, 10) + lbox(33, 13, 25, 10) + lbox(6, 25, 25, 10) + lbox(33, 25, 25, 10)),
+      md: '<!-- slide quad -->\n## Slide title\n\n<!-- @tl -->\n\n\n<!-- @tr -->\n\n\n<!-- @bl -->\n\n\n<!-- @br -->\n\n' },
+    { key: 'outline', name: 'Outline', thumb: lsvg(lbar(8, 7, 22, 4) + lbar(10, 16, 40, 3, 0.32) + lbar(10, 23, 40, 3, 0.32) + lbar(10, 30, 30, 3, 0.32)),
+      md: '<!-- slide template=outline -->\n## Outline\n\n1. First topic\n2. Second topic\n3. Third topic\n' },
+    { key: 'closing', name: 'Closing', thumb: lsvg(lbar(18, 16, 28, 6) + lbar(24, 26, 16, 3, 0.28)),
+      md: '<!-- slide template=closing -->\n# Thank you\nQuestions? · your.contact\n' },
+  ];
+  function layoutByKey(k) { for (var i = 0; i < LAYOUTS.length; i++) if (LAYOUTS[i].key === k) return LAYOUTS[i]; return null; }
+
+  function buildLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu'); if (!menu) return;
+    menu.innerHTML = LAYOUTS.map(function (l) {
+      return '<button class="orz-layout-tile" type="button" role="menuitem" data-layout="' + l.key + '" title="' + l.name + '">' + l.thumb + '<span class="lname">' + l.name + '</span></button>';
+    }).join('') +
+      '<a class="orz-layout-more" href="https://markdown.orz.how/slides.html" target="_blank" rel="noopener noreferrer">More layouts &amp; syntax →</a>';
+    menu.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('.orz-layout-more')) { closeLayoutMenu(); return; }
+      var t = e.target.closest ? e.target.closest('.orz-layout-tile') : null;
+      if (!t) return;
+      applyLayout(t.getAttribute('data-layout'));
+      closeLayoutMenu();
+    });
+  }
+  function openLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu'), btn = document.getElementById('orz-layout-btn');
+    if (!menu || !btn) return;
+    menu.hidden = false;
+    var r = btn.getBoundingClientRect(), w = menu.offsetWidth || 320, h = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+    menu.style.top = (r.bottom + h + 8 <= window.innerHeight ? r.bottom + 4 : Math.max(8, r.top - h - 4)) + 'px';
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  function closeLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu'), btn = document.getElementById('orz-layout-btn');
+    if (menu) menu.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleLayoutMenu() {
+    var menu = document.getElementById('orz-layout-menu');
+    if (menu && menu.hidden) openLayoutMenu(); else closeLayoutMenu();
+  }
+  // Apply a layout to the current slide. New/empty slide → drop the skeleton in;
+  // a slide with content → keep the skeleton and tuck the old content into an
+  // HTML comment (with any nested "-->" neutralised) so it can be copy-pasted.
+  function applyLayout(key) {
+    var l = layoutByKey(key); if (!l || !cm) return;
+    if (editingDeck) { toast('Switch to a slide to apply a layout'); return; }
+    var src = cm.getValue();
+    var m = src.match(/^[ \t]*<!--\s*slide\b[^]*?-->[ \t]*\r?\n?/);
+    var body = m ? src.slice(m[0].length) : src;
+    var trimmed = body.replace(/^\s+|\s+$/g, '');
+    var isEmpty = trimmed === '' || /^##\s+new slide$/i.test(trimmed);
+    var next;
+    if (isEmpty) {
+      next = l.md;
+    } else {
+      var safe = body.replace(/-->/g, '--​>').replace(/\s+$/, '');
+      next = l.md.replace(/\s+$/, '') +
+        '\n\n<!--\nPrevious content — move it into the regions above, then delete this block.\n\n' +
+        safe + '\n-->\n';
+    }
+    cm.setValue(next);
+    cm.focus();
+    markDirty();
+  }
+
+  // ---- wiring --------------------------------------------------------------
+  function on(id, ev, fn) { var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
+  function navTo(i) { editingDeck = false; gotoSlide(i); }
+  function wireUi() {
+    on('orz-edit-fab', 'click', enterEdit);
+    on('orz-close', 'click', done);
+    wireVDivider();
+    on('orz-deck-btn', 'click', function () { if (editingDeck) loadSlideIntoEditor(curH()); else editDeck(); });
+    on('orz-save', 'click', save);
+    on('orz-download', 'click', exportCopy);
+    on('orz-add', 'click', addSlide);
+    on('orz-dup', 'click', dupSlide);
+    on('orz-del', 'click', delSlide);
+    on('orz-up', 'click', function () { moveSlide(-1); });
+    on('orz-down', 'click', function () { moveSlide(1); });
+    on('orz-prev', 'click', function () { navTo(curIndex - 1); });
+    on('orz-next', 'click', function () { navTo(curIndex + 1); });
+    on('orz-served-download', 'click', function () { exportCopy(); var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
+    on('orz-served-dismiss', 'click', function () { var n = document.getElementById('orz-served-note'); if (n) n.classList.remove('show'); });
+    on('orz-upd-dismiss', 'click', function () { var u = document.getElementById('orz-update'); if (u) u.classList.remove('show'); });
+    on('orz-upd-apply', 'click', applyUpdate);
+    var sel = document.getElementById('orz-theme');
+    if (sel) sel.addEventListener('change', function () { setTheme(this.value); });
+
+    buildLayoutMenu();
+    on('orz-layout-btn', 'click', function (e) { e.stopPropagation(); toggleLayoutMenu(); });
+    document.addEventListener('click', function (e) {
+      var menu = document.getElementById('orz-layout-menu');
+      if (!menu || menu.hidden || menu.contains(e.target)) return;
+      var btn = document.getElementById('orz-layout-btn');
+      if (btn && (e.target === btn || btn.contains(e.target))) return;
+      closeLayoutMenu();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 's') { e.preventDefault(); save(); }
+      else if (e.key === 'Escape') {
+        var menu = document.getElementById('orz-layout-menu');
+        if (menu && !menu.hidden) closeLayoutMenu();
+        else if (editing) done();
+      }
+    });
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
+  // ---- boot ----------------------------------------------------------------
+  function boot() {
+    if (!API) return; // engine bundle missing
+    currentTheme = root.getAttribute('data-theme') || CFG.defaultTheme;
+    var sel = document.getElementById('orz-theme');
+    if (sel) {
+      var opts = (CFG.themes || []).map(function (t) { return '<option value="' + t.id + '">' + t.name + '</option>'; }).join('');
+      sel.innerHTML = opts; sel.value = currentTheme;
+    }
+    // The deck's <!-- deck theme: --> may differ from the file's data-theme; if a
+    // saved override link exists it already wins. Keep currentTheme in sync.
+    if (root.getAttribute('data-theme') && root.getAttribute('data-theme') !== currentTheme) currentTheme = root.getAttribute('data-theme');
+    applyInlineTheme(currentTheme); // assert the active inline theme on load
+
+    function start() {
+      loadParts();
+      writeDeck();
+      updatePos();
+      positionEditCtrl();
+      if (API.reveal && API.reveal.on) {
+        API.reveal.on('slidechanged', function () {
+          curIndex = curH();
+          if (editing && !editingDeck) loadSlideIntoEditor(curIndex);
+          updatePos();
+          positionEditCtrl();
+        });
+      }
+      window.addEventListener('resize', function () { setTimeout(positionEditCtrl, 80); });
+      [300, 900].forEach(function (t) { setTimeout(positionEditCtrl, t); });
+    }
+    // The engine mounts on DOMContentLoaded too; wait until reveal exists.
+    if (API.reveal) start();
+    else {
+      var tries = 0;
+      var iv = setInterval(function () {
+        if (API.reveal || tries++ > 100) { clearInterval(iv); start(); }
+      }, 30);
+    }
+    wireUi();
+    // version check runs on entering edit (edit view only), not on load
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
+</body>
+</html>
