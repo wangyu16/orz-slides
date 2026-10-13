@@ -125,3 +125,70 @@ chrome('the print document (real Chrome)', () => {
     await ctx.close();
   });
 });
+
+/** In a print document: every box (and the notes area) shows all its text, or says data-clipped. */
+async function printOracle(html: string, name: string): Promise<{ silent: string[]; clipped: string[]; scales: string[]; notesScales: string[]; mark: string[] }> {
+  const path = join(dir, name);
+  writeFileSync(path, html, 'utf8');
+  const ctx = await browser!.newContext();
+  await ctx.route('**/*', (r) => (r.request().url().startsWith('file:') ? r.continue() : r.abort()));
+  const p = await ctx.newPage();
+  await p.goto(`file://${path}`);
+  const r = await p.evaluate(() => {
+    const silent: string[] = [];
+    const clipped: string[] = [];
+    for (const box of Array.from(document.querySelectorAll<HTMLElement>('.orz-box, .orz-print-notes'))) {
+      const page = box.closest('.orz-page')!;
+      const where = `page ${Array.from(document.querySelectorAll('.orz-page')).indexOf(page) + 1} ${box.className}`;
+      if (box.hasAttribute('data-clipped')) { clipped.push(where); continue; }
+      const c = box.getBoundingClientRect();
+      const pr = page.getBoundingClientRect();
+      const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (!n.textContent?.trim() || (n.parentElement && n.parentElement.closest('.katex-mathml, svg'))) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const t of Array.from(range.getClientRects())) {
+          if (t.width === 0) continue;
+          const out = t.bottom > Math.min(c.bottom, pr.bottom) + 8 || t.top < c.top - 8 || t.right > c.right + 8;
+          if (out) { silent.push(`${where}: "${n.textContent.trim().slice(0, 30)}"`); break; }
+        }
+      }
+    }
+    return {
+      silent, clipped,
+      scales: Array.from(document.querySelectorAll('.orz-page > section.orz-slide')).map((s) => s.getAttribute('data-fit') ?? ''),
+      notesScales: Array.from(document.querySelectorAll('.orz-print-notes')).map((n) => n.getAttribute('data-scale') ?? ''),
+      mark: Array.from(document.querySelectorAll('.orz-print-notes[data-clipped]')).map((n) => getComputedStyle(n, '::after').content),
+    };
+  });
+  await ctx.close();
+  return r;
+}
+
+chrome('round A: print never cuts silently (real Chrome)', () => {
+  it('[Q.4] ENG-3: a fit=scroll slide is fitted on paper — scaled, else marked clipped — never a box that scrolls with its end cut', async () => {
+    const { page, ctx } = await openDeck(browser!, join(dir, 'scroll.slides.html'), assemble(readFileSync('tests/fixtures/settle/scroll.slides.md', 'utf8')));
+    const doc = await printHtml(page);
+    const r = await printOracle(doc.html, 'scroll-print.html');
+    expect(r.silent).toEqual([]);
+    expect(r.scales.every((f) => f !== 'scroll')).toBe(true);
+    expect(doc.html).not.toMatch(/data-scroll=""/);
+    await ctx.close();
+  });
+
+  it('[Q.4] ENG-4: long speaker notes are fitted on a notes page — set smaller, and at the floor marked clipped, visibly — never cut silently', async () => {
+    const notes = readFileSync('tests/fixtures/settle/notes.slides.md', 'utf8');
+    const script = notes.slice(notes.indexOf('<!-- @notes -->') + '<!-- @notes -->'.length).trim();
+    const long = `${notes}\n<!-- slide -->\n## A slide with a very long script\n- one point\n\n<!-- @notes -->\n${`${script}\n\n`.repeat(4)}`;
+    const { page, ctx } = await openDeck(browser!, join(dir, 'notes.slides.html'), assemble(long));
+    const doc = await printHtml(page, true);
+    const r = await printOracle(doc.html, 'notes-print.html');
+    expect(r.silent).toEqual([]);
+    // the ~350-word script is set smaller and shows to its last sentence; four times that is marked, on the page
+    expect(Number(r.notesScales[0])).toBeLessThan(1);
+    expect(r.clipped).toEqual(['page 2 orz-print-notes']);
+    expect(r.mark[0]).toMatch(/notes go on/);
+    await ctx.close();
+  });
+});

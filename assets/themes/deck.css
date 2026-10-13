@@ -115,6 +115,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) img { box-sizing: border-box; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
 .reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) > a { display: contents; }
 .reveal .orz-region > .markdown-body > div.mermaid > svg { max-height: 100%; max-width: 100% !important; height: auto; }
+/* a diagram is laid out as a block until it is drawn: Mermaid draws into a box inside it and measures that
+   box's width (a gantt chart in a flex item fell back to 300 px and its axis labels overprinted: TK-2) */
+.reveal .orz-region > .markdown-body > div.mermaid:not(:has(> svg)) { display: block !important; }
 
 /* code and tables never scroll on a slide: they wrap, fit scales them, else they are marked clipped */
 .reveal .orz-slide:not([data-fit="scroll"]) .markdown-body pre { overflow: hidden; }
@@ -138,6 +141,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 /* charts: the frame follows the box's width (the kit caps it at --chart-max-width), at a slide's aspect
    (--chart-aspect, read by the kit), and never taller than 13em — sized in em, so fit scales it too */
 .reveal .orz-slide { --chart-aspect: 1.6; --chart-max-width: min(100%, 20.8em); }
+/* the canvas follows its frame in CSS at once (its bitmap keeps its aspect): while fit tries a scale the chart
+   takes that scale's size, so the fit measures what will be drawn (Chart.js redraws the bitmap later; ENG-1) */
+.reveal .markdown-body .orz-chart-frame > canvas { width: 100% !important; height: auto !important; }
 /* Chart.js and Mermaid text at a slide's size (logical px; a theme sets its own), and Mermaid's labels as
    SVG text everywhere in a deck (reveal scales the slides with a transform, under which HTML labels
    measure wrong; the print document draws the same) — orz-markdown 2.4.0 tokens */
@@ -222,7 +228,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   pointer-events: auto;
 }
 .reveal .orz-footer .markdown-body { margin: 0; padding: 0; font: inherit; color: inherit; letter-spacing: inherit; background: none; min-width: 0; }
-.reveal .orz-footer .markdown-body p { margin: 0; padding: 0; overflow: hidden; text-overflow: ellipsis; }
+/* the footer is ONE line, ellipsized when long (a theme's `text-wrap: pretty` on p reset the inherited nowrap: TK-4) */
+.reveal .orz-footer .markdown-body { max-width: 100%; overflow: hidden; }
+.reveal .orz-footer .markdown-body > * { margin: 0; padding: 0; white-space: nowrap; text-wrap-mode: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .reveal .orz-chrome-num {
   position: absolute;
   right: var(--sl-pad-x);
@@ -266,8 +274,14 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal.orz-print.orz-with-notes .orz-page { height: var(--sl-page-h); }
 .reveal.orz-print .orz-print-notes {
   box-sizing: border-box; height: calc(var(--sl-page-h) - var(--sl-h)); padding: 28px var(--sl-pad-x, 72px);
-  border-top: 2px solid #c9c9c4; background: #fff; color: #1d1d1b; overflow: hidden;
+  border-top: 2px solid #c9c9c4; background: #fff; color: #1d1d1b; overflow: hidden; position: relative;
   font: 22px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* fitted like a box (ENG-4): long notes are set smaller, to the floor, then marked */
+  font-size: calc(22px * var(--fit-scale, 1));
+}
+.reveal.orz-print .orz-print-notes[data-clipped]::after {
+  content: '… the notes go on past this page'; position: absolute; right: var(--sl-pad-x, 72px); bottom: 6px;
+  padding: 0 0 0 1em; background: #fff; color: #9b2c2c; font: italic 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 .reveal.orz-print .orz-print-notes .orz-print-notes-head { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: #77776f; margin: 0 0 10px; }
 .reveal.orz-print .orz-print-notes > .notes-body > :first-child { margin-top: 0; }

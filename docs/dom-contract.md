@@ -24,7 +24,7 @@ window. The engine sets `--sl-w` / `--sl-h` on the deck root.
 |---|---|---|
 | Read view (the page) | `#orz-view.orz-slides > .reveal.orz-deck[data-orz-theme]` | `.slides > section.orz-slide` (reveal.js positions them) |
 | Print document | `.reveal.orz-deck.orz-print[.orz-with-notes]` | `.orz-page > section.orz-slide` (+ `.orz-print-notes`) |
-| Speaker view stages | `.reveal.orz-deck.orz-print` (scaled) | `.orz-page > section.orz-slide` |
+| Speaker view stages | `.reveal.orz-deck.orz-print[data-orz-theme]` (scaled) | `.orz-page > section.orz-slide` — static copies from the print pipeline (canvases frozen to images, fitted) |
 
 A theme selects with the `.reveal` prefix (`.reveal .orz-slide …`), so the
 same rules style the read view, the print document and the speaker view.
@@ -94,10 +94,11 @@ current item `li.orz-here[aria-current=step]`.
 | `.fragment` | step units | `step` slides: each top-level list item and every other top-level block of a region |
 | `.orz-qr-slot` | closing template | a lone `{{qr}}` lifted out of the text |
 | `--fit-scale` | `.orz-box` | the box's font scale (absent = 1) |
-| `data-scale` | `.orz-box` | `1` or the scale (two decimals) — always set once fitted |
+| `data-scale` | `.orz-box` | `1` or the scale (two decimals; `1` when it rounds to 1) — always set once fitted |
 | `data-clipped` | `.orz-box` | content is cut (at the floor, or `fit=off`) |
 | `data-scroll` | `.orz-box` | `fit=scroll` and the content scrolls |
-| `data-fitted` | section | fit has run on it |
+| `data-fitted` | section | fit has run on it (a provisional pass: content may still arrive) |
+| `data-fit-settled` | section | its fit is final: the fonts, the content libraries, its images and stylesheets are in, its diagrams drawn, a frame passed with nothing to refit (`timeout`: 10 s passed first). With it the deck root fires `orz-fitted` (`detail: { index, timeout }`); `engine.settled()` resolves. Tests, agents and the editor's badges wait for this, never for `data-fitted` |
 
 ## 4. Fit
 
@@ -111,7 +112,20 @@ it that clips or scrolls its content (a wide table or code block). Pictures
 and diagrams in a region take the room left (`flex: 1 1 0`, at least
 `--sl-graphic-min`); molecules and charts are sized in `em`, so fit scales
 them. Fit runs on the visible slide only (and on every page of the print
-document).
+document and of the speaker view's copies), and it SETTLES: the slide's
+content is drawn at its size before its first fit, and one
+ResizeObserver over its box contents plus a MutationObserver for what is
+drawn into them later (a chart's frame, a Mermaid SVG) refit it when its
+content changes size; fonts, stylesheets and images that finish loading do
+too. A chart's canvas follows its frame in CSS (`.orz-chart-frame > canvas
+{ width: 100%; height: auto }`), so the size a trial scale gives is what is
+drawn. The search guesses √(overflow ratio) and brackets the answer to
+0.01; a refit starts from the box's last scale for that theme and size.
+
+On paper and in the speaker view nothing scrolls: a `fit=scroll` slide is
+fitted there like any other; the print document's notes area
+(`.orz-print-notes`) is fitted the same way (font size `calc(22px *
+var(--fit-scale))`) and, cut at the floor, says so on the page.
 
 Boxes clip with `overflow: clip; overflow-clip-margin: 6px` (deck.css):
 nothing scrolls a box, and the glyphs of a big first or last line may stand

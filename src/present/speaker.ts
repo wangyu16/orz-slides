@@ -7,7 +7,15 @@
  * document and updates it directly on every slide or fragment change; keys
  * pressed there drive the deck (the same keys as the read view). Nothing is
  * exchanged by messages, and nothing of the speaker view is saved.
+ *
+ * The slides it shows are STATIC copies made by the print pipeline
+ * (closed-loop round A, ENG-5/6/8: `buildStaticDeck` — charts and molecules
+ * frozen to images, every copy fitted, the next slide included); until they
+ * are built a copy of the live slide stands in, its drawn canvases copied as
+ * images and fitted in the speaker window. The page's stylesheets are synced
+ * into the window on every update (a Theme switch shows there too).
  */
+import { fitSlide } from './fit.js';
 
 /** The elapsed-time clock both views show. */
 export class PresenterClock {
@@ -51,6 +59,8 @@ export interface SpeakerSource {
   key(e: KeyboardEvent): void;
   /** The deck's title (the window's title). */
   title(): string;
+  /** The static copy of slide `i` (its section's HTML, enhanced and fitted), when built. */
+  copy?(i: number): string | null;
 }
 
 const SPEAKER_CSS = [
@@ -96,8 +106,9 @@ export class SpeakerView {
     d.write('<!doctype html><html><head><meta charset="utf-8"><title></title></head><body></body></html>');
     d.close();
     d.title = `Speaker view — ${this.src.title()}`;
-    for (const el of this.src.styles()) d.head.appendChild(d.importNode(el, true));
+    this.syncStyles();
     const style = d.createElement('style');
+    style.setAttribute('data-sv-own', '');
     style.textContent = SPEAKER_CSS;
     d.head.appendChild(style);
     d.body.innerHTML = '<div class="sv-top"><div class="sv-clock" data-sv="clock">--:--:--</div>'
@@ -144,14 +155,79 @@ export class SpeakerView {
     set('toggle', this.clock.running ? 'Pause' : 'Start');
   }
 
-  /** A static, fully revealed copy of a slide, scaled into a stage. */
-  private stage(el: Element | null, section: HTMLElement | null): void {
+  /**
+   * The page's stylesheets in the speaker window, kept in step (ENG-8): each
+   * copy (`data-sv-style`) follows its source — the same id, text, href and
+   * media — new ones are added, gone ones removed. Before the window's own
+   * style, so the speaker layout wins.
+   */
+  private syncStyles(): void {
+    if (!this.isOpen()) return;
+    const d = this.win!.document;
+    const own = d.head.querySelector('style[data-sv-own]');
+    const have = Array.from(d.head.querySelectorAll<HTMLElement>('[data-sv-style]'));
+    const keep = new Set<Element>();
+    this.src.styles().forEach((src, i) => {
+      const key = src.id ? `#${src.id}` : `${src.tagName}:${src.getAttribute('href') ?? i}`;
+      let copy = have.find((c) => c.getAttribute('data-sv-style') === key && c.tagName === src.tagName) ?? null;
+      if (!copy) {
+        copy = d.importNode(src, true) as HTMLElement;
+        copy.setAttribute('data-sv-style', key);
+        d.head.insertBefore(copy, own);
+      } else {
+        if (src.tagName === 'STYLE' && copy.textContent !== src.textContent) copy.textContent = src.textContent;
+        for (const a of ['href', 'media', 'data-theme', 'data-theme-css']) {
+          const v = src.getAttribute(a);
+          if (v === null) copy.removeAttribute(a);
+          else if (copy.getAttribute(a) !== v) copy.setAttribute(a, v);
+        }
+      }
+      keep.add(copy);
+    });
+    for (const c of have) if (!keep.has(c)) c.remove();
+  }
+
+  /** A static, fully revealed copy of a slide, scaled into a stage: the built copy, else the live slide's. */
+  private stage(el: Element | null, section: HTMLElement | null, copy: string | null): void {
     if (!el) return;
     const d = el.ownerDocument;
     const { width, height } = this.src.size();
     el.textContent = '';
     if (!section) { el.innerHTML = '<div class="sv-end">— End —</div>'; (el as HTMLElement).style.height = `${Math.round(height * ((el as HTMLElement).clientWidth / width))}px`; return; }
-    const clone = d.importNode(section, true) as HTMLElement;
+    const root = d.createElement('div');
+    root.className = 'reveal orz-deck orz-print';
+    const theme = section.closest('[data-orz-theme]')?.getAttribute('data-orz-theme');
+    if (theme) root.setAttribute('data-orz-theme', theme);
+    root.style.cssText = `--sl-w:${width}px;--sl-h:${height}px;width:${width}px;`;
+    const page = d.createElement('div');
+    page.className = 'orz-page';
+    root.appendChild(page);
+    let clone: HTMLElement | null = null;
+    if (copy) {
+      page.innerHTML = copy;
+      clone = page.querySelector<HTMLElement>(':scope > section');
+    }
+    if (!clone) {
+      // the live slide, its drawn canvases as images (a DOM copy carries no pixels: ENG-5)
+      clone = d.importNode(section, true) as HTMLElement;
+      const live = Array.from(section.querySelectorAll('canvas'));
+      Array.from(clone.querySelectorAll('canvas')).forEach((c, k) => {
+        const from = live[k];
+        if (!from || from.width === 0 || from.height === 0) return;
+        try {
+          const img = d.createElement('img');
+          img.src = from.toDataURL('image/png');
+          img.className = from.className;
+          img.alt = from.getAttribute('aria-label') ?? '';
+          img.style.width = `${from.offsetWidth}px`;
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          c.replaceWith(img);
+        } catch { /* a tainted canvas stays blank */ }
+      });
+      clone.removeAttribute('data-fit-settled');
+      page.appendChild(clone);
+    }
     clone.querySelectorAll('aside.notes').forEach((n) => n.remove());
     clone.removeAttribute('hidden');
     clone.removeAttribute('aria-hidden');
@@ -161,17 +237,12 @@ export class SpeakerView {
     clone.style.removeProperty('transform');
     const color = section.getAttribute('data-background-color');
     if (color) clone.style.background = color;
-    const root = d.createElement('div');
-    root.className = 'reveal orz-deck orz-print';
-    root.style.cssText = `--sl-w:${width}px;--sl-h:${height}px;width:${width}px;`;
-    const page = d.createElement('div');
-    page.className = 'orz-page';
-    page.appendChild(clone);
-    root.appendChild(page);
     el.appendChild(root);
     const k = (el as HTMLElement).clientWidth / width || 0.5;
     root.style.transform = `scale(${k})`;
     (el as HTMLElement).style.height = `${Math.round(height * k)}px`;
+    // a live copy is fitted here (a slide never shown was never fitted: ENG-6); a built copy already is
+    if (!copy) { try { fitSlide(clone); } catch { /* as it is */ } }
   }
 
   /** Show the current and next slide, the notes and the position. */
@@ -181,8 +252,9 @@ export class SpeakerView {
     const slides = this.src.slides();
     const i = this.src.index();
     const cur = slides[i] ?? null;
-    this.stage(d.querySelector('[data-sv="cur"]'), cur);
-    this.stage(d.querySelector('[data-sv="next"]'), slides[i + 1] ?? null);
+    this.syncStyles();
+    this.stage(d.querySelector('[data-sv="cur"]'), cur, cur ? this.src.copy?.(i) ?? null : null);
+    this.stage(d.querySelector('[data-sv="next"]'), slides[i + 1] ?? null, slides[i + 1] ? this.src.copy?.(i + 1) ?? null : null);
     const notesEl = d.querySelector('[data-sv="notes"]');
     if (notesEl) {
       const notes = cur ? cur.querySelector(':scope > aside.notes') : null;

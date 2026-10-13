@@ -15,7 +15,20 @@ export interface BoxReport { slide: number; box: string; scale: string | null; c
 
 /** Every box of the current slide: what it reports, and the content the oracle finds outside it (or outside a clipping element within it). */
 export function reportBoxes(page: Page, slide: number): Promise<BoxReport[]> {
-  return page.evaluate((n) => {
+  return page.evaluate(boxesIn, slide) as Promise<BoxReport[]>;
+}
+
+/**
+ * The same report taken in the page right after `ready` resolves (in the
+ * same task: no frame, so no queued refit, runs in between).
+ */
+export function reportBoxesAfter(page: Page, slide: number, ready: 'fonts'): Promise<BoxReport[]> {
+  return page.evaluate(`(async () => { await document.fonts.ready; return (${boxesIn.toString()})(${slide}); })()`) as Promise<BoxReport[]>;
+}
+
+/** The oracle, in the page (self-contained: it is also sent as source). */
+function boxesIn(n: number): BoxReport[] {
+  {
     const s = document.querySelectorAll<HTMLElement>('.reveal .slides > section')[n];
     const k = s.getBoundingClientRect().width / s.offsetWidth; // screen px per logical px
     const tol = 2 * k;
@@ -58,7 +71,7 @@ export function reportBoxes(page: Page, slide: number): Promise<BoxReport[]> {
       out.push({ slide: n, box: box.className, scale: box.getAttribute('data-scale'), clipped: box.hasAttribute('data-clipped'), scroll: box.hasAttribute('data-scroll'), outside });
     }
     return out;
-  }, slide) as Promise<BoxReport[]>;
+  }
 }
 
 /** Fit every slide of a deck (visiting each) and check the oracle; returns every box's report. */

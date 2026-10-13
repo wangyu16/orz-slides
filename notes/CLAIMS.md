@@ -124,6 +124,9 @@ themes) on branch `rebuild/1.0`.
 | F.2 | D-46: a long title on title v2 (and v1) stays inside the slide — the template page is a bounded, fitted box; nothing spills past either edge. | real |
 | F.3 | Fit works on both axes: a table wider than the slide is scaled to the floor and then marked clipped; dense text is scaled; a big picture takes its column's room; `fit=off` is not scaled but marked when cut; `fit=scroll` scrolls (`data-scroll`), never marked; a long section title is scaled into the page. | real |
 | F.4 | Fit runs on the visible slide only (after a render only the first slide is fitted); the sample deck (math, code, a table, a picture, a float, a molecule, a chart, a diagram) holds F.1 offline. | real |
+| F.5 | The fit SETTLES (round A, ENG-1/ENG-2): once the engine says the current slide is settled, no box has content outside it unless it says `data-clipped`, and fitting again changes nothing — on first visits with charts drawn when their slide shows, with Present toggled, after a theme and ratio switch, on a direct jump to a Mermaid diagram, and on Stationery's math slide while its webfonts arrive late — under CPU throttling (CDP). | real |
+| F.6 | Settled is a contract: `data-fit-settled` on the section, the `orz-fitted` event on the deck root and `engine.settled()` come after the fonts, the content libraries, the slide's images and stylesheets and a frame with nothing to refit — never on the first provisional pass (`data-fit-settled="timeout"` after 10 s at most); one ResizeObserver over the slide's box contents and a MutationObserver for what is drawn into them drive the refits, and a chart's canvas follows its frame in CSS so a trial scale is what will be drawn. | real |
+| F.7 | Fit is cheap (round A, ENG-7, ENG-9): a first fit guesses √(overflow ratio) and brackets the answer (at most 6 measured trials a box; 10 before), a refit of an unchanged slide starts from the box's last scale for that theme and size (at most 3); clipping descendants are read once a fit; `data-scale` is `1` when the scale rounds to 1. | real |
 
 ## K — the read view: keys, fragments, presenter tools (rebuild step 3; Q1)
 
@@ -137,6 +140,7 @@ themes) on branch `rebuild/1.0`.
 | K.6 | The timer (`t`) shows the wall clock and the elapsed time over the deck; `t` again hides it. | real |
 | K.7 | Content is drawn when its slide becomes visible: the molecule at its box's size (not a fixed 250 × 180 canvas), the chart at its box's width with the theme's `--chart-font-size` (orz-markdown 2.4.0 reads it; deck default 18), the diagram with whole labels (SVG labels in a deck: `--mm-labels: svg`) — the kit draws a slide's content when reveal lays it out — needs the network. | real |
 | K.8 | Online (webfonts, KaTeX, the libraries) no box of the sample deck is clipped, and every box reports its scale. | real |
+| K.9 | The speaker view's slides are static copies made by the print pipeline (round A, ENG-5/6/8): charts and molecules drawn (frozen images, never blank canvases) in Current and Next, every copy fitted (the next slide too, never shown before), and the page's stylesheets synced into its window on every update (a Theme switch shows there). | real |
 
 ## C — the chrome slots and templates on screen (rebuild step 3)
 
@@ -166,6 +170,7 @@ themes) on branch `rebuild/1.0`.
 |---|---|---|
 | Q.1 | The print document has one slide per page at the slide's size (16:9: 1280 × 720 px, 4:3: 960 × 720), every fragment shown, every box fitted, slide backgrounds on the slides, and no script; the page's print stage is removed afterwards. | real |
 | Q.2 | "With notes": one page per slide, the slide over its speaker notes (pages 1280 × 1240 px). | real |
+| Q.4 | Print never cuts silently (round A, ENG-3/ENG-4): on paper nothing scrolls — a `fit=scroll` slide is fitted (scaled, else marked) — and long speaker notes are set smaller to the floor, then marked clipped with a visible line on the page. | real |
 | Q.3 | Print is the action with id `print`: Cmd/Ctrl+P in the read view prints the print document in the kit's sandboxed frame (`allow-scripts allow-modals`), never the page; Print with notes is in the pencil's list. | real |
 
 ## R — the assembled file in real Chrome

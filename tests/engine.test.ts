@@ -259,6 +259,59 @@ chrome('the engine (real Chrome)', () => {
     await ctx.close();
   }, 120_000);
 
+  (online ? it : it.skip)('[K.9] round A, ENG-5/6/8: the speaker view shows its slides from the print pipeline — charts and molecules drawn (not blank canvases) in Current and Next, every copy fitted, and a Theme switch shows there too', async () => {
+    const { page, ctx } = await openDeck(browser!, sampleFile('k9'), assemble(SAMPLE), { network: true });
+    await goTo(page, 6);
+    const popup = ctx.waitForEvent('page');
+    await press(page, 's');
+    const sv = await popup;
+    await sv.waitForSelector('[data-sv="cur"] section.orz-slide');
+    /** A pane's slide: its number, the ink of its drawings (images or canvases), whether every box reports a scale and shows its text. */
+    const pane = (which: string) => sv.evaluate(async (w) => {
+      const s = document.querySelector<HTMLElement>(`[data-sv="${w}"] section.orz-slide`)!;
+      const ink = async (el: HTMLImageElement | HTMLCanvasElement): Promise<number> => {
+        if (el instanceof HTMLImageElement) await el.decode().catch(() => undefined);
+        const c = document.createElement('canvas');
+        const w0 = el instanceof HTMLImageElement ? el.naturalWidth : el.width;
+        const h0 = el instanceof HTMLImageElement ? el.naturalHeight : el.height;
+        if (!w0 || !h0) return 0;
+        c.width = w0; c.height = h0;
+        const g = c.getContext('2d')!;
+        g.drawImage(el, 0, 0);
+        const d = g.getImageData(0, 0, w0, h0).data;
+        let n = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+        return n;
+      };
+      const drawings = Array.from(s.querySelectorAll<HTMLImageElement | HTMLCanvasElement>('canvas, img[data-orz-frozen], img.orz-chart, img[data-smiles]'));
+      const inks: number[] = [];
+      for (const d of drawings) inks.push(await ink(d));
+      const boxes = Array.from(s.querySelectorAll<HTMLElement>('.orz-box'));
+      const over = boxes.filter((b) => !b.hasAttribute('data-clipped') && (b.scrollHeight > b.clientHeight + 2 || b.scrollWidth > b.clientWidth + 2) && !b.classList.contains('orz-title'));
+      return { n: s.getAttribute('data-n'), inks, scaled: boxes.every((b) => b.hasAttribute('data-scale')), over: over.map((b) => b.className) };
+    }, which);
+    // slide 7 current, slide 8 (the chart, never shown) next: the chart has ink, every box fitted
+    // (polled: the speaker window may be in the background, where animation frames stop)
+    await sv.waitForFunction(() => !!document.querySelector('[data-sv="next"] section.orz-slide [data-orz-frozen]'), null, { timeout: 60_000, polling: 250 });
+    const next = await pane('next');
+    expect(next.n).toBe('8');
+    expect(next.inks.length).toBeGreaterThan(0);
+    expect(Math.min(...next.inks), 'the chart in the Next pane is drawn').toBeGreaterThan(100);
+    expect(next.scaled).toBe(true);
+    expect(next.over).toEqual([]);
+    // the molecule's slide (5) current (slide 4 steps through fragments: go there directly)
+    await page.evaluate(() => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.go(4); });
+    await sv.waitForFunction(() => document.querySelector('[data-sv="cur"] section')?.getAttribute('data-n') === '5' && !!document.querySelector('[data-sv="cur"] section [data-orz-frozen]'), null, { timeout: 60_000, polling: 250 });
+    const cur = await pane('cur');
+    expect(Math.min(...cur.inks), 'the molecule in the Current pane is drawn').toBeGreaterThan(100);
+    expect(cur.scaled).toBe(true);
+    // a Theme switch reaches the speaker window's stylesheets
+    await page.evaluate(() => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.setSetting({ theme: 'chalk' }); });
+    await sv.waitForFunction(() => document.querySelector('style[data-sv-style="#orz-slide-theme"]')?.getAttribute('data-theme') === 'chalk', null, { timeout: 30_000, polling: 250 });
+    expect(await sv.evaluate(() => document.querySelectorAll('style[data-sv-style="#orz-slide-theme"]').length)).toBe(1);
+    await ctx.close();
+  }, 180_000);
+
   it('[C.1] the chrome slots: the bottom slot shows the number n / total, the section and the progress bar (its width follows --progress); the header keys turn number and bar off; the top slot holds the deck and section titles', async () => {
     const { page, ctx } = await openDeck(browser!, sampleFile('c1'), assemble(SAMPLE));
     await goTo(page, 3);
