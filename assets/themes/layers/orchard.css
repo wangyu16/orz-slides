@@ -1,0 +1,235 @@
+/* Orchard — the slide layer over orz-markdown light-neat-3 (orz-slides 1.0;
+   ported from the concept on branch concepts/themes to the 1.0 slots:
+   the footer sits in the bottom slot, the outline's current item is
+   li.orz-here, the closing's QR code is .orz-qr-slot).
+   The markdown.orz.how site set for a projector: off-white page, calm brand
+   green, Bricolage Grotesque for every heading and numeral over the system
+   sans, lots of air. One shape carries the identity: the leaf (two sharp
+   corners, two round ones) — on the bullets, the callouts, the title panel,
+   the current outline item, the floats and the tip of the progress line. */
+
+:root {
+  --sl-size: 30px;
+  --sl-lh: 1.45;
+  --sl-bg: var(--bg);
+  --sl-viewport: #f3f5ee;
+  --sl-ink: var(--text);
+  --sl-mono: var(--font-code);
+  --sl-pad-t: 50px;
+  --sl-pad-x: 80px;
+  --sl-chrome: 60px;
+  --sl-gap: 44px;
+  --sl-title-size: 1.56em;
+  --sl-title-gap: 30px;
+  --sl-controls: var(--accent);
+
+  --leaf-lg: 4px 64px;          /* the leaf at panel scale */
+  --leaf-md: 3px 30px;
+
+  /* charts and diagrams: the colours are light-neat-3's (--chart-*, --mm-*); the slide sets the face */
+  --chart-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --chart-surface: #fbfbf8;
+  --mm-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.reveal .orz-slide { font-family: var(--font-body); }
+
+/* ───────── title band: Bricolage, opened by a small leaf ───────── */
+.reveal .orz-title h2 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--heading);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.reveal .orz-title h2::before {
+  content: '';
+  display: inline-block;
+  width: 0.36em;
+  height: 0.36em;
+  margin: 0 0.36em 0.12em 0;
+  border-radius: 0 75% 0 75%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+.reveal .orz-title h2 .katex { color: inherit; }
+
+/* body text: bold carries the heading ink, the in-slide h3 stays the brand green */
+.reveal .orz-region .markdown-body h3 { color: var(--accent-strong); font-weight: 600; }
+
+/* ───────── regions: a hairline between columns, no boxes ───────── */
+.reveal .orz-split[style*="columns"] > :is(.orz-region, .orz-split) + :is(.orz-region, .orz-split) {
+  border-left: 1px solid var(--border);
+  padding-left: 30px;
+  margin-left: -14px;
+}
+/* a header row reads as a lede: soft ink */
+.reveal .orz-split[style*="rows"] > .orz-region:first-child { color: var(--text-soft); }
+
+/* sample code panel: the site's pale-green sheet, no shadow on a slide */
+.reveal .markdown-body pre { box-shadow: none; border-radius: var(--radius); }
+.reveal .markdown-body .katex-display { padding: 0.5em 0.8em; }
+.reveal .markdown-body div.mermaid { background: var(--surface-2); padding: 0.6em; border-radius: var(--leaf-md); }
+.reveal .markdown-body p > img { box-shadow: none; border-color: var(--border-soft); }
+
+/* ───────── chrome: footer, Bricolage number, a green line ending in a leaf ───────── */
+.reveal .orz-footer { color: var(--text-muted); font-size: 1.03em; letter-spacing: 0.01em; }
+.reveal .orz-chrome { font-family: var(--font-heading); }
+.reveal .orz-chrome::before {      /* the track: a hairline across the band's top */
+  content: ''; position: absolute; left: var(--sl-pad-x); right: var(--sl-pad-x); top: 0; height: 1px; background: var(--border);
+}
+.reveal .orz-chrome-bar {
+  left: var(--sl-pad-x); top: -1px; bottom: auto; height: 3px; border-radius: 2px;
+  width: calc(var(--progress) * (100% - 2 * var(--sl-pad-x)));
+  background: var(--accent);
+}
+.reveal .orz-chrome-bar::after {   /* the leaf at the growing tip */
+  content: ''; position: absolute; right: -9px; top: -6px; width: 15px; height: 15px;
+  border-radius: 0 75% 0 75%; background: var(--accent);
+}
+.reveal .orz-chrome-num { font-size: 1.32em; font-weight: 600; color: var(--accent-strong); gap: 0.22em; letter-spacing: -0.01em; }
+.reveal .orz-chrome-num i { font-style: normal; color: var(--border-strong); font-weight: 500; }
+.reveal .orz-chrome-num span { color: var(--text-muted); font-weight: 500; font-size: 0.72em; }
+
+/* ───────── floats: a leaf-cut wash note pinned over the figure ───────── */
+.reveal .orz-float {
+  background: var(--wash);
+  border: 1px solid var(--success-border);
+  border-radius: 3px 26px;
+  padding: 0.5em 0.8em;
+  font-size: 0.8em;
+  line-height: 1.3;
+  color: var(--text-soft);
+  display: flex; align-items: center;
+}
+.reveal .orz-float strong { color: var(--accent-strong); font-family: var(--font-heading); font-weight: 700; font-size: 1.12em; }
+
+/* ───────── fragments: the current step sits in a leaf of wash ───────── */
+.reveal .orz-region .fragment.current-fragment {
+  background: var(--wash);
+  border-radius: 2px 18px;
+  box-shadow: 0 0 0 0.18em var(--wash);
+  color: var(--heading);
+  width: fit-content;
+  padding-right: 0.5em;
+}
+.reveal .orz-region li.fragment.current-fragment::before {
+  background: var(--accent-strong);
+  transform: scale(1.35);
+}
+
+/* ───────── title page: a large left-set title on a leaf-cut wash panel ───────── */
+.reveal .orz-slide[data-template="title"] .orz-frame,
+.reveal .orz-slide[data-template="closing"] .orz-frame { justify-content: center; }
+.reveal .orz-template-title,
+.reveal .orz-template-closing {
+  align-items: flex-start;
+  text-align: left;
+  background: var(--wash);
+  border-radius: var(--leaf-lg);
+  padding: 56px 64px 52px;
+  position: relative;
+}
+.reveal .orz-template-title::before,
+.reveal .orz-template-closing::before {   /* a single leaf above the title */
+  content: ''; display: block; width: 30px; height: 30px; margin-bottom: 26px;
+  border-radius: 0 75% 0 75%; background: var(--accent);
+}
+.reveal .orz-title-main {
+  font-family: var(--font-heading);
+  font-weight: 650;
+  color: var(--heading);
+  font-size: 2.2em;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  max-width: 17em;
+  text-wrap: balance;
+}
+.reveal .orz-title-sub {
+  margin-top: 0.55em;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.04em;
+  color: var(--accent-strong);
+  letter-spacing: -0.01em;
+}
+.reveal .orz-title-meta { margin-top: 1.5em; font-size: 0.72em; color: var(--text-soft); line-height: 1.5; }
+.reveal .orz-title-meta strong { color: var(--heading); }
+
+/* ───────── section: a big green numeral on its own leaf ───────── */
+.reveal .orz-template-section { align-items: flex-start; padding-left: 4%; }
+.reveal .orz-section-main {
+  font-family: var(--font-heading);
+  font-weight: 650;
+  color: var(--heading);
+  font-size: 2.3em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  max-width: 15em;
+}
+.reveal .orz-section-main[data-sec=""]::before { display: none; }
+.reveal .orz-section-main::before {
+  content: attr(data-sec);
+  display: block;
+  width: fit-content;
+  margin-bottom: 0.32em;
+  padding: 0.06em 0.36em 0.1em;
+  font-size: 1.9em;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--accent-strong);
+  background: var(--wash);
+  border-radius: 4px 46px;
+  font-variant-numeric: tabular-nums;
+}
+.reveal .orz-section-meta { margin-top: 0.8em; font-size: 0.9em; color: var(--text-soft); max-width: 28em; }
+
+/* ───────── outline: Bricolage numerals; the current item sits in a leaf of wash ───────── */
+.reveal .orz-template-outline { padding-left: 4%; }
+.reveal .orz-outline h2 {
+  font-family: var(--font-heading); font-weight: 600; font-size: 0.72em;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-strong);
+  margin: 0 0 1.1em; padding: 0; border: 0;
+}
+.reveal .orz-outline h2::after {
+  content: ''; display: inline-block; width: 0.6em; height: 0.6em; margin-left: 0.5em;
+  border-radius: 0 75% 0 75%; background: var(--accent); vertical-align: -0.02em;
+}
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; max-width: 22em; }
+.reveal .orz-outline li {
+  counter-increment: c; position: relative; margin: 0 0 0.28em;
+  padding: 0.22em 0.8em 0.26em 2.1em;
+  font-family: var(--font-heading); font-weight: 500;
+  font-size: 1.24em; line-height: 1.2; letter-spacing: -0.015em;
+  color: var(--text-muted);
+}
+.reveal .orz-outline li::before {
+  content: counter(c, decimal-leading-zero); position: absolute; left: 0.6em; top: 0.3em;
+  font-size: 0.72em; font-weight: 600; color: var(--border-strong); font-variant-numeric: tabular-nums;
+}
+.reveal .orz-outline li.orz-here {
+  color: var(--heading);
+  font-weight: 600;
+  background: var(--wash);
+  border-radius: 3px 30px;
+}
+.reveal .orz-outline li.orz-here::before { color: var(--accent-strong); }
+.reveal .orz-outline li strong { font-weight: 650; color: inherit; }
+
+/* ───────── closing: same wash panel; the code (its own slot) sits on its right, in white ───────── */
+.reveal .orz-template-closing { min-height: 7.8em; justify-content: center; }
+.reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: calc(64px + 6.6em); }
+.reveal .orz-template-closing .orz-title-main { font-size: 2.4em; }
+.reveal .orz-template-closing > .orz-qr-slot {
+  position: absolute; right: 60px; top: 50%; transform: translateY(-50%); margin: 0;
+  --sl-qr: 5.6em;
+}
+.reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 12px; border-radius: 4px 22px; box-shadow: none; background: #fff; }
+
+/* ───────── content at slide scale: tables and code that fit their column ───────── */
+.reveal .markdown-body :is(thead th, tbody td) { padding: 0.38em 0.62em; }
+.reveal .markdown-body th .katex { text-transform: none; }
+.reveal .markdown-body pre { padding: 0.75em 0.95em; }
+.reveal .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reveal .markdown-body .task-list-item-checkbox:not(:checked) { border: 2px solid var(--accent); }

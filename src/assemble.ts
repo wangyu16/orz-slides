@@ -109,8 +109,8 @@ export interface AssembleOptions {
  * Assemble the `.slides.html` file of a text (FC-18 §8): the kit's envelope
  * with kind `slides`, shell version {@link VERSION}, and the shell parts — in
  * `<head>` the viewport, colour scheme and the header's theme stylesheets
- * (non-blocking); in `<body>` the read view (`#orz-view` / `#orz-doc` with a
- * quiet fallback line), the chrome mount point and the engine (`#orz-engine`,
+ * (non-blocking); in `<body>` the read view (`#orz-view` with a quiet fallback
+ * line, where the engine renders the deck), the chrome mount point and the engine (`#orz-engine`,
  * inline or from jsDelivr).
  *
  * Deterministic. Throws for a text the envelope refuses (NUL, a lone

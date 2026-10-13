@@ -25,25 +25,27 @@ export interface SlideTheme {
   scheme: ThemeScheme;
   /** The orz-markdown theme it is derived from (also accepted as an alias), or null for an updated 0.x theme. */
   derivedFrom: string | null;
+  /** How the theme numbers sections when the header's `section_numbers` does not say (Q3). */
+  sectionNumbers: 'plain' | 'roman' | '01' | 'none';
 }
 
 export const THEMES: readonly SlideTheme[] = Object.freeze(
-  [
-    { id: 'orchard', name: 'Orchard', scheme: 'light', derivedFrom: 'light-neat-3' },
-    { id: 'sky', name: 'Sky', scheme: 'light', derivedFrom: 'light-neat-1' },
-    { id: 'stationery', name: 'Stationery', scheme: 'light', derivedFrom: 'light-neat-2' },
-    { id: 'preprint', name: 'Preprint', scheme: 'light', derivedFrom: 'light-academic-2' },
-    { id: 'small-press', name: 'Small Press', scheme: 'light', derivedFrom: 'beige-decent-2' },
-    { id: 'notebook', name: 'Notebook', scheme: 'light', derivedFrom: 'light-playful-1' },
-    { id: 'sticker', name: 'Sticker', scheme: 'light', derivedFrom: 'light-playful-2' },
-    { id: 'inscription', name: 'Inscription', scheme: 'dark', derivedFrom: 'dark-elegant-1' },
-    { id: 'copper', name: 'Copper', scheme: 'dark', derivedFrom: 'dark-elegant-2' },
-    { id: 'nocturne', name: 'Nocturne', scheme: 'dark', derivedFrom: 'dark-elegant-3' },
-    { id: 'architect', name: 'Architect', scheme: 'light', derivedFrom: null },
-    { id: 'chalk', name: 'Chalk', scheme: 'dark', derivedFrom: null },
-    { id: 'neon', name: 'Neon', scheme: 'dark', derivedFrom: null },
-    { id: 'paper', name: 'Paper', scheme: 'light', derivedFrom: null },
-  ].map((t) => Object.freeze(t as SlideTheme)),
+  ([
+    { id: 'orchard', name: 'Orchard', scheme: 'light', derivedFrom: 'light-neat-3', sectionNumbers: '01' },
+    { id: 'sky', name: 'Sky', scheme: 'light', derivedFrom: 'light-neat-1', sectionNumbers: '01' },
+    { id: 'stationery', name: 'Stationery', scheme: 'light', derivedFrom: 'light-neat-2', sectionNumbers: '01' },
+    { id: 'preprint', name: 'Preprint', scheme: 'light', derivedFrom: 'light-academic-2', sectionNumbers: '01' },
+    { id: 'small-press', name: 'Small Press', scheme: 'light', derivedFrom: 'beige-decent-2', sectionNumbers: '01' },
+    { id: 'notebook', name: 'Notebook', scheme: 'light', derivedFrom: 'light-playful-1', sectionNumbers: '01' },
+    { id: 'sticker', name: 'Sticker', scheme: 'light', derivedFrom: 'light-playful-2', sectionNumbers: '01' },
+    { id: 'inscription', name: 'Inscription', scheme: 'dark', derivedFrom: 'dark-elegant-1', sectionNumbers: '01' },
+    { id: 'copper', name: 'Copper', scheme: 'dark', derivedFrom: 'dark-elegant-2', sectionNumbers: '01' },
+    { id: 'nocturne', name: 'Nocturne', scheme: 'dark', derivedFrom: 'dark-elegant-3', sectionNumbers: '01' },
+    { id: 'architect', name: 'Architect', scheme: 'light', derivedFrom: null, sectionNumbers: '01' },
+    { id: 'chalk', name: 'Chalk', scheme: 'dark', derivedFrom: null, sectionNumbers: '01' },
+    { id: 'neon', name: 'Neon', scheme: 'dark', derivedFrom: null, sectionNumbers: '01' },
+    { id: 'paper', name: 'Paper', scheme: 'light', derivedFrom: null, sectionNumbers: 'roman' },
+  ] as SlideTheme[]).map((t) => Object.freeze(t)),
 );
 
 export const DEFAULT_THEME = 'orchard';

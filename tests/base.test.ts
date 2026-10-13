@@ -36,7 +36,8 @@ describe('base', () => {
     for (const f of ['assets/app.js', 'src/template.ts', 'src/browser-entry.ts', 'src/slide-parser.ts', 'src/globals.d.ts']) expect(existsSync(f), f).toBe(false);
     for (const file of sources('src')) {
       const src = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
-      expect(src, file).not.toMatch(/showSaveFilePicker|indexedDB|postMessage|__ORZ_SLIDES__\s*=|data\.jsdelivr\.com|buildSlidesHtml/);
+      // (reveal.js's own `postMessage: false` option is a setting that turns its message API off, not a call)
+      expect(src, file).not.toMatch(/showSaveFilePicker|indexedDB|postMessage\s*\(|\.postMessage\b|addEventListener\(\s*['"]message|__ORZ_SLIDES__\s*=|data\.jsdelivr\.com|buildSlidesHtml/);
     }
     expect(readFileSync('src/browser/index.ts', 'utf8')).toMatch(/startCarrier\(SLIDES_KIND\)/);
   });

@@ -20,10 +20,10 @@
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && npm run bundle",
-    "prebuild": "tsx scripts/sync-version.ts",
+    "prebuild": "tsx scripts/sync-version.ts && tsx scripts/build-themes.ts",
     "bundle": "tsx build/bundle.ts",
     "test": "vitest run",
-    "pretest": "tsx scripts/sync-version.ts",
+    "pretest": "tsx scripts/sync-version.ts && tsx scripts/build-themes.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",

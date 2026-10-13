@@ -45,6 +45,7 @@ import { gzipSync } from 'node:zlib';
 import { isScriptSafe } from 'orz-markdown/carrier/shell';
 import { VERSION as ORZ_MARKDOWN_VERSION } from 'orz-markdown/version';
 import { VERSION } from '../src/version.js';
+import { builtThemes } from '../scripts/build-themes.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const BUNDLE_FILE = 'orz-slides.browser.js';
@@ -76,6 +77,36 @@ const oneKatex: Plugin = {
     const dir = katexDist();
     b.onResolve({ filter: /^katex$/ }, () => ({ path: join(dir, 'katex.js') }));
     b.onResolve({ filter: /^katex\/contrib\/mhchem$/ }, () => ({ path: join(dir, 'contrib', 'mhchem.js') }));
+  },
+};
+
+/**
+ * The engine's stylesheets as text (the virtual module `orz-slides:themes`,
+ * src/present/virtual.d.ts): reveal.js's core CSS, assets/themes/deck.css
+ * and every generated slide theme (assets/themes/<id>.css, written by
+ * scripts/build-themes.ts in `prebuild` / `pretest`; tests/themes.test.ts
+ * fails on a stale one). Inside
+ * the engine, so inline and cdn files style the same.
+ */
+export function styleTexts(): { reveal: string; deck: string; themes: Record<string, string> } {
+  const reveal = readFileSync(join(ROOT, 'node_modules', 'reveal.js', 'dist', 'reveal.css'), 'utf8');
+  const deck = readFileSync(join(ROOT, 'assets', 'themes', 'deck.css'), 'utf8');
+  const themes: Record<string, string> = {};
+  for (const id of builtThemes()) themes[id] = readFileSync(join(ROOT, 'assets', 'themes', `${id}.css`), 'utf8');
+  return { reveal, deck, themes };
+}
+
+const slideThemes: Plugin = {
+  name: 'slide-themes',
+  setup(b) {
+    b.onResolve({ filter: /^orz-slides:themes$/ }, () => ({ path: 'orz-slides:themes', namespace: 'orz-slides-themes' }));
+    b.onLoad({ filter: /.*/, namespace: 'orz-slides-themes' }, () => {
+      const t = styleTexts();
+      return { contents: `export const REVEAL_CSS = ${JSON.stringify(t.reveal)};
+export const DECK_CSS = ${JSON.stringify(t.deck)};
+export const THEME_CSS = Object.freeze(${JSON.stringify(t.themes)});
+`, loader: 'js' };
+    });
   },
 };
 
@@ -114,7 +145,7 @@ export async function buildBrowser(o: { version?: string } = {}): Promise<Browse
   const version = o.version ?? VERSION;
   const common = {
     bundle: true, minify: true, platform: 'browser' as const, target: ['es2020'], write: false, logLevel: 'silent' as const,
-    charset: 'ascii' as const, legalComments: 'none' as const, absWorkingDir: ROOT, plugins: [oneKatex, versionAs(o.version)],
+    charset: 'ascii' as const, legalComments: 'none' as const, absWorkingDir: ROOT, plugins: [oneKatex, versionAs(o.version), slideThemes],
   };
   const [iifeOut, esmOut] = await Promise.all([
     build({ ...common, entryPoints: ['src/browser/index.ts'], format: 'iife' }),

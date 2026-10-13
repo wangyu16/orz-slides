@@ -1,0 +1,255 @@
+/* ==========================================================================
+   orz-slides 1.0 · deck.css — the engine's structure (docs/dom-contract.md)
+
+   Loaded before every slide theme, inside the engine (inline and cdn files
+   style the same). Geometry, the frame, the split grid, the boxes fit scales,
+   floats, template scaffolds, the two chrome slots (top: running head;
+   bottom: footer, section, number, progress), the read view, present and
+   print. No colours, fonts or decoration: a theme supplies those.
+
+   The logical slide is 1280 x 720 (16:9) or 960 x 720 (4:3); every px here
+   is a logical slide px. Tokens a theme may set (defaults below):
+     --sl-size        body text size                   28px
+     --sl-lh          body line-height                 1.42
+     --sl-pad-t       top padding                      48px
+     --sl-pad-x       side padding                     72px
+     --sl-chrome      bottom slot height               56px
+     --sl-head        top slot height                  var(--sl-pad-t)
+     --sl-gap         gap between regions              40px
+     --sl-title-gap   space under the title band       28px
+     --sl-title-size  title band h2 size               1.62em
+     --sl-bg / --sl-ink / --sl-viewport / --sl-mono    colours and code font
+     --sl-graphic-min smallest height a graphic keeps  4em
+   Set by the engine (read only): --progress (0..1) on each slide,
+   --fit-scale on a box fit scaled, --sl-w / --sl-h (the logical size).
+   ========================================================================== */
+
+:root {
+  --sl-size: 28px;
+  --sl-lh: 1.42;
+  --sl-pad-t: 48px;
+  --sl-pad-x: 72px;
+  --sl-chrome: 56px;
+  --sl-gap: 40px;
+  --sl-title-gap: 28px;
+  --sl-title-size: 1.62em;
+  --sl-graphic-min: 4em;
+}
+
+/* ---------- the read view: the deck fills the page ---------- */
+html.orz-slides-page, html.orz-slides-page body { margin: 0; height: 100%; overflow: hidden; }
+html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f6f6f4)); }
+#orz-view.orz-slides { position: fixed; inset: 0; background-color: var(--sl-viewport, var(--sl-bg, #f6f6f4)); }
+#orz-view.orz-slides > .reveal { width: 100%; height: 100%; }
+#orz-view.orz-slides:fullscreen { width: 100vw; height: 100vh; }
+.reveal.orz-deck { font-size: var(--sl-size); }
+.reveal .slides { text-align: left; }
+/* reveal's own controls, progress and number are off (keyboard: false, controls: false …); belt and braces */
+.reveal.orz-deck > .controls, .reveal.orz-deck > .progress, .reveal.orz-deck > .slide-number { display: none !important; }
+
+/* ---------- the slide ---------- */
+.reveal .orz-slide {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: var(--sl-pad-t) var(--sl-pad-x) var(--sl-chrome);
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  font-size: var(--sl-size);
+  line-height: var(--sl-lh);
+  background: var(--sl-bg, transparent);
+  color: var(--sl-ink, inherit);
+}
+.reveal .orz-slide[data-background-color], .reveal .orz-slide[data-background-image] { background: transparent; }
+.reveal .slides > section.orz-slide { height: 100%; }
+.reveal .orz-frame { height: 100%; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.reveal aside.notes { display: none !important; }
+
+/* ---------- boxes: what fit scales (--fit-scale) and reports (data-scale, data-clipped) ---------- */
+.reveal .orz-box { box-sizing: border-box; min-width: 0; min-height: 0; font-size: calc(1em * var(--fit-scale, 1)); }
+
+/* ---------- title band (the lifted h2) ---------- */
+.reveal .orz-title { flex: 0 0 auto; margin: 0 0 var(--sl-title-gap); position: relative; overflow-x: clip; overflow-y: visible; }
+.reveal .orz-title .markdown-body { margin: 0; padding: 0; font-size: 1em; }
+.reveal .orz-title h2 {
+  box-sizing: border-box;
+  margin: 0;
+  max-width: 100%;
+  font-size: var(--sl-title-size);
+  line-height: 1.12;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+
+/* ---------- content area + split grid ---------- */
+.reveal .orz-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.reveal .orz-split { display: grid; gap: var(--sl-gap); flex: 1 1 auto; min-height: 0; min-width: 0; width: 100%; align-items: stretch; }
+.reveal .orz-split .orz-split { height: 100%; }
+.reveal .orz-region {
+  flex: 1 1 auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.reveal .orz-slide[data-fit="scroll"] .orz-region { overflow: auto; }
+.reveal .orz-region > .markdown-body { margin: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.reveal .orz-region > .markdown-body > * { flex: 0 0 auto; }
+
+/* pictures and diagrams take the room left in their box (and shrink before text is scaled);
+   a molecule (SMILES) and a chart keep their size, which follows the text size (fit scales them) */
+.reveal .orz-region > .markdown-body > :is(p:has(> img:only-child), p:has(> a:only-child > img:only-child), div.mermaid) {
+  flex: 1 1 0;
+  min-height: var(--sl-graphic-min);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.reveal .orz-region > .markdown-body > p:has(> img:only-child) > img,
+.reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) img { max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
+.reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) > a { display: contents; }
+.reveal .orz-region > .markdown-body > div.mermaid > svg { max-height: 100%; max-width: 100% !important; height: auto; }
+
+/* code and tables never scroll on a slide: they wrap, fit scales them, else they are marked clipped */
+.reveal .orz-slide:not([data-fit="scroll"]) .markdown-body pre { overflow: hidden; }
+.reveal .orz-slide:not([data-fit="scroll"]) .markdown-body :is(.table-wrapper, .katex-display) { overflow: hidden; }
+
+/* ---------- floats ---------- */
+.reveal .orz-float { position: absolute; overflow: hidden; z-index: 2; }
+.reveal .orz-float .markdown-body { margin: 0; padding: 0; font-size: 1em; }
+.reveal .orz-float > .markdown-body > :first-child { margin-top: 0; }
+.reveal .orz-float > .markdown-body > :last-child { margin-bottom: 0; }
+
+/* ---------- graphics never overflow their box ---------- */
+.reveal .markdown-body img { max-width: 100%; }
+.reveal .markdown-body .mermaid svg { max-width: 100%; height: auto; }
+.reveal .markdown-body .qrcode svg { max-width: 100%; height: auto; }
+/* SMILES (orz-markdown 2.4.0 draws it at its CSS box's size): a box that follows the text size, so fit scales it too */
+.reveal .markdown-body canvas[data-smiles] { width: 100%; max-width: 12em; height: auto; aspect-ratio: 25 / 18; }
+/* charts: the frame follows the box (the kit caps it at --chart-max-width) */
+.reveal .orz-slide { --chart-max-width: 100%; }
+
+/* ---------- reveal's reset strips inline semantics: restore them ---------- */
+.reveal .markdown-body strong, .reveal .markdown-body b { font-weight: 700; }
+.reveal .markdown-body em, .reveal .markdown-body i { font-style: italic; }
+.reveal .markdown-body sub, .reveal .markdown-body sup { font-size: 0.72em; line-height: 0; position: relative; vertical-align: baseline; }
+.reveal .markdown-body sub { bottom: -0.25em; }
+.reveal .markdown-body sup { top: -0.5em; }
+.reveal .markdown-body s, .reveal .markdown-body del { text-decoration: line-through; }
+.reveal .markdown-body code, .reveal .markdown-body pre { font-family: var(--sl-mono, ui-monospace, Menlo, monospace); }
+.reveal .markdown-body pre code { display: block; white-space: pre; background: transparent; border: 0; padding: 0; }
+.reveal .markdown-body table { border-collapse: collapse; }
+
+/* ---------- template slides: a bounded, centred box (D-46: never spills past the slide) ---------- */
+.reveal .orz-slide[data-kind="template"] .orz-frame { justify-content: safe center; }
+.reveal .orz-template {
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  position: relative;
+}
+.reveal .orz-template > * { max-width: 100%; min-width: 0; overflow-wrap: break-word; }
+.reveal .orz-title-main, .reveal .orz-section-main { margin: 0; text-wrap: balance; overflow-wrap: break-word; }
+.reveal .orz-title-meta, .reveal .orz-section-meta, .reveal .orz-outline { padding: 0; margin: 0; background: none; }
+.reveal .orz-title-meta p { margin: 0.1em 0; }
+/* the closing's lone QR code, lifted into its own slot (themes place it) */
+.reveal .orz-qr-slot { line-height: 0; }
+.reveal .orz-qr-slot .qrcode { display: inline-block; background: #fff; padding: 8px; }
+.reveal .orz-qr-slot .qrcode svg { display: block; width: var(--sl-qr, 4.6em); min-width: 150px; }
+/* the outline's current item (li.orz-here): themes decorate it; a plain default */
+.reveal .orz-outline li.orz-here { font-weight: 700; }
+
+/* ---------- the top slot: the running head (hidden unless a theme shows it) ---------- */
+.reveal .orz-head {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--sl-head, var(--sl-pad-t));
+  padding: 0 var(--sl-pad-x);
+  display: none;
+  align-items: center;
+  gap: 1em;
+  font-size: 0.6em;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.reveal .orz-head-sec[data-sec=""]:empty { display: none; }
+
+/* ---------- the bottom slot: footer, section, number, progress ---------- */
+.reveal .orz-chrome {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--sl-chrome);
+  font-size: 0.6em;
+  pointer-events: none;
+}
+.reveal .orz-footer {
+  position: absolute;
+  left: var(--sl-pad-x);
+  right: calc(var(--sl-pad-x) + 5.5em);
+  bottom: 0;
+  height: var(--sl-chrome);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.reveal .orz-footer .markdown-body { margin: 0; padding: 0; font-size: 1em; background: none; min-width: 0; }
+.reveal .orz-footer .markdown-body p { margin: 0; overflow: hidden; text-overflow: ellipsis; }
+.reveal .orz-chrome-num {
+  position: absolute;
+  right: var(--sl-pad-x);
+  bottom: 0;
+  height: var(--sl-chrome);
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+.reveal .orz-chrome-num b { font-weight: inherit; }
+.reveal .orz-chrome-num i { font-style: normal; }
+.reveal .orz-chrome-sec { display: none; }
+.reveal .orz-chrome-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--progress, 0) * 100%); }
+.reveal .orz-slide[data-template="title"] .orz-chrome { display: none; }
+
+/* ---------- fragments while presenting are reveal's; everything shows in an overview thumbnail ---------- */
+.reveal .markdown-body .tabs[data-js] > .tab { display: none; }
+.reveal .markdown-body .tabs[data-js] > .tab.active { display: block; }
+
+/* ---------- present: the deck alone, full screen ---------- */
+#orz-view.orz-presenting { z-index: 2147483000; }
+
+/* ---------- the timer (T) ---------- */
+.orz-timer {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  z-index: 2147483100; display: flex; gap: 14px; align-items: baseline;
+  padding: 5px 14px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62); color: #fff;
+  font: 500 15px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.orz-timer .orz-timer-clock { opacity: 0.7; }
+.orz-timer .orz-timer-elapsed { font-size: 18px; font-weight: 700; }
+
+/* ---------- print (the print document: one slide per page at the slide's size) ---------- */
+.reveal.orz-print { position: static; width: auto; height: auto; overflow: visible; }
+.reveal.orz-print .orz-page { position: relative; width: var(--sl-w); height: var(--sl-h); overflow: hidden; break-after: page; page-break-after: always; }
+.reveal.orz-print .orz-page:last-child { break-after: auto; page-break-after: auto; }
+.reveal.orz-print .orz-page > .orz-slide { width: var(--sl-w); height: var(--sl-h); }
+.reveal.orz-print .fragment { opacity: 1 !important; visibility: visible !important; transform: none !important; }
+.reveal.orz-print.orz-with-notes .orz-page { height: var(--sl-page-h); }
+.reveal.orz-print .orz-print-notes {
+  box-sizing: border-box; height: calc(var(--sl-page-h) - var(--sl-h)); padding: 28px var(--sl-pad-x, 72px);
+  border-top: 2px solid #c9c9c4; background: #fff; color: #1d1d1b; overflow: hidden;
+  font: 22px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.reveal.orz-print .orz-print-notes .orz-print-notes-head { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: #77776f; margin: 0 0 10px; }
+.reveal.orz-print .orz-print-notes > .notes-body > :first-child { margin-top: 0; }

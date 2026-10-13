@@ -1,8 +1,7 @@
 /**
- * Rebuild step 1–2 — the assembled file boots in real Chrome on the kit's
- * `carrier/app` (claims R.1–R.2). The read view is the step-1 STUB (the
- * flattened deck); the engine of step 3 replaces it. The network is closed
- * (only file: loads): the file must boot offline.
+ * The assembled file boots in real Chrome on the kit's `carrier/app`
+ * (claims R.1–R.2): the read view is the deck (rebuild step 3's engine).
+ * The network is closed (only file: loads): the file must boot offline.
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -32,14 +31,13 @@ async function open(name: string, html: string) {
 }
 
 chrome('the assembled file (real Chrome, offline)', () => {
-  it('[R.1] every slides corpus deck boots: OrzCarrier is the slides carrier of this version, the stub read view shows the deck\'s slide titles, the pencil handle is there, no page error', async () => {
+  it('[R.1] every slides corpus deck boots: OrzCarrier is the slides carrier of this version, the read view is the deck (one slide per marker, the fallback line gone), the pencil handle is there, no page error', async () => {
     for (const c of corpus('slides')) {
       const { page, ctx, errors } = await open(c.path.replace(/^slides\//, '').replace(/\.md$/, '.html'), assemble(c.text));
       const g = await page.evaluate(() => { const C = (globalThis as unknown as { OrzCarrier: { kind: string; version: string; formats: number[] } }).OrzCarrier; return { kind: C.kind, version: C.version, formats: C.formats }; });
       expect(g).toEqual({ kind: 'slides', version: VERSION, formats: [1] });
-      await page.waitForFunction(() => !document.querySelector('#orz-doc .orz-fallback'));
-      const h2 = await page.locator('#orz-doc h2').count();
-      expect(h2, c.path).toBeGreaterThan(0);
+      await page.waitForFunction(() => !document.querySelector('#orz-view .orz-fallback') && !!document.querySelector('#orz-view .reveal.ready .slides > section.present'));
+      expect(await page.locator('#orz-view .reveal .slides > section.orz-slide').count(), c.path).toBe(c.slideCount);
       expect(await page.title(), c.path).toBe(c.derivedTitle);
       expect(await page.getByRole('button', { name: 'Edit and more', exact: true }).count()).toBe(1);
       expect(errors, c.path).toEqual([]);
@@ -47,7 +45,7 @@ chrome('the assembled file (real Chrome, offline)', () => {
     }
   });
 
-  it('[R.2] Edit mounts the kit\'s editor on the exact text (clean); Done leaves; the read view follows a header setting (theme)', async () => {
+  it('[R.2] Edit mounts the kit\'s editor on the exact text (clean) and hides the deck; Done shows it again; the read view follows a header setting (theme)', async () => {
     const text = corpus('slides').find((c) => c.path.endsWith('every-layout.slides.md'))!.text;
     const { page, ctx, errors } = await open('edit.slides.html', assemble(text));
     const got = await page.evaluate(() => {
@@ -57,7 +55,9 @@ chrome('the assembled file (real Chrome, offline)', () => {
     });
     expect(got.text === text).toBe(true);
     expect(got.dirty).toBe(false);
+    expect(await page.evaluate(() => document.getElementById('orz-view')!.hidden)).toBe(true);
     await page.evaluate(async () => { await (globalThis as unknown as { OrzCarrier: { standalone: { leave(): Promise<void> } } }).OrzCarrier.standalone.leave(); });
+    expect(await page.evaluate(() => document.getElementById('orz-view')!.hidden)).toBe(false);
     await page.evaluate(() => (globalThis as unknown as { OrzCarrier: { standalone: { setSetting(c: Record<string, string>): void } } }).OrzCarrier.standalone.setSetting({ theme: 'nocturne' }));
     await page.waitForFunction(() => document.getElementById('orz-view')?.getAttribute('data-orz-theme') === 'nocturne');
     const after = await page.evaluate(() => (globalThis as unknown as { OrzCarrier: { standalone: { getText(): string; isDirty(): boolean } } }).OrzCarrier.standalone.getText());

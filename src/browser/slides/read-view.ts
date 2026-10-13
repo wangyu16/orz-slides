@@ -1,27 +1,39 @@
 /**
- * KIND-SPECIFIC (slides): the read view of an assembled `.slides.html`.
+ * KIND-SPECIFIC (slides): the read view of an assembled `.slides.html` —
+ * the deck itself (REBUILD §3c step 3): the engine of src/present/ (reveal.js
+ * behind one module) in the shell's `#orz-view`, slides at the logical
+ * size with the theme's chrome inside them, fit on the visible slide, keys
+ * through the kit's `onKey`, Present, the speaker view, overview, the timer
+ * and the print document (the kind's actions, src/browser/slides/kind.ts).
  *
- * REBUILD STEP 1–2 STUB: the deck is shown as one flattened, scrolling
- * document (the slides' Markdown in order; the markers are HTML comments and
- * render nothing) in `#orz-doc`, styled by the header theme's stand-in
- * stylesheet (src/presentation.ts) and enhanced by the kit's
- * `enhanceDocument`. Rebuild step 3 replaces it with the engine: reveal.js
- * in `src/present/`, slides at the logical size, theme chrome, fit, `onKey`
- * navigation, Present and Print.
+ * `present(text)` applies the header's theme and ratio (the engine's styles,
+ * the colour scheme, the highlight.js stylesheet) without re-rendering;
+ * `render(text, ctx)` renders the deck with the file's includes and keeps
+ * the current slide; edit mode hides the view (`setVisible`).
  */
 import type { CarrierReadView, ReadViewContext } from 'orz-markdown/carrier/app';
-import { disposeEnhancement, enhanceDocument, PREVIEW_CDN, swapStylesheet } from 'orz-markdown/preview-frame';
+import { PREVIEW_CDN, swapStylesheet } from 'orz-markdown/preview-frame';
 import { readDocument } from '../../assemble.js';
-import { presentationOf, themeHref, SHELL_STYLESHEETS } from '../../presentation.js';
-import { renderSlides } from './render.js';
+import { presentationOf, SHELL_STYLESHEETS } from '../../presentation.js';
+import { createDeckEngine, type DeckEngine } from '../../present/engine.js';
+import { logicalSize } from '../../present/render.js';
 
 export interface SlidesReadView extends CarrierReadView {
   readonly element: HTMLElement;
-  readonly article: HTMLElement;
+  /** The engine (Present, speaker view, overview, print — the kind's actions use it). */
+  readonly engine: DeckEngine;
   render(text: string, ctx?: ReadViewContext): Promise<void>;
+  present(text: string): { scheme: 'light' | 'dark' };
+  onKey(event: KeyboardEvent): boolean;
+  setVisible(visible: boolean): void;
+  destroy(): void;
 }
 
-/** The read view of the shell's `#orz-view` / `#orz-doc` (created when the page lacks them). */
+/** The app's handle, when the kit's app runs this page (for its chrome and toasts). */
+type AppHandle = { setChromeVisible?(v: boolean): void; toast?(m: string, tone?: string): void };
+const appHandle = (): AppHandle | null => ((globalThis as unknown as { OrzCarrier?: { standalone?: AppHandle } }).OrzCarrier?.standalone ?? null);
+
+/** The read view of the shell's `#orz-view` (created when the page lacks it). */
 export function createReadView(doc: Document): SlidesReadView {
   let main = doc.getElementById('orz-view');
   if (!main) {
@@ -30,15 +42,14 @@ export function createReadView(doc: Document): SlidesReadView {
     main.className = 'orz-view orz-slides';
     doc.body.prepend(main);
   }
-  let article = doc.getElementById('orz-doc');
-  if (!article) {
-    article = doc.createElement('article');
-    article.id = 'orz-doc';
-    article.className = 'markdown-body';
-    main.append(article);
-  }
-  let generation = 0;
-  let destroyed = false;
+  const view = main;
+  let text = '';
+  const engine = createDeckEngine(view, {
+    onPresent: (p) => appHandle()?.setChromeVisible?.(!p),
+    notify: (m) => appHandle()?.toast?.(m),
+    lang: () => { try { return readDocument(text, { kind: 'slides' }).lang; } catch { return 'en'; } },
+    title: () => { try { return readDocument(text, { kind: 'slides' }).title; } catch { return doc.title; } },
+  });
 
   const enableStylesheets = (): void => {
     for (const id of SHELL_STYLESHEETS) {
@@ -47,39 +58,40 @@ export function createReadView(doc: Document): SlidesReadView {
     }
   };
 
-  const present = (text: string): { scheme: 'light' | 'dark' } => {
-    const p = presentationOf(text);
-    swapStylesheet(doc, 'orz-theme', themeHref(p.theme));
+  const present = (t: string): { scheme: 'light' | 'dark' } => {
+    const p = presentationOf(t);
+    engine.present(p.theme, logicalSize(p.ratio));
     swapStylesheet(doc, 'orz-hljs', p.theme.scheme === 'dark' ? PREVIEW_CDN.hljsDarkCss : PREVIEW_CDN.hljsLightCss);
     enableStylesheets();
     const scheme = doc.querySelector('meta[name="color-scheme"]');
     if (scheme && scheme.getAttribute('content') !== p.theme.scheme) scheme.setAttribute('content', p.theme.scheme);
-    main!.setAttribute('data-orz-theme', p.theme.id);
-    main!.setAttribute('data-orz-ratio', p.ratio);
+    view.setAttribute('data-orz-theme', p.theme.id);
+    view.setAttribute('data-orz-ratio', p.ratio);
     try {
-      const title = readDocument(text, { kind: 'slides' }).title;
+      const title = readDocument(t, { kind: 'slides' }).title;
       if (doc.title !== title) doc.title = title;
     } catch { /* the title stays */ }
     return { scheme: p.theme.scheme };
   };
 
   return {
-    element: main,
-    article,
+    element: view,
+    engine,
     present,
-    async render(text, ctx = {}) {
-      const mine = ++generation;
-      const { scheme } = present(text);
-      const html = await renderSlides(text, ctx);
-      if (mine !== generation || destroyed) return;
-      disposeEnhancement(article!);
-      article!.innerHTML = html;
-      void enhanceDocument(article!, { scheme }).catch(() => undefined);
+    async render(t, ctx = {}) {
+      text = t;
+      present(t);
+      await engine.render(t, {
+        ...(ctx.includes ? { includes: ctx.includes } : {}),
+        ...(ctx.fetchInclude ? { fetchInclude: ctx.fetchInclude } : {}),
+      });
+      // the shell's fallback line goes once the deck shows
+      view.querySelector(':scope > .orz-fallback')?.remove();
     },
+    onKey: (e) => engine.onKey(e),
+    setVisible: (v) => engine.setVisible(v),
     destroy() {
-      destroyed = true;
-      generation++;
-      disposeEnhancement(article!);
+      engine.destroy();
     },
   };
 }

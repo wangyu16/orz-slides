@@ -71,3 +71,40 @@ export async function launchChrome(): Promise<Browser | null> {
     return null;
   }
 }
+
+type Page = import('playwright-core').Page;
+type BrowserContext = import('playwright-core').BrowserContext;
+
+/** The page's carrier handle, typed loosely for page scripts. */
+export type PageGlobal = { OrzCarrier: { standalone: { ready: Promise<void>; menu: { open(): void; close(): void }; view: { engine: Record<string, (...a: unknown[]) => unknown> } } & Record<string, (...a: unknown[]) => unknown> } };
+
+/**
+ * Open an assembled deck in real Chrome (a file: page in a fresh context):
+ * `network: false` (default) blocks every non-file request (the file must
+ * work offline); `true` lets the pinned CDN libraries load (charts,
+ * molecules, diagrams, fonts). Resolves when the kit's app is ready and the
+ * engine has rendered (reveal ready, the current slide fitted).
+ */
+export async function openDeck(browser: Browser, path: string, html: string, o: { network?: boolean; viewport?: { width: number; height: number } } = {}): Promise<{ page: Page; ctx: BrowserContext; errors: string[] }> {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(path, html, 'utf8');
+  const ctx = await browser.newContext({ viewport: o.viewport ?? { width: 1280, height: 720 } });
+  if (!o.network) await ctx.route('**/*', (r) => (r.request().url().startsWith('file:') ? r.continue() : r.abort()));
+  const page = await ctx.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(`file://${path}`);
+  await page.waitForFunction(() => (globalThis as unknown as { OrzCarrier?: { standalone?: unknown } }).OrzCarrier?.standalone !== undefined);
+  await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.ready);
+  await page.waitForFunction(() => document.querySelector('.reveal.orz-deck.ready .slides > section.present[data-fitted]') !== null);
+  return { page, ctx, errors };
+}
+
+/** Go to slide `i` (0-based) through the engine and wait until it is current and fitted. */
+export async function goTo(page: Page, i: number): Promise<void> {
+  await page.evaluate((n) => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.go(n); }, i);
+  await page.waitForFunction((n) => {
+    const s = document.querySelectorAll('.reveal .slides > section')[n];
+    return !!s && s.classList.contains('present') && s.hasAttribute('data-fitted');
+  }, i);
+}

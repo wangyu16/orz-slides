@@ -1,0 +1,59 @@
+/* ==========================================================================
+   orz-slides 1.0 · layers/slide-scale.css
+   Loaded after an orz-markdown theme's decoration in every DERIVED theme.
+   The source theme is written for a reading column (~19px text, generous
+   vertical rhythm, a framed article). On a projected slide the same
+   decoration is kept but: the article frame goes, text follows the slide
+   size (and fit's --fit-scale), sub-headings shrink to a slide scale,
+   and the block rhythm tightens. Nothing here sets a colour or a font.
+   ========================================================================== */
+
+.reveal .markdown-body {
+  font-size: 1em;
+  line-height: inherit;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* block rhythm: one step between blocks, never the reading column's 1.2em+ */
+.reveal .orz-region .markdown-body > *,
+.reveal .orz-float .markdown-body > *,
+.reveal .orz-region .markdown-body :is(.col, .tab, .info, .success, .warning, .danger, blockquote, li) > * {
+  margin-top: 0;
+  margin-bottom: var(--sl-block, 0.5em);
+}
+.reveal .orz-region .markdown-body > :last-child,
+.reveal .orz-float .markdown-body > :last-child,
+.reveal .orz-region .markdown-body :is(.col, .tab, .info, .success, .warning, .danger, blockquote, li) > :last-child { margin-bottom: 0; }
+.reveal .markdown-body li { margin-top: 0; margin-bottom: var(--sl-li, 0.18em); }
+.reveal .markdown-body li > :is(ul, ol) { margin: 0.15em 0 0; }
+
+/* sub-headings at slide scale (h3 is the in-slide heading) */
+.reveal .orz-region .markdown-body :is(h3, h4, h5, h6) { margin-top: 0.3em; margin-bottom: 0.3em; line-height: 1.2; }
+.reveal .orz-region .markdown-body > :is(h3, h4, h5, h6):first-child { margin-top: 0; }
+.reveal .orz-region .markdown-body h3 { font-size: 1.12em; }
+.reveal .orz-region .markdown-body h4 { font-size: 1em; }
+.reveal .orz-region .markdown-body h5 { font-size: 0.92em; }
+.reveal .orz-region .markdown-body h6 { font-size: 0.85em; }
+
+/* code and tables stay readable from the back row (>= ~21px) */
+.reveal .markdown-body pre { font-size: 0.78em; line-height: 1.5; }
+.reveal .markdown-body pre code { font-size: 1em; }
+.reveal .markdown-body table { font-size: 0.86em; }
+.reveal .markdown-body :is(p, li) > code { font-size: 0.86em; }
+
+/* display math and diagrams: centred, moderate spacing */
+.reveal .markdown-body .katex-display { margin: 0.25em 0; }
+.reveal .markdown-body .katex { font-size: 1.08em; }
+.reveal .markdown-body p.katex-block { margin-bottom: var(--sl-block, 0.5em); }
+.reveal .markdown-body .mermaid { text-align: center; }
+.reveal .markdown-body div.smiles-render { margin: 0.2em 0 var(--sl-block, 0.5em); }
+.reveal .markdown-body img { margin: 0; }
+
+/* task lists: the source themes hang the box in the list's left padding */
+.reveal .markdown-body ul.contains-task-list { padding-left: 1.5em; }

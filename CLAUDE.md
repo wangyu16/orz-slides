@@ -21,17 +21,21 @@ their owned files, interfaces, and the build order.
 > **Status: published (v0.8.5); rebuild 1.0 in progress on branch
 > `rebuild/1.0`** (family plan `../docs/REBUILD.md` §3c — owner decisions
 > 1–6 and the approved plan are binding; mirrors orz-mdhtml 1.0 and orz-paged
-> 1.0). Steps 1–2 done: orz-markdown `^2.3.0` from the registry, reveal.js
-> pinned, no shims; the 0.x shell (`assets/app.js`, `src/template.ts`,
-> `src/browser-entry.ts`, the 0.x CLI/library) is deleted — the bundle boots
-> the kit's `carrier/app` with the slides kind (`src/browser/`), whose read
-> view is a STUB (the flattened deck) until step 3; text format 1 (FC-18
-> §7.2): `src/deck/parse.ts` (`parseDeck` on the kit's token scanner, the
-> header as the deck config, carrier lints), `src/deck/layout-spec.ts` (the
-> layout grammar and its canonical serialiser), `src/assemble.ts`
-> (`assemble`, `extract`, `readDocument`, `newDocument`), `src/legacy.ts`
-> (0.x files and texts → format 1, `upgrade`); claims in `notes/CLAIMS.md`
-> (bound by `tests/claims.test.ts`); the kit's conformance harness runs from
+> 1.0). Steps 1–3 done: orz-markdown `^2.3.0` (linked to the prepared,
+> unpublished 2.4.0 checkout during step 3: `node_modules/orz-markdown` is a
+> symlink to `../../orz-markdown`, as orz-paged did), reveal.js pinned, no
+> shims; the 0.x shell is deleted — the bundle boots the kit's `carrier/app`
+> with the slides kind (`src/browser/`); text format 1 (FC-18 §7.2):
+> `src/deck/parse.ts`, `src/deck/layout-spec.ts`, `src/deck/plan.ts`
+> (numbers, sections, outline), `src/assemble.ts`, `src/legacy.ts`; the
+> engine (step 3) is `src/present/` — the ONE module that owns reveal.js
+> (`keyboard: false`, keys through the kit's `onKey`), fit, the speaker view,
+> the timer, Present and the print document — with the slide DOM of
+> `src/render-slide.ts` and the theme contract of `docs/dom-contract.md`;
+> one theme is built (Orchard: `scripts/build-themes.ts` →
+> `assets/themes/orchard.css`; the other 13 show in it until step 4). Claims
+> in `notes/CLAIMS.md` (bound by `tests/claims.test.ts`); the kit's
+> conformance harness runs from
 > day one (`tests/conformance.test.ts`). There is no CLI until step 7. The
 > sections below still describe 0.x where they name deleted files; they are
 > rewritten in step 8 (D-28). `KIT GAP` markers name code that belongs in

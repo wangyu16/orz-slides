@@ -24,8 +24,10 @@ Binding specs: orz-markdown `spec/FC-18-text-format-1.md` (text format 1,
 slides kind), `spec/conformance.md`; the family plan `../docs/REBUILD.md` §3c
 (owner decisions 1–6 and the approved plan).
 
-Rebuild status: steps 1 (base) and 2 (format-1 parser + isomorphic
-assembler) on branch `rebuild/1.0`. The read view is a stub until step 3.
+Rebuild status: steps 1 (base), 2 (format-1 parser + isomorphic
+assembler) and 3 (the engine: the read view, present, print) on branch
+`rebuild/1.0`. Step 3 builds one theme (Orchard); the other 13 show in it
+as a stand-in until step 4.
 
 ## B — base (rebuild step 1)
 
@@ -99,18 +101,73 @@ assembler) on branch `rebuild/1.0`. The read view is a stub until step 3.
 | ID | Claim | Oracle |
 |---|---|---|
 | E.1 | `renderLayout` turns a layout tree into nested CSS-grid DOM with one empty `.orz-region` per leaf (0.x behaviour kept). | unit |
-| E.2 | `renderSlide` turns a parsed slide into a reveal `<section>` (title band, filled regions, footer, floats, notes) as in 0.x, now from the format-1 parser. | unit |
+| E.2 | `renderSlide` / `renderDeck` turn a parsed deck into reveal `<section>`s in the 1.0 DOM contract (docs/dom-contract.md): the top slot `.orz-head`, the frame (title band, content grid, or the template box), floats, the bottom slot `.orz-chrome` (footer, section, number, bar) and the notes; every box that can overflow (title band, region, template box, float) is an `.orz-box`; the deck footer is not on the title page; a `bg` naming an image is `data-background-image`, else a colour. | unit |
 
-## R — the assembled file in real Chrome (rebuild steps 1–2: the stub read view)
+## D — the deck plan (rebuild step 3; Q3, Q4)
 
 | ID | Claim | Oracle |
 |---|---|---|
-| R.1 | Every slides corpus deck, assembled inline and opened offline over `file:`, boots on the kit's `carrier/app`: `OrzCarrier` is the slides carrier of this version (formats [1]), the read view (the step-1 stub: the flattened deck) replaces the fallback line, the page title is the derived title, the pencil handle is there, no page error. | real |
-| R.2 | Edit mounts the kit's editor on the exact text, clean; leaving returns to the read view, which follows a header setting (Theme). | real |
+| D.1 | Every slide is numbered `n` of `total`, with `--progress` = (n − 1) / (total − 1) (1 for a one-slide deck) on its section. | unit |
+| D.2 | Sections are numbered automatically: each `template=section` slide opens the next one; every slide belongs to the last section opened at or before it (none before the first) and knows its title (the plain text of the section's heading). | unit |
+| D.3 | The section label follows the header's `section_numbers` — `plain` 1, `roman` I, `01` 01, `none` nothing — else the theme's default (Paper: roman, the others: 01). | unit |
+| D.4 | An outline marks the top-level item of the next section after it (an outline before section k marks item k; none after the last section) as `li.orz-here` with `aria-current="step"`; `here=N` overrides it, `here=0` marks none; a nested item is never the marked one. | unit |
+| D.5 | The header keys decide the bottom slot: `slide_numbers: no` drops the number, `progress: no` the bar; the section label and title are in the bottom slot, the top slot holds the deck title and the section title; a section template carries its label (`data-sec`). | unit |
+
+## F — fit (rebuild step 3; STATUS D-46)
+
+| ID | Claim | Oracle |
+|---|---|---|
+| F.1 | Every box of every slide of every slides corpus deck (offline) fits, or is scaled (`--fit-scale`, `data-scale` ≥ the floor 0.6), or carries `data-clipped`: no content lies outside its box, or outside an element within it that clips, unless the box says so — no silent clipping. | real |
+| F.2 | D-46: a long title on title v2 (and v1) stays inside the slide — the template page is a bounded, fitted box; nothing spills past either edge. | real |
+| F.3 | Fit works on both axes: a table wider than the slide is scaled to the floor and then marked clipped; dense text is scaled; a big picture takes its column's room; `fit=off` is not scaled but marked when cut; `fit=scroll` scrolls (`data-scroll`), never marked; a long section title is scaled into the page. | real |
+| F.4 | Fit runs on the visible slide only (after a render only the first slide is fitted); the sample deck (math, code, a table, a picture, a float, a molecule, a chart, a diagram) holds F.1 offline. | real |
+
+## K — the read view: keys, fragments, presenter tools (rebuild step 3; Q1)
+
+| ID | Claim | Oracle |
+|---|---|---|
+| K.1 | Keys reach the deck only through the kit's `onKey`: → ↓ PageDown Space next, ← ↑ PageUp Shift+Space previous, End / Home; reveal.js's own keyboard, controls, progress bar and slide number are off; with the editor open the keys are the editor's. | real |
+| K.2 | Fragments: a `step` slide reveals its blocks (each item of a top-level list, every other block) one key at a time, in order across regions, then moves on; `{{attrs[.fragment]}}` fragments work too; going to a slide starts it with no fragment shown. | real |
+| K.3 | Overview: `o` opens it, Escape and Enter close it, the arrows choose the slide; the pencil's list offers it. | real |
+| K.4 | The speaker view (`s`, or the pencil's list) opens its own window — current and next slide, the speaker notes, the position, the wall clock and the timer — and keys pressed there drive the deck. | real |
+| K.5 | Present (the bar action, or `f`) shows the deck alone, full screen where the browser allows it, with the kit's chrome hidden; the keys still drive the deck; leaving brings the chrome back. | real |
+| K.6 | The timer (`t`) shows the wall clock and the elapsed time over the deck; `t` again hides it. | real |
+| K.7 | Content is drawn when its slide becomes visible: the molecule at its box's size (not a fixed 250 × 180 canvas), the chart at its box's width (Chart.js at 18 px, a carrier stop-gap), the diagram with whole labels (SVG labels in a scaled deck, a carrier stop-gap) — needs the network. | real |
+| K.8 | Online (webfonts, KaTeX, the libraries) no box of the sample deck is clipped, and every box reports its scale. | real |
+
+## C — the chrome slots and templates on screen (rebuild step 3)
+
+| ID | Claim | Oracle |
+|---|---|---|
+| C.1 | The bottom slot shows n / total, the footer, the section, and a progress bar whose width follows `--progress`; `slide_numbers: no` / `progress: no` remove number and bar, `section_numbers: roman` labels sections I, II …; the top slot holds the deck and section titles. | real |
+| C.2 | The outline's current item is marked on screen (automatic, or `here=N`), styled apart by the theme. | real |
+| C.3 | The closing template lifts a lone `{{qr}}` into its own slot (`.orz-qr-slot`, its `data-md` breadcrumb kept; the paragraph it leaves tidied); with two codes nothing moves. | real |
+
+## T — themes in the engine (rebuild step 3; step 4 completes them)
+
+| ID | Claim | Oracle |
+|---|---|---|
+| T.1 | The read view's theme is the engine's stylesheet (`#orz-slide-theme`; step 3: Orchard, the stand-in for a theme not built yet); the shell's head links no theme; slides render at the logical size — 1280 × 720 for 16:9, 960 × 720 for 4:3 — and a Ratio or Theme setting re-presents the deck. | real |
+| T.2 | `assets/themes/<id>.css` is exactly what scripts/build-themes.ts derives from the installed orz-markdown (orz-markdown common.css + the source theme adapted to a slide + layers/slide-scale.css + the theme's layer); the engine bundle carries reveal.js's core CSS, deck.css and the built themes, so inline and cdn files style the same. | conformance |
+
+## Q — print (rebuild step 3; Q8)
+
+| ID | Claim | Oracle |
+|---|---|---|
+| Q.1 | The print document has one slide per page at the slide's size (16:9: 1280 × 720 px, 4:3: 960 × 720), every fragment shown, every box fitted, slide backgrounds on the slides, and no script; the page's print stage is removed afterwards. | real |
+| Q.2 | "With notes": one page per slide, the slide over its speaker notes (pages 1280 × 1240 px). | real |
+| Q.3 | Print is the action with id `print`: Cmd/Ctrl+P in the read view prints the print document in the kit's sandboxed frame (`allow-scripts allow-modals`), never the page; Print with notes is in the pencil's list. | real |
+
+## R — the assembled file in real Chrome
+
+| ID | Claim | Oracle |
+|---|---|---|
+| R.1 | Every slides corpus deck, assembled inline and opened offline over `file:`, boots on the kit's `carrier/app`: `OrzCarrier` is the slides carrier of this version (formats [1]), the read view is the deck (one slide per marker) and the fallback line is gone, the page title is the derived title, the pencil handle is there, no page error. | real |
+| R.2 | Edit mounts the kit's editor on the exact text, clean, and hides the deck; leaving shows it again, and it follows a header setting (Theme). | real |
 
 ## H — the carrier conformance harness (FC-19 §6)
 
 | ID | Claim | Oracle |
 |---|---|---|
-| H.1 | orz-markdown's carrier conformance harness runs against the real carrier from step 1 — all 46 checks, no skips, a `next` build — and the carrier is conformant (45 passed; `C.update.from-previous` not applicable: `firstRelease`), with the stub read view; the engine, editing modes and themes of later steps must keep it so. | real |
+| H.1 | orz-markdown's carrier conformance harness runs against the real carrier from step 1 — all 46 checks, no skips, a `next` build — and the carrier is conformant (45 passed; `C.update.from-previous` not applicable: `firstRelease`), with the deck read view of step 3; the editing modes and themes of later steps must keep it so. | real |
 | H.2 | The conformance target is the real carrier: the library's engine and manifest (the browser build's bytes), its `assemble` and `newDocument`, a `next` build that differs only by its version, `firstRelease` (0.x files get `upgrade`, not an in-file update). | conformance |
