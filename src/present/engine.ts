@@ -29,11 +29,11 @@ import { disposeEnhancement, enhanceDocument, redrawEnhancement } from 'orz-mark
 import { printDocument } from 'orz-markdown/carrier/editor';
 import { decorate } from './decorate.js';
 import { fitSlide } from './fit.js';
+import { gridPrepare } from './grid.js';
 import { buildPrintDocument, type PrintOptions } from './print.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
 import { PresenterClock, SpeakerView, TimerOverlay } from './speaker.js';
 import { installStyles } from './styles.js';
-import { chartFontSize, svgMermaidLabels } from './libs.js';
 
 /** reveal.js's options the engine always sets (and sets again after the URL's query had its say). */
 const FORCED: Readonly<Record<string, unknown>> = Object.freeze({
@@ -121,8 +121,6 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   slidesEl.className = 'slides';
   root.appendChild(slidesEl);
   host.appendChild(root);
-  svgMermaidLabels(win);
-  chartFontSize(win);
 
   let reveal: RevealApi | null = null;
   let ready: Promise<unknown> | null = null;
@@ -142,10 +140,11 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   const current = (): HTMLElement | null => (reveal?.isReady() ? reveal.getCurrentSlide() ?? null : sections()[0] ?? null);
   const index = (): number => (reveal?.isReady() ? reveal.getIndices().h : 0);
 
+  const grid = gridPrepare(win);
   const fitCurrent = (): void => {
     const s = current();
     if (!s || host.hidden) return;
-    fitSlide(s);
+    fitSlide(s, undefined, grid);
   };
   /** Fit soon (one frame later), e.g. after an image or a font loaded. */
   const fitSoon = (): void => {
@@ -165,13 +164,15 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   const shown = (): void => {
     const s = current();
     if (!s) return;
-    fitSlide(s);
+    fitSlide(s, undefined, grid);
     redrawEnhancement(s);
     speaker.sync();
   };
 
-  // images and fonts that finish loading change what fits
+  // images, stylesheets (KaTeX's, from the CDN, may arrive after the first fit) and fonts that finish loading change what fits
   root.addEventListener('load', (e) => { const t = e.target as Element; if (t && t.tagName === 'IMG' && current()?.contains(t)) fitSoon(); }, true);
+  const onSheet = (e: Event): void => { const t = e.target as Element | null; if (t && t.tagName === 'LINK') fitSoon(); };
+  doc.addEventListener('load', onSheet, true);
   const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
   const onFonts = (): void => fitSoon();
   fonts?.addEventListener?.('loadingdone', onFonts);
@@ -192,10 +193,8 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
       margin: 0.04, minScale: 0.05, maxScale: 4,
       transition: transition ?? 'slide',
       backgroundTransition: 'fade',
-      // every slide laid out (display: block, unseen): diagrams drawn on a slide far from the
-      // current one measure their text (Mermaid in a display: none slide draws a broken layout)
-      viewDistance: 10_000,
-      mobileViewDistance: 10_000,
+      // reveal's own view distance: a slide out of it is display: none, and the kit (orz-markdown
+      // 2.4.0) draws its diagrams and charts when it is laid out again (redrawEnhancement on show)
     });
     ready = reveal.initialize();
     await ready;
@@ -348,6 +347,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
       speaker.close();
       timer.hide();
       fonts?.removeEventListener?.('loadingdone', onFonts);
+      doc.removeEventListener('load', onSheet, true);
       doc.removeEventListener('fullscreenchange', onFullscreen);
       disposeEnhancement(slidesEl);
       try { reveal?.destroy(); } catch { /* reveal's own */ }

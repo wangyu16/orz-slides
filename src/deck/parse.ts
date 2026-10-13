@@ -32,13 +32,13 @@
  * Every lint carries its line and offsets. Pure apart from the parser
  * instance (created once, on first use): no DOM, no Node built-ins, no clock.
  */
-import { kitParser, readHeader } from 'orz-markdown/carrier';
+import { kitParser, readHeader, type KitToken } from 'orz-markdown/carrier';
 import type { Deck, FloatGeom, FloatRegion, LayoutNode, Region, RegionSource, Slide, SlideLint, SlideOptions, Span, TemplateName } from '../types.js';
 import { deckConfig } from './config.js';
 import { DEFAULT_REGION, firstLeaf, leaf, leaves, parseLayoutSpec, RESERVED_REGIONS } from './layout-spec.js';
 
-/** A markdown-it token of the kit's parser (the kit's `KitToken` is a narrower view: it lacks `nesting`). */
-export type Token = ReturnType<ReturnType<typeof kitParser>['parse']>[number];
+/** A markdown-it token of the kit's parser (orz-markdown 2.4.0 `KitToken`: every data field, `nesting` included). */
+export type Token = KitToken;
 
 /**
  * The tokens of a text from the kit's parser (`kitParser()`, orz-markdown

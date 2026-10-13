@@ -20,6 +20,8 @@
      --sl-title-size  title band h2 size               1.62em
      --sl-bg / --sl-ink / --sl-viewport / --sl-mono    colours and code font
      --sl-graphic-min smallest height a graphic keeps  4em
+     --chart-aspect, --chart-max-width                 a chart's shape and width cap  1.6, min(100%, 20.8em)
+     --chart-font-size, --mm-font-size                 chart and diagram text, logical px  18
    Set by the engine (read only): --progress (0..1) on each slide,
    --fit-scale on a box fit scaled, --sl-w / --sl-h (the logical size).
    ========================================================================== */
@@ -88,7 +90,10 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .orz-split .orz-split { height: 100%; }
 .reveal .orz-region {
   flex: 1 1 auto;
-  overflow: hidden;
+  /* clip, not hidden: nothing scrolls a box; the glyphs of a first or last line may stand a little past
+     their line box (a big title's ascent), so ink is clipped 6px out (fit still measures the box) */
+  overflow: clip;
+  overflow-clip-margin: 6px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -107,16 +112,19 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   justify-content: center;
 }
 .reveal .orz-region > .markdown-body > p:has(> img:only-child) > img,
-.reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) img { max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
+.reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) img { box-sizing: border-box; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
 .reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) > a { display: contents; }
 .reveal .orz-region > .markdown-body > div.mermaid > svg { max-height: 100%; max-width: 100% !important; height: auto; }
 
 /* code and tables never scroll on a slide: they wrap, fit scales them, else they are marked clipped */
 .reveal .orz-slide:not([data-fit="scroll"]) .markdown-body pre { overflow: hidden; }
-.reveal .orz-slide:not([data-fit="scroll"]) .markdown-body :is(.table-wrapper, .katex-display) { overflow: hidden; }
+.reveal .orz-slide:not([data-fit="scroll"]) .markdown-body .table-wrapper { overflow: hidden; }
+/* a display formula clips sideways only: its ink may stand above or below its line box (a tall fraction),
+   which is not overflow (overflow-y visible, and clip does not turn it into auto) */
+.reveal .orz-slide:not([data-fit="scroll"]) .markdown-body .katex-display { overflow-x: clip; overflow-y: visible; }
 
 /* ---------- floats ---------- */
-.reveal .orz-float { position: absolute; overflow: hidden; z-index: 2; }
+.reveal .orz-float { position: absolute; overflow: clip; overflow-clip-margin: 6px; z-index: 2; }
 .reveal .orz-float .markdown-body { margin: 0; padding: 0; font-size: 1em; }
 .reveal .orz-float > .markdown-body > :first-child { margin-top: 0; }
 .reveal .orz-float > .markdown-body > :last-child { margin-bottom: 0; }
@@ -127,8 +135,14 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .markdown-body .qrcode svg { max-width: 100%; height: auto; }
 /* SMILES (orz-markdown 2.4.0 draws it at its CSS box's size): a box that follows the text size, so fit scales it too */
 .reveal .markdown-body canvas[data-smiles] { width: 100%; max-width: 12em; height: auto; aspect-ratio: 25 / 18; }
-/* charts: the frame follows the box (the kit caps it at --chart-max-width) */
-.reveal .orz-slide { --chart-max-width: 100%; }
+/* charts: the frame follows the box's width (the kit caps it at --chart-max-width), at a slide's aspect
+   (--chart-aspect, read by the kit), and never taller than 13em — sized in em, so fit scales it too */
+.reveal .orz-slide { --chart-aspect: 1.6; --chart-max-width: min(100%, 20.8em); }
+/* Chart.js and Mermaid text at a slide's size (logical px; a theme sets its own), and Mermaid's labels as
+   SVG text everywhere in a deck (reveal scales the slides with a transform, under which HTML labels
+   measure wrong; the print document draws the same) — orz-markdown 2.4.0 tokens */
+:root { --chart-font-size: 18; --mm-font-size: 18; }
+.reveal.orz-deck { --mm-labels: svg; }
 
 /* ---------- reveal's reset strips inline semantics: restore them ---------- */
 .reveal .markdown-body strong, .reveal .markdown-body b { font-weight: 700; }
@@ -148,11 +162,14 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   width: 100%;
   max-width: 100%;
   max-height: 100%;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: 6px;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
   position: relative;
+  /* room for ink below the last line box (an inline formula's subscript), so it never reads as overflow */
+  padding-bottom: 0.2em;
 }
 .reveal .orz-template > * { max-width: 100%; min-width: 0; overflow-wrap: break-word; }
 .reveal .orz-title-main, .reveal .orz-section-main { margin: 0; text-wrap: balance; overflow-wrap: break-word; }
@@ -161,7 +178,8 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 /* the closing's lone QR code, lifted into its own slot (themes place it) */
 .reveal .orz-qr-slot { line-height: 0; }
 .reveal .orz-qr-slot .qrcode { display: inline-block; background: #fff; padding: 8px; }
-.reveal .orz-qr-slot .qrcode svg { display: block; width: var(--sl-qr, 4.6em); min-width: 150px; }
+.reveal .orz-qr-slot .qrcode svg { display: block; width: var(--sl-qr, 4.6em); height: auto; min-width: 150px; }
+.reveal .orz-qr-slot .qrcode__icon { display: none; }
 /* the outline's current item (li.orz-here): themes decorate it; a plain default */
 .reveal .orz-outline li.orz-here { font-weight: 700; }
 
@@ -203,8 +221,8 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   overflow: hidden;
   pointer-events: auto;
 }
-.reveal .orz-footer .markdown-body { margin: 0; padding: 0; font-size: 1em; background: none; min-width: 0; }
-.reveal .orz-footer .markdown-body p { margin: 0; overflow: hidden; text-overflow: ellipsis; }
+.reveal .orz-footer .markdown-body { margin: 0; padding: 0; font: inherit; color: inherit; letter-spacing: inherit; background: none; min-width: 0; }
+.reveal .orz-footer .markdown-body p { margin: 0; padding: 0; overflow: hidden; text-overflow: ellipsis; }
 .reveal .orz-chrome-num {
   position: absolute;
   right: var(--sl-pad-x);

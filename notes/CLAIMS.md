@@ -132,7 +132,7 @@ as a stand-in until step 4.
 | K.4 | The speaker view (`s`, or the pencil's list) opens its own window — current and next slide, the speaker notes, the position, the wall clock and the timer — and keys pressed there drive the deck. | real |
 | K.5 | Present (the bar action, or `f`) shows the deck alone, full screen where the browser allows it, with the kit's chrome hidden; the keys still drive the deck; leaving brings the chrome back. | real |
 | K.6 | The timer (`t`) shows the wall clock and the elapsed time over the deck; `t` again hides it. | real |
-| K.7 | Content is drawn when its slide becomes visible: the molecule at its box's size (not a fixed 250 × 180 canvas), the chart at its box's width (Chart.js at 18 px, a carrier stop-gap), the diagram with whole labels (SVG labels in a scaled deck, a carrier stop-gap) — needs the network. | real |
+| K.7 | Content is drawn when its slide becomes visible: the molecule at its box's size (not a fixed 250 × 180 canvas), the chart at its box's width with the theme's `--chart-font-size` (orz-markdown 2.4.0 reads it; deck default 18), the diagram with whole labels (SVG labels in a deck: `--mm-labels: svg`) — the kit draws a slide's content when reveal lays it out — needs the network. | real |
 | K.8 | Online (webfonts, KaTeX, the libraries) no box of the sample deck is clipped, and every box reports its scale. | real |
 
 ## C — the chrome slots and templates on screen (rebuild step 3)

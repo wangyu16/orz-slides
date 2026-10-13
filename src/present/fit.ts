@@ -19,6 +19,11 @@
  * block or display formula with `overflow: auto` hides a wide line inside
  * itself, which the box cannot see). Only a laid-out slide can be measured: the engine fits the visible
  * slide (and every slide of the print document).
+ *
+ * A theme that writes text on a baseline grid (Notebook: orz-markdown's
+ * `--orz-grid`) re-aligns a box's content at every trial scale (`prepare`,
+ * src/present/grid.ts): the grid's margins are part of what has to fit, and
+ * its pitch follows the scale.
  */
 
 /** The smallest scale fit uses (0.x's floor). */
@@ -69,10 +74,14 @@ function report(box: HTMLElement, fit: BoxFit): BoxFit {
   return fit;
 }
 
+/** Lays a box's content out again after its scale changed (a baseline grid), before it is measured. */
+export type BoxPrepare = (box: HTMLElement) => void;
+
 /** Fit one box (see the module comment); `mode` is its slide's `fit` option. */
-export function fitBox(box: HTMLElement, mode: 'fit' | 'off' | 'scroll' = 'fit', floor = FIT_FLOOR): BoxFit {
-  box.style.removeProperty('--fit-scale');
+export function fitBox(box: HTMLElement, mode: 'fit' | 'off' | 'scroll' = 'fit', floor = FIT_FLOOR, prepare?: BoxPrepare): BoxFit {
+  const scaleTo = (scale: number): void => { setScale(box, scale); prepare?.(box); };
   box.removeAttribute('data-scroll');
+  scaleTo(1);
   if (box.clientWidth === 0 && box.clientHeight === 0) return report(box, { scale: 1, clipped: false });
   if (!overflows(box)) return report(box, { scale: 1, clipped: false });
   if (mode === 'scroll') {
@@ -80,17 +89,17 @@ export function fitBox(box: HTMLElement, mode: 'fit' | 'off' | 'scroll' = 'fit',
     return report(box, { scale: 1, clipped: false });
   }
   if (mode === 'off') return report(box, { scale: 1, clipped: true });
-  setScale(box, floor);
+  scaleTo(floor);
   if (overflows(box)) return report(box, { scale: floor, clipped: true });
   let lo = floor;
   let hi = 1;
   for (let i = 0; i < STEPS; i++) {
     const mid = (lo + hi) / 2;
-    setScale(box, mid);
+    scaleTo(mid);
     if (overflows(box)) hi = mid;
     else lo = mid;
   }
-  setScale(box, lo);
+  scaleTo(lo);
   return report(box, { scale: lo, clipped: false });
 }
 
@@ -101,13 +110,13 @@ export function boxesOf(slide: HTMLElement): HTMLElement[] {
 }
 
 /** Fit every box of a (laid-out) slide; returns what each did, in fit order. */
-export function fitSlide(slide: HTMLElement, floor = FIT_FLOOR): BoxFit[] {
+export function fitSlide(slide: HTMLElement, floor = FIT_FLOOR, prepare?: BoxPrepare): BoxFit[] {
   const raw = slide.getAttribute('data-fit');
   const mode = raw === 'off' || raw === 'scroll' ? raw : 'fit';
   // reset first: a box's scale changes the room the others get
   const boxes = boxesOf(slide);
   for (const b of boxes) b.style.removeProperty('--fit-scale');
-  const out = boxes.map((b) => fitBox(b, mode, floor));
+  const out = boxes.map((b) => fitBox(b, mode, floor, prepare));
   slide.setAttribute('data-fitted', '');
   return out;
 }

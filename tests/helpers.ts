@@ -93,7 +93,8 @@ export async function openDeck(browser: Browser, path: string, html: string, o: 
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  await page.goto(`file://${path}`);
+  // online, a slow webfont must not hold the load event: readiness is awaited below
+  await page.goto(`file://${path}`, o.network ? { waitUntil: 'domcontentloaded', timeout: 90_000 } : {});
   await page.waitForFunction(() => (globalThis as unknown as { OrzCarrier?: { standalone?: unknown } }).OrzCarrier?.standalone !== undefined);
   await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.ready);
   await page.waitForFunction(() => document.querySelector('.reveal.orz-deck.ready .slides > section.present[data-fitted]') !== null);

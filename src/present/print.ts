@@ -19,6 +19,7 @@
 import { enhanceDocument, PREVIEW_CDN } from 'orz-markdown/preview-frame';
 import { decorate } from './decorate.js';
 import { fitSlide } from './fit.js';
+import { gridPrepare } from './grid.js';
 import { renderDeckText, type DeckRenderContext } from './render.js';
 import { DECK_CSS, themeStylesheet } from './styles.js';
 
@@ -93,7 +94,8 @@ export async function buildPrintDocument(doc: Document, text: string, o: PrintOp
     await enhanceDocument(stage, { scheme: r.theme.scheme, static: true }).catch(() => undefined);
     try { await (doc as Document & { fonts?: FontFaceSet }).fonts?.ready; } catch { /* fonts as they are */ }
     await imagesLoaded(stage, 10_000);
-    for (const s of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide'))) fitSlide(s);
+    const grid = gridPrepare(doc.defaultView ?? window);
+    for (const s of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide'))) fitSlide(s, undefined, grid);
     const theme = themeStylesheet(r.theme.id);
     const hljs = r.theme.scheme === 'dark' ? PREVIEW_CDN.hljsDarkCss : PREVIEW_CDN.hljsLightCss;
     const html = [

@@ -196,7 +196,7 @@ chrome('the engine (real Chrome)', () => {
     await ctx.close();
   });
 
-  (online ? it : it.skip)('[K.7] content is drawn when its slide becomes visible: the chart at its box\'s size, the molecule at its box\'s size, the diagram with whole labels (needs the network: the pinned CDN libraries)', async () => {
+  (online ? it : it.skip)('[K.7] content is drawn when its slide becomes visible: the chart at its box\'s size in the theme\'s --chart-font-size, the molecule at its box\'s size, the diagram with whole labels (needs the network: the pinned CDN libraries)', async () => {
     const { page, ctx, errors } = await openDeck(browser!, sampleFile('k7'), assemble(SAMPLE), { network: true });
     await goTo(page, 4);
     await page.waitForFunction(() => {
@@ -226,11 +226,12 @@ chrome('the engine (real Chrome)', () => {
     const chart = await page.evaluate(() => {
       const c = document.querySelector<HTMLCanvasElement>('.reveal .slides > section.present canvas.orz-chart')!;
       const region = c.closest('.orz-region') as HTMLElement;
-      const ch = (window as unknown as { Chart: { getChart(c: unknown): { width: number; options: { font?: unknown } } } }).Chart.getChart(c);
-      return { w: ch.width, region: region.clientWidth, size: (window as unknown as { Chart: { defaults: { font: { size: number } } } }).Chart.defaults.font.size };
+      const ch = (window as unknown as { Chart: { getChart(c: unknown): { width: number; options: { scales: Record<string, { ticks: { font?: { size?: number } } }> } } } }).Chart.getChart(c);
+      return { w: ch.width, region: region.clientWidth, size: ch.options.scales['x'].ticks.font?.size, token: parseFloat(getComputedStyle(c).getPropertyValue('--chart-font-size')) };
     });
     expect(chart.w).toBeGreaterThan(chart.region * 0.8);
-    expect(chart.size).toBe(18);
+    expect(chart.size).toBe(chart.token);   // the theme's --chart-font-size (Orchard: 20), read by the kit
+    expect(chart.token).toBeGreaterThanOrEqual(18);
     await page.waitForFunction(() => !!document.querySelector('.reveal .slides > section.present .mermaid svg'), null, { timeout: 30_000 });
     const labels = await page.evaluate(() => Array.from(document.querySelectorAll('.reveal .slides > section.present .mermaid svg .nodeLabel, .reveal .slides > section.present .mermaid svg text')).map((t) => t.textContent?.trim()).filter((x) => x));
     expect(labels.join(' ')).toContain('Initiator');
@@ -321,7 +322,7 @@ chrome('the engine (real Chrome)', () => {
     await ctx.close();
   });
 
-  it('[T.1] the theme is the engine\'s: Orchard\'s stylesheet (a theme not built yet shows in it as a stand-in); slides render at the logical size — 1280 × 720 for 16:9, 960 × 720 for 4:3 — and a Ratio or Theme setting re-presents the deck', async () => {
+  it('[T.1] the theme is the engine\'s: the header theme\'s own stylesheet (all 14 built); slides render at the logical size — 1280 × 720 for 16:9, 960 × 720 for 4:3 — and a Ratio or Theme setting re-presents the deck', async () => {
     const { page, ctx, errors } = await openDeck(browser!, sampleFile('t1'), assemble(SAMPLE));
     const look = () => page.evaluate(() => {
       const st = document.getElementById('orz-slide-theme')!;
@@ -334,7 +335,7 @@ chrome('the engine (real Chrome)', () => {
     expect(await look()).toMatchObject({ w: 960, h: 720 });
     await page.evaluate(() => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.setSetting({ theme: 'paper' }); });
     await page.waitForFunction(() => document.getElementById('orz-slide-theme')!.getAttribute('data-theme') === 'paper');
-    expect(await look()).toMatchObject({ theme: 'paper', css: 'orchard' });
+    expect(await look()).toMatchObject({ theme: 'paper', css: 'paper' });
     expect(errors).toEqual([]);
     await ctx.close();
   });
