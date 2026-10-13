@@ -4,11 +4,9 @@
  * kit's registry) and the Q3 keys `slide_numbers`, `progress`,
  * `section_numbers`, read with the kit's `readHeader` (the flat nyml reader).
  *
- * KIT GAP (orz-markdown 2.3.0): the kit's registry (`KIND_HEADER_KEYS.slides`)
- * does not list the Q3 keys yet (FC-18 §5.1 minor revision planned for
- * orz-markdown 2.4.0), so its `lintHeader` reports them `unknown-key`. Until
- * then they are CARRIER keys: {@link headerLint} drops the kit's `unknown-key`
- * for exactly these three and checks their values itself.
+ * The kit's registry lists every one of them (orz-markdown 2.4.0, FC-18 §5.1
+ * minor revision: `slide_numbers`, `progress`, `section_numbers`), so the
+ * kit's `lintHeader` knows them; their VALUES are this carrier's to check.
  *
  * Carrier value lints (FC-18 §5.1: warnings with codes of their own, never
  * refusing a text): `invalid-value` for a `ratio` other than `16:9` / `4:3`,
@@ -17,7 +15,7 @@
  *
  * Isomorphic: no Node built-ins.
  */
-import { readHeader, type Lint } from 'orz-markdown/carrier';
+import { readHeader, type Header } from 'orz-markdown/carrier';
 import type { DeckConfig, Ratio, SectionNumbers, SlideLint } from '../types.js';
 import { DEFAULT_THEME, resolveTheme } from '../themes.js';
 
@@ -27,9 +25,6 @@ export const DEFAULT_RATIO: Ratio = '16:9';
 
 /** The section numbering styles (Q3). */
 export const SECTION_NUMBERS: readonly SectionNumbers[] = Object.freeze(['plain', 'roman', '01', 'none'] as SectionNumbers[]);
-
-/** The Q3 keys this carrier reads before the kit's registry lists them (see the module comment). */
-export const CARRIER_KEYS: readonly string[] = Object.freeze(['slide_numbers', 'progress', 'section_numbers']);
 
 const YES = /^(?:yes|true|on)$/i;
 const NO = /^(?:no|false|off)$/i;
@@ -67,13 +62,13 @@ export function deckConfig(text: string): DeckConfig {
 }
 
 /**
- * The header lint of a slides text on top of the kit's: `kit` is the kit's
- * `lintHeader` / `readDocument` lint for kind `slides`; the result drops its
- * `unknown-key` for the Q3 carrier keys and adds the carrier's value lints.
+ * The carrier's value lints of a slides header (added after the kit's header
+ * lint): `invalid-value` warnings for `ratio`, `transition`, `slide_numbers`,
+ * `progress` and `section_numbers`. `header` is the text's header when the
+ * caller has it (the kit's `readDocument` lint context), else it is read.
  */
-export function headerLint(text: string, kit: readonly Lint[]): SlideLint[] {
-  const out: SlideLint[] = kit.filter((l) => !(l.code === 'unknown-key' && l.key !== undefined && CARRIER_KEYS.includes(l.key)));
-  const header = readHeader(text);
+export function headerLint(text: string, header: Header | null = readHeader(text)): SlideLint[] {
+  const out: SlideLint[] = [];
   if (!header) return out;
   const entryOf = (key: string) => [...header.entries].reverse().find((e) => e.key === key);
   const check = (key: string, ok: (v: string) => boolean, takes: string): void => {

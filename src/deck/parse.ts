@@ -23,26 +23,31 @@
  *   twice is `duplicate-region` and a region filled both by the slide's
  *   leading text and by its own marker is `region-twice` (both errors,
  *   owner decision 6; nothing is lost — the contents are joined in order).
- * - Headings (normal slides, 0.x rules): the slide begins with exactly one
- *   h2, its title (`no-title`); no h1 (`h1-on-slide`) and no second h2
- *   (`second-h2`) outside the speaker notes.
+ * - Headings (normal slides, 0.x rules): a slide that begins with an h2
+ *   has it as its title; one that does not is `no-title`, a WARNING (owner
+ *   default 2026-10-13: image-only slides are normal); no h1
+ *   (`h1-on-slide`) and no second h2 (`second-h2`) outside the speaker
+ *   notes (errors).
  *
  * Every lint carries its line and offsets. Pure apart from the parser
  * instance (created once, on first use): no DOM, no Node built-ins, no clock.
  */
-import { createMarkdown } from 'orz-markdown';
-import { readHeader } from 'orz-markdown/carrier';
+import { kitParser, readHeader } from 'orz-markdown/carrier';
 import type { Deck, FloatGeom, FloatRegion, LayoutNode, Region, RegionSource, Slide, SlideLint, SlideOptions, Span, TemplateName } from '../types.js';
 import { deckConfig } from './config.js';
 import { DEFAULT_REGION, firstLeaf, leaf, leaves, parseLayoutSpec, RESERVED_REGIONS } from './layout-spec.js';
 
-type Token = ReturnType<ReturnType<typeof createMarkdown>['parse']>[number];
+/** A markdown-it token of the kit's parser (the kit's `KitToken` is a narrower view: it lacks `nesting`). */
+export type Token = ReturnType<ReturnType<typeof kitParser>['parse']>[number];
 
-let parser: ReturnType<typeof createMarkdown> | null = null;
-/** The kit's parser (a private instance: a host's `md.use()` cannot change what a deck is). */
-function tokensOf(text: string): Token[] {
-  parser ??= createMarkdown();
-  return parser.parse(text, {});
+/**
+ * The tokens of a text from the kit's parser (`kitParser()`, orz-markdown
+ * 2.4.0: the parser `readDocument` and the kit's lints use, private to the
+ * kit — a host's `md.use()` cannot change what a deck is), so one parse
+ * serves `parseDeck` and `readDocument({ tokens })`.
+ */
+export function deckTokens(text: string): Token[] {
+  return kitParser().parse(text, {});
 }
 
 /** A slide marker comment: `<!-- slide [args] -->`, args possibly over several lines. */
@@ -125,7 +130,7 @@ interface Marker {
 }
 
 /** The top-level comment-block markers of a text, in order (the token scanner). */
-function markersOf(tokens: Token[], from: number): Marker[] {
+function markersOf(tokens: readonly Token[], from: number): Marker[] {
   const out: Marker[] = [];
   for (const t of tokens) {
     if (t.level !== 0 || t.type !== 'html_block' || !t.map || t.map[0] < from) continue;
@@ -157,7 +162,7 @@ export interface ScannedMarker {
  */
 export function scanMarkers(text: string): ScannedMarker[] {
   const L = linesOf(text);
-  const tokens = tokensOf(text);
+  const tokens = deckTokens(text);
   const contents = new Map<number, string>();
   for (const t of tokens) if (t.level === 0 && t.type === 'html_block' && t.map) contents.set(t.map[0], t.content.replace(/\n$/, ''));
   return markersOf(tokens, 0).map((m) => ({ type: m.type, span: spanOf(L, m.start, m.end), content: contents.get(m.start) ?? '', args: m.args, ...(m.name !== undefined ? { name: m.name } : {}) }));
@@ -318,11 +323,14 @@ export function readFloatAttrs(attrs: string): { geom: FloatGeom; problems: stri
 
 /* ───────────────────────── the deck ───────────────────────── */
 
-/** Parse a format-1 slides text (see the module comment). */
-export function parseDeck(text: string): Deck {
+/**
+ * Parse a format-1 slides text (see the module comment). `tokens`: the
+ * text's tokens from {@link deckTokens} when the caller has them (one parse
+ * shared with the kit's `readDocument`).
+ */
+export function parseDeck(text: string, tokens: readonly Token[] = deckTokens(text)): Deck {
   const L = linesOf(text);
   const header = readHeader(text);
-  const tokens = tokensOf(text);
   // the header's last line (0-based), so markers start after it
   let bodyLine = 0;
   if (header) {
@@ -376,7 +384,7 @@ export function parseDeck(text: string): Deck {
 }
 
 /** The first content token (a top-level block, comments skipped) whose first line is in [a, b). */
-function firstContent(tokens: Token[], a: number, b: number): { token: Token; index: number } | null {
+function firstContent(tokens: readonly Token[], a: number, b: number): { token: Token; index: number } | null {
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t.level !== 0 || t.nesting === -1 || !t.map) continue;
@@ -389,7 +397,7 @@ function firstContent(tokens: Token[], a: number, b: number): { token: Token; in
 }
 
 /** A slide (see parseDeck). */
-function parseSlide(text: string, L: Lines, tokens: Token[], index: number, m: Marker, end: number, regionMarkers: Marker[]): Slide {
+function parseSlide(text: string, L: Lines, tokens: readonly Token[], index: number, m: Marker, end: number, regionMarkers: Marker[]): Slide {
   const lint: SlideLint[] = [];
   const markerSpan = spanOf(L, m.start, m.end);
   const span = spanOf(L, m.start, end);
@@ -442,7 +450,7 @@ function parseSlide(text: string, L: Lines, tokens: Token[], index: number, m: M
     } else if (first) {
       const s = spanOf(L, first.token.map![0], first.token.map![1]);
       if (first.token.type === 'heading_open' && first.token.tag === 'h1') err('h1-on-slide', 'an h1 on a normal slide (a title page is template=title)', s);
-      else err('no-title', 'a normal slide begins with one h2, its title (## Title)', s);
+      else warn('no-title', 'a normal slide without a title (it may begin with one h2, ## Title); an image-only slide is fine', s);
     }
   }
 

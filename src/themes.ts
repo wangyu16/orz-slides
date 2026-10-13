@@ -7,7 +7,7 @@
  *   their orz-markdown ids are accepted as aliases (Q5).
  * - Four are the 0.x themes kept and updated (Architect, Chalk, Neon, Paper).
  * - Dropped: Manuscript (light-academic-1) and Trade Book (beige-decent-1) in
- *   favour of Paper; the 0.x themes executive, poppy and sage. `upgrade` maps
+ *   favour of Paper (their md ids are aliases of `paper`); the 0.x themes executive, poppy and sage. `upgrade` maps
  *   the dropped 0.x ids (executive → sky, poppy → sticker, sage → orchard,
  *   src/legacy.ts); in a format-1 text they are the kit's `unknown-theme`.
  *
@@ -51,8 +51,19 @@ export const DEFAULT_THEME = 'orchard';
 /** The 0.x theme ids that 1.0 dropped, and the theme `upgrade` writes instead. */
 export const DROPPED_THEMES: Readonly<Record<string, string>> = Object.freeze({ executive: 'sky', poppy: 'sticker', sage: 'orchard' });
 
+/**
+ * The orz-markdown themes whose slide themes were dropped in favour of Paper
+ * (owner decision 5); their ids are aliases of `paper` (coordinator default
+ * 2026-10-13, easy to revert: remove them here), so an md theme id copied
+ * into a deck never falls back to the default.
+ */
+export const PAPER_ALIASES: readonly string[] = Object.freeze(['light-academic-1', 'beige-decent-1']);
+
 /** Alias (an orz-markdown id) → slide theme id. */
-const ALIASES: ReadonlyMap<string, string> = new Map(THEMES.filter((t) => t.derivedFrom).map((t) => [t.derivedFrom!, t.id]));
+const ALIASES: ReadonlyMap<string, string> = new Map([
+  ...THEMES.filter((t) => t.derivedFrom).map((t) => [t.derivedFrom!, t.id] as [string, string]),
+  ...PAPER_ALIASES.map((a) => [a, 'paper'] as [string, string]),
+]);
 
 /** Every value the header's `theme` accepts: the ids and their orz-markdown aliases (the lint's list). */
 export const THEME_VALUES: readonly string[] = Object.freeze([...THEMES.map((t) => t.id), ...ALIASES.keys()]);

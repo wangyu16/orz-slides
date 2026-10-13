@@ -101,17 +101,27 @@ describe('the header is the deck config', () => {
     expect(d.preamble).toBeNull();
   });
 
-  it('[P.5] the Q3 keys are carrier keys until the kit registry lists them: no unknown-key; bad values are invalid-value warnings; ratio takes 16:9 / 4:3', () => {
+  it('[P.5] the Q3 keys are in the kit registry (orz-markdown 2.4.0): no unknown-key; bad values are the carrier\'s invalid-value warnings; ratio takes 16:9 / 4:3', () => {
     const text = `${H('slide_numbers: maybe\nprogress: no\nsection_numbers: 01\nratio: 21:9\ntransition: wobble\nsubtitle: kept\n')}<!-- slide -->\n## A\n`;
     const kit = lintHeader(text, { kind: 'slides' });
-    expect(kit.filter((l) => l.code === 'unknown-key').map((l) => l.key).sort()).toEqual(['progress', 'section_numbers', 'slide_numbers', 'subtitle']);
-    const mine = headerLint(text, kit);
-    expect(mine.filter((l) => l.code === 'unknown-key').map((l) => l.key)).toEqual(['subtitle']);
+    expect(kit.filter((l) => l.code === 'unknown-key').map((l) => l.key)).toEqual(['subtitle']);
+    const mine = headerLint(text);
+    expect(mine.filter((l) => l.code === 'unknown-key')).toEqual([]);
     const invalid = mine.filter((l) => l.code === 'invalid-value');
     expect(invalid.map((l) => [l.key, l.level, l.line])).toEqual([['ratio', 'warning', 6], ['transition', 'warning', 7], ['slide_numbers', 'warning', 3]]);
-    // readDocument reports the same, plus the body
+    // readDocument reports the kit's and the carrier's, once each
     const info = readDocument(text);
     expect(info.lint.filter((l) => l.code === 'invalid-value')).toHaveLength(3);
+    expect(info.lint.filter((l) => l.code === 'unknown-key').map((l) => l.key)).toEqual(['subtitle']);
+    expect(info.settings).toMatchObject({ slide_numbers: 'maybe', progress: 'no', section_numbers: '01' });
+  });
+
+  it('[P.4] readDocument reports one deck-block per block (the kit\'s lint, marked next: upgrade)', () => {
+    const text = `${H('theme: chalk\n')}<!-- deck\ntitle: Old\n-->\n\n<!-- slide -->\n## A\n`;
+    const d = readDocument(text).lint.filter((l) => l.code === 'deck-block');
+    expect(d).toHaveLength(1);
+    expect((d[0] as { next?: string }).next).toBe('upgrade');
+    expect(d[0].level).toBe('error');
   });
 });
 
@@ -208,6 +218,7 @@ describe('headings (normal slides, 0.x rules)', () => {
     expect(s.title).toBe('**Bold** title');
     expect(s.regions[0].markdown).toBe('- a\n- b');
     expect(codes('<!-- slide -->\njust text\n')).toEqual(['no-title']);
+    expect(parseDeck('<!-- slide -->\n![a picture](p.png)\n').lint.map((l) => l.level)).toEqual(['warning']);
     expect(codes('<!-- slide -->\n# Title\nbody\n')).toEqual(['h1-on-slide']);
     expect(codes('<!-- slide -->\n## First\nbody\n## Second\n')).toEqual(['second-h2']);
     expect(codes('<!-- slide -->\n## Title\nbody\n# Nope\n')).toEqual(['h1-on-slide']);
@@ -223,11 +234,10 @@ describe('headings (normal slides, 0.x rules)', () => {
 });
 
 describe('the corpus', () => {
-  it('[P.12] every slides corpus text parses without a body error; the only finding is notes-and-fragments\' dropped 0.x theme (unknown-theme)', () => {
+  it('[P.12] every slides corpus text reads without any lint, with its manifest title', () => {
     for (const c of corpus('slides')) {
       const info = readDocument(c.text, { filename: c.path });
-      const expected = c.path.endsWith('notes-and-fragments.slides.md') ? ['unknown-theme'] : [];
-      expect(info.lint.map((l) => l.code), c.path).toEqual(expected);
+      expect(info.lint.map((l) => l.code), c.path).toEqual([]);
       expect(info.title, c.path).toBe(c.derivedTitle);
       expect(info.kind).toBe('slides');
     }

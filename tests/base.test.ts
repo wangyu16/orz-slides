@@ -4,7 +4,7 @@
  * list, the version constant, the test setup, prepublishOnly (D-15).
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync, lstatSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { THEMES, DEFAULT_THEME, THEME_VALUES, DROPPED_THEMES, isThemeId, resolveTheme } from '../src/themes.js';
 import { VERSION } from '../src/version.js';
@@ -13,9 +13,13 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: strin
 const sources = (dir: string): string[] => readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.(ts|js|cjs|mjs)$/.test(f)).map((f) => join(dir, f));
 
 describe('base', () => {
-  it('[B.1] depends on orz-markdown ^2.3.0 (installed from the registry, not linked) and reveal.js pinned exactly; no shims, aliases, path-browserify or package.json walk', () => {
-    expect(pkg.dependencies['orz-markdown']).toBe('^2.3.0');
-    expect(lstatSync('node_modules/orz-markdown').isSymbolicLink()).toBe(false);
+  it('[B.1] depends on orz-markdown ^2.3.0 (installed from the registry, or — until 2.4.0 is published — linked to the 2.4.0 checkout) and reveal.js pinned exactly; no shims, aliases, path-browserify or package.json walk', () => {
+    expect(pkg.dependencies['orz-markdown']).toMatch(/^\^2\.[34]\.0$/);
+    if (lstatSync('node_modules/orz-markdown').isSymbolicLink()) {
+      // KIT LINK (rebuild step 3): the prepared, unpublished orz-markdown 2.4.0 checkout (as orz-paged used 2.3.0)
+      expect(realpathSync('node_modules/orz-markdown')).toBe(realpathSync('../orz-markdown'));
+      expect((JSON.parse(readFileSync('node_modules/orz-markdown/package.json', 'utf8')) as { version: string }).version).toBe('2.4.0');
+    }
     expect(pkg.dependencies['reveal.js']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(existsSync('build/shims')).toBe(false);
     expect({ ...pkg.dependencies, ...pkg.devDependencies }).not.toHaveProperty('path-browserify');
@@ -37,15 +41,17 @@ describe('base', () => {
     expect(readFileSync('src/browser/index.ts', 'utf8')).toMatch(/startCarrier\(SLIDES_KIND\)/);
   });
 
-  it('[B.3] one slide theme list (src/themes.ts): the 14 themes of owner decision 5, default orchard, orz-markdown ids as aliases of the 10 derived', () => {
+  it('[B.3] one slide theme list (src/themes.ts): the 14 themes of owner decision 5, default orchard, orz-markdown ids as aliases of the 10 derived (and of paper for the 2 dropped md-derived)', () => {
     expect(THEMES.map((t) => t.id)).toEqual(['orchard', 'sky', 'stationery', 'preprint', 'small-press', 'notebook', 'sticker', 'inscription', 'copper', 'nocturne', 'architect', 'chalk', 'neon', 'paper']);
     expect(DEFAULT_THEME).toBe('orchard');
     expect(isThemeId(DEFAULT_THEME)).toBe(true);
     expect(THEMES.filter((t) => t.derivedFrom !== null)).toHaveLength(10);
     expect(resolveTheme('light-neat-3')!.id).toBe('orchard');
     expect(resolveTheme('dark-elegant-3')!.id).toBe('nocturne');
-    expect(resolveTheme('light-academic-1')).toBeNull(); // Manuscript was dropped in favour of Paper
-    expect(THEME_VALUES).toHaveLength(24);
+    // Manuscript and Trade Book were dropped in favour of Paper: their md ids are aliases of paper
+    expect(resolveTheme('light-academic-1')!.id).toBe('paper');
+    expect(resolveTheme('beige-decent-1')!.id).toBe('paper');
+    expect(THEME_VALUES).toHaveLength(26);
     for (const [from, to] of Object.entries(DROPPED_THEMES)) {
       expect(isThemeId(from)).toBe(false);
       expect(isThemeId(to)).toBe(true);

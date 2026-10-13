@@ -30,11 +30,12 @@ import {
   type DocumentInfo,
   type HeaderChange,
   type Kind,
+  type Lint,
   type ShellParts,
 } from 'orz-markdown/carrier';
 import { bundleUrl, isScriptSafe } from 'orz-markdown/carrier/shell';
 import { headerLint, RATIOS } from './deck/config.js';
-import { parseDeck } from './deck/parse.js';
+import { deckTokens, parseDeck } from './deck/parse.js';
 import { presentationOf, readViewMarkup, shellHead, type Presentation } from './presentation.js';
 import { isThemeId, THEME_VALUES } from './themes.js';
 import { VERSION } from './version.js';
@@ -63,10 +64,12 @@ const KINDS: readonly string[] = ['md', 'slides', 'paged'];
  * `readDocument` with this carrier's default kind (`opts.kind`, else the file
  * name's, else the header's `carrier`, else `slides`). For kind `slides` the
  * lint is the kit's header lint against this carrier's themes
- * (`unknown-theme`), with the Q3 carrier keys and their values
- * (src/deck/config.ts: `invalid-value`), plus the body's carrier lints of
- * `parseDeck` (`deck-block`, `text-before-first-slide`, slide options,
- * regions, headings — src/deck/parse.ts), each with its line.
+ * (`unknown-theme`) and its `deck-block` (marked `next: upgrade`), then the
+ * carrier's lints (orz-markdown 2.4.0 `readDocument({ tokens, lint })`: the
+ * text is parsed once): the header values (src/deck/config.ts:
+ * `invalid-value`) and the body's lints of `parseDeck`
+ * (`text-before-first-slide`, slide options, regions, headings —
+ * src/deck/parse.ts), each with its line.
  */
 export function readDocument(text: string, opts: { kind?: Kind; filename?: string } = {}): DocumentInfo {
   const carrier = readHeader(text)?.fields['carrier']?.trim();
@@ -75,8 +78,16 @@ export function readDocument(text: string, opts: { kind?: Kind; filename?: strin
     (opts.filename !== undefined ? kindFromFilename(opts.filename) : null) ??
     (carrier !== undefined && KINDS.includes(carrier) ? (carrier as Kind) : 'slides');
   if (kind !== 'slides') return readKitDocument(text, { kind });
-  const info = readKitDocument(text, { kind, themes: THEME_VALUES });
-  return { ...info, lint: [...headerLint(text, info.lint), ...parseDeck(text).lint] };
+  const tokens = deckTokens(text);
+  const info = readKitDocument(text, {
+    kind,
+    themes: THEME_VALUES,
+    tokens,
+    // the carrier's lints after the kit's: header values, then the body (the kit reports deck-block itself)
+    lint: ({ header }) => [...headerLint(text, header), ...parseDeck(text, tokens).lint.filter((l) => l.code !== 'deck-block')],
+  });
+  // the kit's deck-block says what resolves it: upgrade
+  return { ...info, lint: info.lint.map((l) => (l.code === 'deck-block' ? { ...l, next: 'upgrade' } as Lint : l)) };
 }
 
 /** Options of {@link assemble} (FC-18 §8.2, FC-19 §2). */

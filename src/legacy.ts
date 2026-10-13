@@ -14,10 +14,8 @@
  * - `<title>`: the deck block's `title:`, else the CLI's `--title`, else the
  *   input's file name (the library's: `Untitled`).
  *
- * KIT GAP (orz-markdown 2.3.0): the kit's `readLegacyIsland` reads only an
- * `#orz-src` island (orz-mdhtml's and orz-paged's 0.x files), so this module
- * reads `#orz-deck` with the kit's raw-element scanner (`rawElements`,
- * `rawAttr`) itself.
+ * The island is read by the kit's `readLegacyIsland` with this writer's
+ * island (orz-markdown 2.4.0: `{ id: 'orz-deck', type: 'text/orz-slides' }`).
  *
  * A 0.x TEXT → format 1 ({@link upgradeText}):
  * - the `<!-- deck … -->` block (the first top-level one before the first
@@ -39,9 +37,9 @@
  * Isomorphic: no Node built-ins, no clock; randomness only through `mintUid`
  * when no uid is injected.
  */
-import { decodeEntities, editHeader, extract, generatorOf, mintUid, normalizeHeader, rawAttr, rawElements, readHeader, UID_PATTERN, type HeaderChange } from 'orz-markdown/carrier';
+import { editHeader, extract, mintUid, normalizeHeader, readHeader, readLegacyIsland, UID_PATTERN, type HeaderChange } from 'orz-markdown/carrier';
 import { compareSemver } from 'orz-markdown/carrier/shell';
-import { parseDocMetaIsland, type DocMeta } from 'orz-markdown/doc-meta';
+import type { DocMeta } from 'orz-markdown/doc-meta';
 import { assemble, readDocument, type AssembleOptions } from './assemble.js';
 import { scanMarkers } from './deck/parse.js';
 import { DROPPED_THEMES, resolveTheme } from './themes.js';
@@ -77,52 +75,22 @@ export interface LegacyFile {
  * generator nor the `__ORZ_SLIDES__` config).
  */
 export function readLegacy(html: string): LegacyFile | null {
-  const elements = rawElements(html);
-  const scripts = elements.filter((e) => e.name === 'script');
-  const island = scripts.find((e) => rawAttr(e.attrs, 'id') === 'orz-deck');
+  const island = readLegacyIsland(html, { generator: /^orz-slides(\s|$)/, config: '__ORZ_SLIDES__', island: { id: 'orz-deck', type: 'text/orz-slides' } });
   if (!island) return null;
-  if (scripts.some((e) => rawAttr(e.attrs, 'id') === 'orz-shell')) return null;
-  const generator = generatorOf(html);
-  const configScript = scripts.find((e) => /^\s*window\.__ORZ_SLIDES__\s*=/.test(html.slice(e.start, e.end)));
-  if (!(generator !== null && /^orz-slides(\s|$)/.test(generator)) && !configScript) return null;
-  const notes: string[] = [];
-  const type = rawAttr(island.attrs, 'type');
-  if (type !== 'text/orz-slides') notes.push(`the #orz-deck island's type is ${JSON.stringify(type)}, not text/orz-slides`);
-  let raw = html.slice(island.start, island.end);
-  let wrapped = false;
-  const w = /^(\r\n|\n|\r)([\s\S]*?)(\r\n|\n|\r)$/.exec(raw);
-  if (w) {
-    raw = w[2];
-    wrapped = true;
-  } else notes.push('the #orz-deck island lacks the 0.x writer\'s line breaks around the source; its content is kept exactly');
-  let scriptEscapes = 0;
-  const text = raw.replace(/<\\\/(script)/gi, (_m, s: string) => { scriptEscapes++; return `</${s}`; });
-  if (scriptEscapes > 0) notes.push(`the source held ${scriptEscapes} \`<\\/script\` (the 0.x writer's escape of \`</script\`): restored to \`</script\``);
-  let config: Record<string, unknown> = {};
-  if (configScript) {
-    const body = html.slice(configScript.start, configScript.end).replace(/^\s*window\.__ORZ_SLIDES__\s*=\s*/, '').replace(/;\s*$/, '');
-    try {
-      const v = JSON.parse(body) as unknown;
-      if (v && typeof v === 'object' && !Array.isArray(v)) config = v as Record<string, unknown>;
-    } catch {
-      notes.push('the 0.x config (window.__ORZ_SLIDES__) is not readable JSON');
-    }
-  }
-  const engine = scripts.find((e) => rawAttr(e.attrs, 'data-orz-asset') === 'engine');
-  const delivery = engine ? (rawAttr(engine.attrs, 'src') !== null ? 'cdn' : 'inline') : null;
-  const titleEl = elements.find((e) => e.name === 'title');
-  const title = titleEl ? decodeEntities(html.slice(titleEl.start, titleEl.end)).trim() || null : null;
+  const notes = [...island.notes];
+  if (island.scriptEscapes > 0) notes.push(`the source held ${island.scriptEscapes} \`<\\/script\` (the 0.x writer's escape of \`</script\`): restored to \`</script\``);
+  if (island.configError) notes.push('the 0.x config (window.__ORZ_SLIDES__) is not readable JSON');
   const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
   return {
-    text,
-    wrapped,
-    scriptEscapes,
-    generator,
-    version: str(config['version']),
-    delivery,
-    title,
-    meta: parseDocMetaIsland(html),
-    defaultTheme: str(config['defaultTheme']),
+    text: island.text,
+    wrapped: island.wrapped,
+    scriptEscapes: island.scriptEscapes,
+    generator: island.generator,
+    version: str(island.config['version']),
+    delivery: island.delivery,
+    title: island.title || null,
+    meta: island.meta,
+    defaultTheme: str(island.config['defaultTheme']),
     notes,
   };
 }
