@@ -1,33 +1,52 @@
 /**
- * orz-slides — shared types (the locked interface for all modules).
+ * orz-slides 1.0 — the deck model of text format 1 (FC-18 §7.2, REBUILD §3c).
  *
- * The parser (WP1) produces a `Deck`; the layout engine (WP2) turns a
- * `LayoutNode` into grid DOM; the assembler (WP5) renders a `Slide` to a reveal
- * `<section>`. These types are the contract — do not change them without
- * updating BUILD-PLAN.md and the affected modules.
+ * `parseDeck(text)` (src/deck/parse.ts) reads a format-1 `slides` text into a
+ * {@link Deck}: the deck config from the FC-18 header (the header IS the deck
+ * config), the slides split at top-level `<!-- slide … -->` comment blocks
+ * found by the kit's token scanner, and every finding as a lint. Every part
+ * carries its position in the text (offsets into the text as given, 1-based
+ * lines), so the layout GUI (rebuild step 6) can rewrite marker lines only.
  *
- * See DESIGN.md §5 for the authoring syntax these types model, and
- * docs/dom-contract.md for the rendered DOM/CSS contract.
+ * Changed from 0.x by design: no `<!-- deck … -->` block (lint `deck-block`),
+ * markers only as top-level comment blocks, presets kept as written next to
+ * the expanded tree, one region per name (duplicates are merged and an
+ * error), positions on everything.
  */
+import type { Lint } from 'orz-markdown/carrier';
 
-/** Deck-level config from the leading `<!-- deck … -->` block. */
+/** The slide ratios a header's `ratio` takes (FC-18 §5.1; carrier value lint `invalid-value`). */
+export type Ratio = '16:9' | '4:3';
+
+/** How the theme numbers sections (Q3): `null` = the theme's own default. */
+export type SectionNumbers = 'plain' | 'roman' | '01' | 'none';
+
+/** The deck config: the FC-18 header's slides keys, resolved (defaults filled in; never another source). */
 export interface DeckConfig {
+  /** Header `title` as written (the `<title>` chain is the kit's, FC-18 §8.1). */
   title?: string;
-  /** Theme id, e.g. 'paper' | 'executive' | 'neon' … (default chosen by app). */
-  theme?: string;
-  /** Slide aspect ratio: '16:9' (default) | '4:3'. */
-  ratio?: string;
+  /** The slide theme id (an alias resolved; an unknown or absent theme is the default theme). */
+  theme: string;
+  /** Header `theme` as written, when set. */
+  themeAsWritten?: string;
+  ratio: Ratio;
   author?: string;
-  /** Deck-wide footer (markdown/text), shown on normal slides unless overridden. */
+  /** Deck-wide footer (inline Markdown), shown on normal slides unless a slide's `@footer` replaces it. */
   footer?: string;
   /** Default reveal transition. */
   transition?: string;
+  /** `slide_numbers` (Q3; a carrier key until the kit registry lists it): default yes, the theme draws them. */
+  slideNumbers: boolean;
+  /** `progress` (Q3; a carrier key until the kit registry lists it): default yes. */
+  progress: boolean;
+  /** `section_numbers` (Q3; a carrier key until the kit registry lists it): null = the theme's default. */
+  sectionNumbers: SectionNumbers | null;
 }
 
 /**
- * A grid track size token, as written in the layout grammar:
- *   '2' (= 2fr) · 'auto' · '1fr' · '30%' · '200px'
- * The layout engine normalizes bare numbers to `fr`.
+ * A grid track size token, as written in the layout grammar: `2` (= 2fr),
+ * `1fr`, `auto`, `30%`, `200px`, `1.5em`, `2rem`. The layout engine
+ * normalizes bare numbers to `fr`.
  */
 export type Track = string;
 
@@ -44,101 +63,136 @@ export interface SplitNode {
 
 export interface RegionLeaf {
   kind: 'region';
-  /** Region name; filled by a `<!-- @name -->` marker. Flat + unique per slide. */
+  /** Region name; filled by a `<!-- @name -->` marker (or, for the first leaf, by the slide's leading text). */
   name: string;
 }
 
-/** A content region: the markdown that fills one layout leaf. */
+/** A span of the text: offsets (`from` inclusive, `to` exclusive) and 1-based lines. */
+export interface Span {
+  from: number;
+  to: number;
+  /** 1-based line of `from`. */
+  line: number;
+  /** 1-based line of the span's last line. */
+  endLine: number;
+}
+
+/** A content region: the Markdown that fills one layout leaf. */
 export interface Region {
   name: string;
-  /** Raw orz-markdown for this region (rendered by the assembler). */
+  /** Its Markdown (blank lines around it trimmed; duplicates merged in order). */
   markdown: string;
+  /**
+   * Where its content comes from, in order: its `<!-- @name -->` marker
+   * line(s) and body, or (`marker: null`) the slide's leading text.
+   */
+  sources: RegionSource[];
 }
 
-/** A free-positioned overlay box (`<!-- @float … -->`), outside the grid. */
+export interface RegionSource {
+  /** The marker line, or null for the slide's leading text (the first leaf's). */
+  marker: Span | null;
+  /** The body (the lines after the marker up to the next marker or the slide's end); may be empty (`from === to`). */
+  body: Span;
+}
+
+/** Float geometry (`<!-- @float left=… top=… w=… h=… z=… -->`): CSS lengths as written; z an integer. */
+export interface FloatGeom {
+  left?: string;
+  right?: string;
+  top?: string;
+  bottom?: string;
+  w?: string;
+  h?: string;
+  z?: number;
+}
+
+/** A free-positioned overlay box (`<!-- @float … -->`), outside the grid. Floats are unnamed in 1.0 (identified by order). */
 export interface FloatRegion {
-  /** Geometry; values are CSS lengths ('30%', '200px'). z defaults to order. */
-  geom: {
-    left?: string;
-    right?: string;
-    top?: string;
-    bottom?: string;
-    w?: string;
-    h?: string;
-    z?: number;
-  };
+  geom: FloatGeom;
   markdown: string;
+  /** The float's marker line. */
+  marker: Span;
+  body: Span;
 }
 
-/** Per-slide options from the `<!-- slide … -->` marker. */
+/** Per-slide options from the `<!-- slide … -->` marker (FC-18 §7.2). */
 export interface SlideOptions {
-  /** Background color or image. */
+  /** Background colour or image URL. */
   bg?: string;
+  /** Per-slide transition (`t=`). */
   transition?: string;
-  /** Overflow behavior; default 'fit' (scale-to-fit). */
+  /** Overflow behaviour; default `fit` (scale to fit). */
   fit?: 'fit' | 'scroll' | 'off';
   class?: string;
   id?: string;
-  /** Step-reveal: auto-tag the slide's content as reveal fragments (lists
-   *  reveal per-item, other top-level blocks one at a time, in document order). */
+  /** Step reveal (the bare `step` flag). */
   step?: boolean;
+  /** Outline: the item marked current (Q4); 0 = none; absent = automatic. */
+  here?: number;
 }
 
-export interface LintMsg {
-  level: 'error' | 'warn';
-  message: string;
+/** A finding about the text: the kit's `Lint` shape, with the command that resolves it when there is one. */
+export interface SlideLint extends Lint {
+  /** The CLI command that resolves it (e.g. `upgrade` for a `deck-block`). */
+  next?: string;
 }
 
 export type SlideKind = 'normal' | 'template';
+
+/** The template slides (`template=…`). */
+export type TemplateName = 'title' | 'section' | 'outline' | 'closing';
 
 export interface Slide {
   /** 0-based position in the deck. */
   index: number;
   kind: SlideKind;
-  /** For kind==='template': 'title' | 'section' | 'outline' | 'closing'. */
-  template?: string;
-  /** Template visual variant (from `v=`). */
+  /** For `kind: 'template'`. */
+  template?: TemplateName;
+  /** Template visual variant (`v=`). */
   templateVariant?: number;
-  /**
-   * Normal slide title — the markdown of the single leading h2 (without the
-   * `## `), auto-lifted into the title band. Undefined if none.
-   */
+  /** Normal slide title: the inline Markdown of the leading h2 (lifted into the title band). */
   title?: string;
-  /** Content-area layout (normal slides). Template slides carry their own. */
+  /** The leading h2's span (normal slides with a title). */
+  titleSpan?: Span;
+  /** The content-area layout, presets expanded (template slides: the single `body` leaf). */
   layout: LayoutNode;
-  /** Content regions (by name) parsed from `<!-- @name -->` markers. */
+  /** The layout part of the marker as written (a preset with its ratio, a raw split, or ''). */
+  layoutSpec: string;
+  /** The marker's option tokens as written (`bg=…`, `step`, …), in order. */
+  optionTokens: string[];
+  /** Content regions in order of first appearance (one per name). */
   regions: Region[];
-  /** Float overlays (`<!-- @float … -->`), in declaration order. */
+  /** Float overlays, in declaration order. */
   floats: FloatRegion[];
-  /** Slide-level footer markdown (`<!-- @footer -->`), overrides deck footer. */
+  /** Slide footer Markdown (`<!-- @footer -->`), replacing the deck footer. */
   footer?: string;
-  /** Speaker notes markdown (`<!-- @notes -->`). */
+  /** Speaker notes Markdown (`<!-- @notes -->`). */
   notes?: string;
   options: SlideOptions;
-  /** Lint findings (heading rules, unknown regions, etc.). */
-  lint: LintMsg[];
-  /** Original source text of this slide (for lossless round-trip on save). */
+  /** Findings for this slide (also in `Deck.lint`). */
+  lint: SlideLint[];
+  /** The slide's source: from its marker line to the next marker (exclusive), trailing blank lines included. */
   raw: string;
+  /** The slide's span (marker line to the line before the next marker, or the text's end). */
+  span: Span;
+  /** The slide marker's span. */
+  marker: Span;
 }
 
 export interface Deck {
   config: DeckConfig;
   slides: Slide[];
+  /** The text between the header and the first slide marker, when it holds anything (kept; lint `text-before-first-slide`). */
+  preamble: Span | null;
+  /** Every finding of the body (the header's are the kit's `lintHeader`), in text order. */
+  lint: SlideLint[];
 }
 
-/* ── Module interfaces (implemented by the work packages) ────────────────── */
-
-/** WP1 — parse a deck source into a `Deck`. */
-export type ParseDeck = (source: string) => Deck;
-
-/** WP2 — expand a preset alias (+ optional ratio like '3/2') to a layout tree. */
-export type ExpandPreset = (name: string, ratio?: string) => LayoutNode | null;
-
-/** WP2 — render a layout tree to nested grid DOM with empty region cells. */
+/** Grid render output of the layout engine (src/layout.ts). */
 export interface GridRender {
   /** Grid container HTML; leaves are `<div class="orz-region" data-region="…">`. */
   html: string;
   /** Region names in document order (for the assembler to fill). */
   regions: string[];
 }
-export type RenderLayout = (node: LayoutNode) => GridRender;

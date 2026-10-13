@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderLayout } from '../src/layout.js';
 import type { LayoutNode } from '../src/types.js';
 
-describe('renderLayout', () => {
+describe('[E.1] renderLayout', () => {
   it('renders a single region as an empty placeholder cell', () => {
     const node: LayoutNode = { kind: 'region', name: 'main' };
     const { html, regions } = renderLayout(node);

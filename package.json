@@ -9,26 +9,25 @@
     ".": {
       "types": "./dist/lib.d.ts",
       "default": "./dist/lib.js"
-    }
-  },
-  "bin": {
-    "orz-slides": "dist/cli.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "assets",
+    "assets/themes",
     "orz-slides-skills",
     "PROTOCOL.md"
   ],
   "scripts": {
-    "build": "tsc && npm run bundle",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && npm run bundle",
+    "prebuild": "tsx scripts/sync-version.ts",
     "bundle": "tsx build/bundle.ts",
-    "release": "npm run build && npm publish && npm publish ./browser",
-    "gen": "tsx src/cli.ts",
     "test": "vitest run",
+    "pretest": "tsx scripts/sync-version.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "slides",
@@ -48,15 +47,18 @@
   "homepage": "https://markdown.orz.how/family.html#slides",
   "bugs": "https://github.com/wangyu16/orz-slides/issues",
   "dependencies": {
-    "orz-markdown": "^1.6.3",
-    "reveal.js": "^5.0.4"
+    "orz-markdown": "^2.3.0",
+    "reveal.js": "5.2.1"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^22.20.5",
     "esbuild": "^0.28.1",
-    "path-browserify": "^1.0.1",
-    "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
+    "playwright-core": "^1.63.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20.16"
   }
 }

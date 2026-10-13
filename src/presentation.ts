@@ -1,0 +1,85 @@
+/**
+ * The `slides` kind's presentation: how the header's `theme` and `ratio`
+ * (FC-18 §5.1 — document data) become the shell's stylesheets and read-view
+ * attributes, in one place for the assembled file (Node and browser), the
+ * page's read view and the editor preview.
+ *
+ * REBUILD STEP 1–2 PLACEHOLDER: the slide themes are built in step 4
+ * (scripts/build-themes.ts, shipped inside the engine). Until then the shell
+ * styles the read view with the orz-markdown theme each slide theme derives
+ * from (the four updated 0.x themes with a stand-in), loaded from the pinned
+ * orz-markdown CDN — `themeHref` is the only part that changes then.
+ *
+ * Only the header decides (never anything but the text): an absent or
+ * unknown theme is the default theme, an absent or unknown ratio is 16:9.
+ * Isomorphic: no Node built-ins.
+ */
+import { PREVIEW_CDN } from 'orz-markdown/preview-frame';
+import { VERSION as ORZ_MARKDOWN_VERSION } from 'orz-markdown/version';
+import { deckConfig } from './deck/config.js';
+import { themeOf, type SlideTheme } from './themes.js';
+import type { Ratio } from './types.js';
+
+/** What the header asks for, resolved. */
+export interface Presentation {
+  theme: SlideTheme;
+  ratio: Ratio;
+}
+
+/** The presentation of a text, from its header only. */
+export function presentationOf(text: string): Presentation {
+  const c = deckConfig(text);
+  return { theme: themeOf(c.theme), ratio: c.ratio };
+}
+
+/** The logical slide size (Q2: height 720 for every ratio). */
+export function slideSize(ratio: Ratio): { width: number; height: number } {
+  return ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 };
+}
+
+/** STEP-4 PLACEHOLDER: the orz-markdown theme standing in for an updated 0.x theme. */
+const STAND_IN: Readonly<Record<string, string>> = Object.freeze({ architect: 'light-neat-2', chalk: 'dark-elegant-1', neon: 'dark-elegant-3', paper: 'light-academic-1' });
+
+/** The stylesheet URL of a slide theme (placeholder until step 4: its orz-markdown source theme). */
+export function themeHref(theme: SlideTheme): string {
+  const md = theme.derivedFrom ?? STAND_IN[theme.id] ?? 'light-neat-3';
+  return `https://cdn.jsdelivr.net/npm/orz-markdown@${ORZ_MARKDOWN_VERSION}/themes/${md}.css`;
+}
+
+const attr = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/**
+ * The shell's `<head>` part: viewport, colour scheme, the theme stylesheet
+ * (`#orz-theme`), KaTeX's and the highlight.js stylesheet of the scheme
+ * (`#orz-hljs`). `deferred` (the assembled file): written `media="not all"`
+ * so a slow CDN never blocks the page; the read view switches them on.
+ */
+export function shellHead(p: Presentation, o: { deferred?: boolean } = {}): string {
+  const hljs = p.theme.scheme === 'dark' ? PREVIEW_CDN.hljsDarkCss : PREVIEW_CDN.hljsLightCss;
+  const media = o.deferred ? ' media="not all"' : '';
+  return [
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<meta name="color-scheme" content="${p.theme.scheme}">`,
+    `<link rel="stylesheet" id="orz-theme" href="${attr(themeHref(p.theme))}"${media}>`,
+    `<link rel="stylesheet" id="orz-katex" href="${attr(PREVIEW_CDN.katexCss)}"${media}>`,
+    `<link rel="stylesheet" id="orz-hljs" href="${attr(hljs)}"${media}>`,
+  ].join('\n');
+}
+
+/** The ids of the shell's stylesheets (`shellHead`), in order. */
+export const SHELL_STYLESHEETS = Object.freeze(['orz-theme', 'orz-katex', 'orz-hljs'] as const);
+
+/** What the read view holds until the engine renders: one quiet line per delivery (the same for every document). */
+export const FALLBACK_LINE = 'If this page stays blank, open it in a recent browser; the deck\'s text is inside this file — see the comment at the top.';
+export const FALLBACK_LINE_CDN = 'If this page stays blank, check your connection (this page loads its engine from the web) or open it in a recent browser; the deck\'s text is inside this file — see the comment at the top.';
+
+/** The read view's markup: `#orz-view` (theme and ratio as attributes) holding `#orz-doc` with the fallback line. */
+export function readViewMarkup(p: Presentation, delivery: 'inline' | 'cdn' = 'inline'): string {
+  const line = delivery === 'cdn' ? FALLBACK_LINE_CDN : FALLBACK_LINE;
+  return `<main id="orz-view" class="orz-view orz-slides" data-orz-theme="${attr(p.theme.id)}" data-orz-ratio="${attr(p.ratio)}"><article id="orz-doc" class="markdown-body"><p class="orz-fallback" style="opacity:.6;font:14px/1.5 system-ui,sans-serif">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p></article></main>`;
+}
+
+/** The editor preview frame's presentation (FC-19 §8.4): the theme stylesheet and its scheme. */
+export function previewPresentation(p: Presentation): { head: string; scheme: 'light' | 'dark'; articleClass: string } {
+  return { head: `<link rel="stylesheet" href="${attr(themeHref(p.theme))}">`, scheme: p.theme.scheme, articleClass: 'markdown-body' };
+}

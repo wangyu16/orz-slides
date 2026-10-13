@@ -18,12 +18,24 @@ authoring syntax §5, pipeline §6, overflow §7, packaging §13).
 [BUILD-PLAN.md](./BUILD-PLAN.md) is the **module map** — work packages (WPs),
 their owned files, interfaces, and the build order.
 
-> **Status: published (v0.7.1).** All work packages (WP0–WP10) are built and
-> verified — `orz-slides deck.md` generates a working, self-editing
-> `.slides.html`. Presenter tools are wired: speaker view (**S**), step-reveal
-> fragments (`step` flag / `{{attrs[.fragment]}}`), on-deck clock/timer (**T**),
-> slide numbers + progress bar. Both npm packages are published in lockstep at
-> v0.7.1; **PDF export** is the remaining planned presenter extra.
+> **Status: published (v0.8.5); rebuild 1.0 in progress on branch
+> `rebuild/1.0`** (family plan `../docs/REBUILD.md` §3c — owner decisions
+> 1–6 and the approved plan are binding; mirrors orz-mdhtml 1.0 and orz-paged
+> 1.0). Steps 1–2 done: orz-markdown `^2.3.0` from the registry, reveal.js
+> pinned, no shims; the 0.x shell (`assets/app.js`, `src/template.ts`,
+> `src/browser-entry.ts`, the 0.x CLI/library) is deleted — the bundle boots
+> the kit's `carrier/app` with the slides kind (`src/browser/`), whose read
+> view is a STUB (the flattened deck) until step 3; text format 1 (FC-18
+> §7.2): `src/deck/parse.ts` (`parseDeck` on the kit's token scanner, the
+> header as the deck config, carrier lints), `src/deck/layout-spec.ts` (the
+> layout grammar and its canonical serialiser), `src/assemble.ts`
+> (`assemble`, `extract`, `readDocument`, `newDocument`), `src/legacy.ts`
+> (0.x files and texts → format 1, `upgrade`); claims in `notes/CLAIMS.md`
+> (bound by `tests/claims.test.ts`); the kit's conformance harness runs from
+> day one (`tests/conformance.test.ts`). There is no CLI until step 7. The
+> sections below still describe 0.x where they name deleted files; they are
+> rewritten in step 8 (D-28). `KIT GAP` markers name code that belongs in
+> orz-markdown/carrier.
 
 Two npm packages live here, **versioned in lockstep** (mirroring
 orz-mdhtml):

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { md } from 'orz-markdown';
-import { parseDeck } from '../src/slide-parser.js';
+import { parseDeck } from '../src/deck/parse.js';
 import { renderSlide, renderDeck } from '../src/render-slide.js';
 
 const renderer = md as unknown as { render: (s: string) => string; renderInline?: (s: string) => string };
 
-describe('render-slide (assembler)', () => {
+describe('[E.2] render-slide (assembler)', () => {
   it('renders a normal two-column slide with title band + filled regions', () => {
     const deck = parseDeck([
       '<!-- slide 2col 3/2 -->',

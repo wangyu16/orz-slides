@@ -8,3 +8,6 @@ tests/*.slides.html
 .DS_Store
 .claude/
 ideas/
+browser/esm/
+browser/release.json
+browser/docs/

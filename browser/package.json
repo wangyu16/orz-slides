@@ -1,19 +1,44 @@
 {
   "name": "orz-slides-browser",
   "version": "0.8.5",
-  "description": "Prebuilt in-browser presentation engine for orz-slides .slides.html files (reveal.js + orz-markdown + the slide parser/layout/assembler)",
+  "description": "The orz-slides browser engine and editor component (FC-19): globalThis.OrzCarrier (IIFE) or ES module exports — mountEditor, assemble, extract, readDocument, renderPreview. Served via jsDelivr for .slides.html files; embeddable in web apps.",
   "main": "orz-slides.browser.js",
+  "module": "esm/orz-slides.browser.mjs",
+  "exports": {
+    ".": {
+      "import": "./esm/orz-slides.browser.mjs",
+      "default": "./orz-slides.browser.js"
+    },
+    "./orz-slides.browser.js": "./orz-slides.browser.js",
+    "./esm": "./esm/orz-slides.browser.mjs",
+    "./release.json": "./release.json",
+    "./package.json": "./package.json"
+  },
   "files": [
     "orz-slides.browser.js",
-    "README.md"
+    "esm/orz-slides.browser.mjs",
+    "release.json",
+    "README.md",
+    "LICENSE"
   ],
+  "keywords": [
+    "orz-markdown",
+    "orz-slides",
+    "markdown",
+    "slides",
+    "presentation",
+    "editor",
+    "browser",
+    "cdn"
+  ],
+  "author": "Yu Wang <yuwang@orz.how>",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wangyu16/orz-slides.git"
   },
   "homepage": "https://markdown.orz.how/family.html#slides",
   "bugs": "https://github.com/wangyu16/orz-slides/issues",
-  "license": "MIT",
   "publishConfig": {
     "access": "public"
   }
