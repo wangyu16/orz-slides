@@ -3,7 +3,7 @@
  * (`StandaloneKind`, orz-markdown `carrier/app`, spec/carrier-app.md §3, §7)
  * — its assemble, its creation tool, its editor, its read view (the deck:
  * src/browser/slides/read-view.ts on the engine of src/present/), its
- * header settings (Theme, Ratio), its actions, its repository (edit mode's
+ * header settings (Theme, Ratio, Slide numbers, Progress bar, Section numbers), its actions, its repository (edit mode's
  * GitHub link) and the rest of its FC-19 §2 surface.
  *
  * Actions (items of the pencil's list; the kit adds Edit, Save, …):

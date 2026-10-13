@@ -39,3 +39,21 @@ describe('the engine\'s themes', () => {
     }
   }, 120_000);
 });
+
+describe('the header settings (Theme, Ratio and the Q3 keys)', () => {
+  it('[T.9] the settings offer Theme (the 14), Ratio, Slide numbers, Progress bar and Section numbers, each reading its value from the header; "Theme default" removes section_numbers and names the theme\'s style', async () => {
+    const { SLIDES_SETTINGS } = await import('../src/browser/slides/settings.js');
+    const by = (k: string) => SLIDES_SETTINGS.find((s) => s.key === k)!;
+    expect(SLIDES_SETTINGS.map((s) => s.key)).toEqual(['theme', 'ratio', 'slide_numbers', 'progress', 'section_numbers']);
+    expect(by('theme').choices.map((c) => c.value)).toEqual(THEMES.map((t) => t.id));
+    const plain = '{{nyml\nkind: document\ntheme: paper\n}}\n\n<!-- slide -->\n## A\n';
+    const set = '{{nyml\nkind: document\ntheme: sky\nslide_numbers: no\nprogress: no\nsection_numbers: roman\n}}\n\n<!-- slide -->\n## A\n';
+    expect(SLIDES_SETTINGS.map((s) => s.current(plain))).toEqual(['paper', '16:9', 'yes', 'yes', 'theme']);
+    expect(SLIDES_SETTINGS.map((s) => s.current(set))).toEqual(['sky', '16:9', 'no', 'no', 'roman']);
+    const sec = by('section_numbers');
+    expect(sec.choicesFor!(plain)[0]).toEqual({ value: 'theme', label: 'Theme default (I, II, III)' });
+    expect(sec.choicesFor!(set)[0].label).toBe('Theme default (01, 02, 03)');
+    expect(sec.apply!(set, 'theme')).toEqual({ section_numbers: null });
+    expect(sec.apply!(plain, '01')).toEqual({ section_numbers: '01' });
+  });
+});

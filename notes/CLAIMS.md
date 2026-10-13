@@ -154,6 +154,7 @@ themes) on branch `rebuild/1.0`.
 | T.6 | The chart and the diagram are drawn with the theme's tokens — tick colour `--chart-text`, first series `--chart-1`, font size `--chart-font-size` (≥ 18), node fill `--mm-node`; the dark themes (Inscription, Copper, Nocturne, Chalk, Neon) draw them dark-native (light ink and labels, dark nodes, no light panel), the light themes in dark ink. | real |
 | T.7 | D-46: the long title stays inside the slide, fitted and not clipped, on the title pages (v2 and v1) of the corpus deck in every theme. | real |
 | T.8 | The Theme setting switches the theme: its own stylesheet, its section labels (Paper roman, the others 01), its colours and colour scheme, and the chart redrawn in its tokens. | real |
+| T.9 | The header settings (the pencil's list and the editor's toolbar) are Theme (the 14), Ratio, Slide numbers, Progress bar and Section numbers, each reading its value from the header; Section numbers' "Theme default" removes the key (the theme decides) and names the theme's style. | unit |
 
 ## Q — print (rebuild step 3; Q8)
 
