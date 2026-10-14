@@ -215,6 +215,13 @@ chrome('round A: print never cuts silently (real Chrome)', () => {
     await ctx.close();
   });
 
+  it('[Q.5] offline, the theme\'s webfonts and KaTeX\'s stylesheet FAIL at once: print is not late (no fallback-font notice) — a failed font is no stalled one', async () => {
+    const { page, ctx } = await openDeck(browser!, join(dir, 'fonts-failed.slides.html'), assemble(corpus('slides').find((c) => c.path.endsWith('every-layout.slides.md'))!.text));
+    const doc = await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}) as Promise<{ cut: { fontsLate?: boolean } }>);
+    expect(doc.cut.fontsLate).toBeFalsy();
+    await ctx.close();
+  });
+
   it('[Q.4] A2-ENG-5: a raw-HTML <img loading="lazy"> on a slide never shown loads for print — the slide is fitted with it, not after a 10 s wait without it', async () => {
     const sub = join(dir, 'lazy');
     mkdirSync(sub, { recursive: true });

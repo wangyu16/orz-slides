@@ -29,7 +29,7 @@ import { decorate } from './decorate.js';
 import { fitBox, fitSlide } from './fit.js';
 import { gridPrepare } from './grid.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
-import { DECK_CSS, fontsReady, stylesReady, themeStylesheet } from './styles.js';
+import { DECK_CSS, fontsReady, stylesLate, stylesReady, themeStylesheet } from './styles.js';
 
 /** The height of a "with notes" page: the slide (720) and 520 px of notes. */
 export const NOTES_PAGE_HEIGHT = 1240;
@@ -56,6 +56,12 @@ export interface StaticOptions extends PrintOptions {
 export interface PaperCuts {
   slides: number[];
   notes: number[];
+  /**
+   * The theme's webfonts or a stylesheet had not arrived when the bounded
+   * wait gave up (styles.ts `FONT_WAIT_MS`): this print used fallback fonts
+   * (rebuild step 5; open by choice since round A3).
+   */
+  fontsLate?: boolean;
 }
 
 /** The reader's line for what print cut (empty: nothing). */
@@ -64,6 +70,7 @@ export function cutMessage(cut: PaperCuts): string {
   const parts: string[] = [];
   if (cut.slides.length > 0) parts.push(`${list(cut.slides)} ${cut.slides.length === 1 ? 'is' : 'are'} cut on paper (marked on the page): shorten ${cut.slides.length === 1 ? 'it' : 'them'} or split ${cut.slides.length === 1 ? 'it' : 'them'} into more slides`);
   if (cut.notes.length > 0) parts.push(`the notes of ${list(cut.notes)} go on past their page`);
+  if (cut.fontsLate) parts.push('the theme\'s fonts had not arrived after 5 seconds, so this print uses fallback fonts (print again once the page has its fonts)');
   return parts.length > 0 ? `Print: ${parts.join('; ')}.` : '';
 }
 
@@ -177,6 +184,8 @@ export async function buildStaticDeck(doc: Document, text: string, o: StaticOpti
     void stage.offsetHeight;
     try { await fontsReady(doc); } catch { /* fonts as they are */ }
     await imagesLoaded(stage, 10_000);
+    // what the bounded waits gave up on is said, never silent (paper only)
+    if (o.paper && stylesLate(doc)) cut.fontsLate = true;
     const grid = gridPrepare(doc.defaultView ?? window);
     for (const s of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide'))) fitSlide(s, undefined, grid);
     for (const n of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > .orz-print-notes'))) fitBox(n);

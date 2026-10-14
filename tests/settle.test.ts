@@ -357,6 +357,17 @@ real('round A3: idle cost and late or stalled webfonts (real Chrome, online)', (
     expect(r.print, 'print (ms)').toBeLessThan(3000);
     await ctx.close();
   }, 120_000);
+
+  it('[Q.5] rebuild step 5 (round A4\'s improvement): print made after the bounded wait gave up on a webfont that NEVER answers says so — `cut.fontsLate` (the reader\'s line, `notify`, names the fallback fonts)', async () => {
+    const sub = join(dir, 'stalled-print');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(SAMPLE, 'orchard')), { network: true, wait: 'fitted', hang: /fonts\.googleapis\.com/ });
+    await settled(page);
+    const doc = await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}) as Promise<{ cut: { slides: number[]; notes: number[]; fontsLate?: boolean } }>);
+    expect(doc.cut.fontsLate).toBe(true);
+    await ctx.close();
+  }, 120_000);
 });
 
 /*

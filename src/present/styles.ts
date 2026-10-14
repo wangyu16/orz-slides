@@ -146,6 +146,22 @@ export async function fontsReady(doc: Document): Promise<void> {
   await Promise.race([fonts.ready.then(() => undefined, () => undefined), new Promise<void>((r) => setTimeout(r, left + 20))]);
 }
 
+/**
+ * True when what print is about to use is not all in: the fonts still
+ * loading, an engine `<style>` still waiting for its `@import` (a theme's
+ * webfont CSS), or a `<link>` stylesheet without its sheet — after the
+ * bounded waits ({@link FONT_WAIT_MS}) gave up on them. Print goes ahead
+ * (the bound is registered, closed-loop round A3) and says so (rebuild step
+ * 5: the notice of round A4's improvement list).
+ */
+export function stylesLate(doc: Document): boolean {
+  const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
+  if (fonts && fonts.status !== 'loaded') return true;
+  for (const el of Array.from(doc.querySelectorAll<HTMLStyleElement>('style[id^="orz-"]'))) if (importsPending(el)) return true;
+  for (const l of Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))) if (l.media !== 'not all' && !l.sheet) return true;
+  return false;
+}
+
 /** The page's engine styles: reveal's core, the deck structure and the theme of `themeId`. */
 export function installStyles(doc: Document, themeId: string): string {
   ensureStyle(doc, 'orz-reveal-css', REVEAL_CSS);
