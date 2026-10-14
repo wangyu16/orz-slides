@@ -30,7 +30,7 @@
   --squiggle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='14' viewBox='0 0 40 14'%3E%3Cpath d='M-6 7c5-6 9-6 13 0s9 6 13 0 9-6 13 0 9 6 13 0' fill='none' stroke='%23222' stroke-width='5.4' stroke-linecap='round'/%3E%3Cpath d='M-6 7c5-6 9-6 13 0s9 6 13 0 9-6 13 0 9 6 13 0' fill='none' stroke='%234ecdc4' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E");
   --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Cpath d='M3 19c9-9 21-13 33-8 6 2 11 4 18 1' fill='none' stroke='%23222' stroke-width='4.2' stroke-linecap='round'/%3E%3Cpath d='M44 4.5c4 2.7 7.5 5 10.5 7.7-3.7 2.2-7.5 5.6-10.6 9.4' fill='none' stroke='%23222' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
-  --chart-1: #e0413f; --chart-2: #12968c; --chart-3: #2f63c9; --chart-4: #d99a00;
+  --chart-1: #cd2e31; --chart-2: #12968c; --chart-3: #2c71e9; --chart-4: #b07d03;
   --chart-text: #222;
   --chart-grid: #ddd8cc;
   --chart-font: 'Patrick Hand', 'Comic Sans MS', cursive;
@@ -52,7 +52,7 @@
   --sl-accent: #b8321c;
   --sl-accent-ink: #ffffff;
   /* six distinct chart colours (round A, TK-5) */
-  --chart-5: #7d4cc9; --chart-6: #4c9a2a;
+  --chart-5: #7545c1; --chart-6: #65b242;
 }
 
 .reveal .orz-slide { font-family: var(--body-font); }
@@ -420,3 +420,5 @@
   border-right: 1px dashed rgba(34, 34, 34, 0.3);
   transform: rotate(-6deg);
 }
+
+.reveal .orz-chrome-num { --sl-cover-chrome-ink: #111; } /* the number badge keeps its ink on a cover page (round A2) */

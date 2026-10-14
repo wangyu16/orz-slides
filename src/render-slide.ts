@@ -19,7 +19,7 @@
  */
 import type { Deck, DeckConfig, FloatRegion, Region, SectionNumbers, Slide } from './types.js';
 import { renderLayout } from './layout.js';
-import { planDeck, type SlidePlan } from './deck/plan.js';
+import { plainInline, planDeck, type SlidePlan } from './deck/plan.js';
 
 /** A markdown-it token, as far as the outline marking needs it. */
 interface MdToken {
@@ -89,7 +89,8 @@ function chromeSlot(slide: Slide, deck: DeckConfig, plan: SlidePlan, md: Rendere
   // a slide's @footer always wins (on that slide alone); the deck footer shows on every slide except the title page
   const isTitle = slide.kind === 'template' && (slide.template ?? 'title') === 'title';
   const src = slide.footer ?? (isTitle ? undefined : deck.footer);
-  const footer = src ? `<div class="orz-footer"><div class="markdown-body">${block(md, src, env)}</div></div>` : '';
+  // its full text in a title: an ellipsized footer is still readable (round A2, A2-TH-13)
+  const footer = src ? `<div class="orz-footer" title="${esc(plainInline(src))}"><div class="markdown-body">${block(md, src, env)}</div></div>` : '';
   const sec = `<span class="orz-chrome-sec" data-sec="${esc(plan.sectionLabel)}">${esc(plan.sectionTitle)}</span>`;
   const num = deck.slideNumbers ? `<span class="orz-chrome-num"><b>${plan.n}</b><i>/</i><span>${plan.total}</span></span>` : '';
   const bar = deck.progress ? '<span class="orz-chrome-bar" aria-hidden="true"></span>' : '';

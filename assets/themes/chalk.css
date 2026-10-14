@@ -407,7 +407,7 @@
   --sl-controls: #ffd663;
 
   /* charts + diagrams drawn in chalk */
-  --chart-1: #ffd663; --chart-2: #9fd6f2; --chart-3: #f7a8c0; --chart-4: #a3e4b5;
+  --chart-1: #ffd663; --chart-2: #98e1fb; --chart-3: #efacc0; --chart-4: #a3e4b5;
   --chart-text: #e9e4d8;
   --chart-grid: rgba(241, 236, 224, 0.16);
   --chart-font: 'Nunito', 'Trebuchet MS', sans-serif;
@@ -428,7 +428,7 @@
   --sl-accent: #ffd663;
   --sl-accent-ink: #1d2a25;
   /* six distinct chart colours (round A, TK-5) */
-  --chart-5: #ffab6e; --chart-6: #c7b3f5;
+  --chart-5: #ffab6e; --chart-6: #bfabec;
 }
 
 /* ───────── the board ───────── */

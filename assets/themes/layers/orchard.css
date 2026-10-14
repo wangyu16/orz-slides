@@ -27,6 +27,9 @@
   --leaf-md: 3px 30px;
 
   /* charts and diagrams: the colours are light-neat-3's (--chart-*, --mm-*); the slide sets the face */
+  /* six series colours a deutan or protan reader also tells apart (closed-loop round A2, A2-TH-8: light-neat-3's
+     green, blue and red pairs merged under simulation) — a slide palette; the kit theme keeps its own */
+  --chart-1: #5f9e44; --chart-2: #c87f17; --chart-3: #4a97d8; --chart-4: #b24441; --chart-5: #8a6bb0; --chart-6: #25877e;
   --chart-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --chart-font-size: 20;
   --chart-surface: #fbfbf8;

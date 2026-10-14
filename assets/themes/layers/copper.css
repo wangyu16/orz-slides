@@ -23,7 +23,7 @@
   --cu-seg: 2.2em;           /* the copper segment on a hairline */
   --cu-grid: rgba(224, 124, 74, 0.2);
 
-  --chart-1: #e78a5a; --chart-2: #b99be0; --chart-3: #66c2fb; --chart-4: #68e099;
+  --chart-1: #e78a5a; --chart-2: #a88bcf; --chart-3: #66c2fb; --chart-4: #68e099; --chart-5: #b8860b; --chart-6: #b0405f; /* six of its own, colour-blind safe (round A2) */
   --chart-text: #b9cdd8;
   --chart-grid: rgba(122, 165, 185, 0.18);
   --chart-font: 'Sora', system-ui, sans-serif;

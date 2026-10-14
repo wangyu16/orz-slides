@@ -223,3 +223,78 @@ type: pie
 labels: A, B, C, D, E, F, G, H, I, J
 series: s = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 }}
+
+<!-- slide bg=#d81b1b -->
+## A slide with its own background
+
+The background follows the slide (round A2): a bg= after the first slide.
+
+<!-- slide template=title v=6 -->
+# Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow reactors
+## Mechanism, kinetics, molecular weight control and the design of block copolymers for biomedical use
+Yu Wang, Jane Doe-Smithson · University of Louisiana at Lafayette
+
+<!-- slide template=title v=4 -->
+# Controlled radical polymerization
+## Mechanism, kinetics, molecular weight control and the design of block copolymers for biomedical use
+Yu Wang, Jane Doe-Smithson · University of Louisiana at Lafayette
+
+<!-- slide template=outline v=1 -->
+## A long agenda
+1. Topic number one
+2. Topic number two
+3. Topic number three
+4. Topic number four
+5. Topic number five
+6. Topic number six
+7. Topic number seven
+8. Topic number eight
+
+<!-- slide template=outline v=2 -->
+## A long agenda
+1. Topic number one
+2. Topic number two
+3. Topic number three
+4. Topic number four
+5. Topic number five
+6. Topic number six
+7. Topic number seven
+
+<!-- slide 2col -->
+## Semester and grant gantt
+<!-- @left -->
+{{mermaid
+gantt
+  title Fall 2026
+  dateFormat YYYY-MM-DD
+  section Lectures
+  Part 1 :p1, 2026-08-24, 35d
+  Part 2 :p2, after p1, 40d
+  section Labs
+  Lab A :2026-09-01, 30d
+  Lab B :2026-10-05, 45d
+}}
+<!-- @right -->
+{{mermaid
+gantt
+  title Grant
+  dateFormat YYYY-MM-DD
+  section Aims
+  Aim 1 :a1, 2026-01-01, 400d
+  Aim 2 :a2, after a1, 300d
+  Aim 3 :2026-06-01, 600d
+}}
+
+<!-- slide row 1/1/1 { top; middle; bottom } -->
+<!-- @top -->
+The first row: a paragraph of two or three lines that fills its share of the slide, written on the ruled lines.
+
+- and one bullet
+<!-- @middle -->
+The second row: a paragraph of two or three lines that fills its share of the slide, written on the ruled lines.
+
+- and one bullet
+<!-- @bottom -->
+The third row: a paragraph of two or three lines that fills its share of the slide, written on the ruled lines.
+
+- and one bullet

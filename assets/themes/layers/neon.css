@@ -61,7 +61,7 @@
   --sl-controls: #2ef2d0;
 
   /* charts: traces on the scope; diagrams: a panel schematic */
-  --chart-1: #2ef2d0; --chart-2: #ffb547; --chart-3: #ff6b6b; --chart-4: #7fb6ff;
+  --chart-1: #2ef2d0; --chart-2: #ffb547; --chart-3: #ff6b6b; --chart-4: #94b5e8;
   --chart-text: #b9d0cc;
   --chart-grid: rgba(46, 242, 208, 0.13);
   --chart-font: 'JetBrains Mono', ui-monospace, monospace;

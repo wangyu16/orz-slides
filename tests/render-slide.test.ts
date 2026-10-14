@@ -67,7 +67,7 @@ describe('[E.2] render-slide: a parsed slide → its reveal <section> in the 1.0
   it('places the footer in the bottom slot, floats as fit boxes, and the speaker notes', () => {
     const deck = parseDeck('<!-- slide -->\n## Frame\nbody text\n<!-- @footer -->\nConfidential\n<!-- @float left=60% top=10% w=30% h=40% -->\n**badge**\n<!-- @notes -->\nsay this\n');
     const html = renderSlide(deck.slides[0], planDeck(deck)[0], renderer, deck.config);
-    expect(html).toContain('<div class="orz-chrome"><div class="orz-footer"><div class="markdown-body"><p>Confidential</p>');
+    expect(html).toContain('<div class="orz-chrome"><div class="orz-footer" title="Confidential"><div class="markdown-body"><p>Confidential</p>');
     expect(html).toContain('<div class="orz-float orz-box" style="left:60%;top:10%;width:30%;height:40%">');
     expect(html).toContain('<aside class="notes"><p>say this</p>');
   });
@@ -79,7 +79,7 @@ describe('[E.2] render-slide: a parsed slide → its reveal <section> in the 1.0
     expect(title).toContain('<div class="orz-template orz-template-title orz-v2 orz-box" data-orz-copy>');
     expect(title).toMatch(/<h1 class="orz-title-main">My Talk<\/h1><div class="orz-title-sub">Subtitle<\/div><div class="orz-title-meta markdown-body"><p><strong>Dr. Yu Wang<\/strong><\/p>\n<p>Second paragraph<\/p>/);
     expect(title).not.toContain('orz-footer');
-    expect(closing).toContain('<div class="orz-footer"><div class="markdown-body"><p>Deck footer</p>');
+    expect(closing).toContain('<div class="orz-footer" title="Deck footer"><div class="markdown-body"><p>Deck footer</p>');
   });
 
   it('a bg option is an image when it names one, else a colour', () => {

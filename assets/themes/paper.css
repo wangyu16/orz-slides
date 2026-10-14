@@ -413,7 +413,7 @@
   --sl-controls: #8d6e63;
 
   /* charts + diagrams in brown inks */
-  --chart-1: #6d3b2a; --chart-2: #3f6f7c; --chart-3: #b07d1e; --chart-4: #6b8a3a;
+  --chart-1: #6d3b2a; --chart-2: #497e92; --chart-3: #b07d1e; --chart-4: #6b8a3a;
   --chart-text: #4a342d;
   --chart-grid: #e4d9cb;
   --chart-font: 'EB Garamond', Georgia, serif;
@@ -430,7 +430,7 @@
   --sl-accent: #6d4c41;
   --sl-accent-ink: #fbf7ef;
   /* six distinct chart colours (round A, TK-5) */
-  --chart-5: #8a4f7d; --chart-6: #4a5a8c;
+  --chart-5: #914c74; --chart-6: #4a5a8c;
 }
 
 /* ───────── the page ───────── */

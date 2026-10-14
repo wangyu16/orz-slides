@@ -258,14 +258,14 @@
 
 /* ───────── outline: today's list, the current item highlighted with an arrow ───────── */
 .reveal .orz-template-outline { justify-content: flex-start; }
-.reveal .orz-outline { line-height: var(--nb-pitch); }
+.reveal .orz-outline { line-height: calc(var(--nb-pitch) * var(--fit-scale, 1)); }  /* the page's pitch scales with fit: an outline can shrink (round A2, A2-TH-10) */
 .reveal .orz-outline h2 {
   font-family: var(--heading-font); font-weight: 400; color: var(--accent-blue); font-size: 1.85em;
-  line-height: calc(2 * var(--nb-pitch)); margin: 0 0 var(--nb-pitch); padding: 0; border: 0; position: relative; top: 6px;
+  line-height: calc(2 * var(--nb-pitch) * var(--fit-scale, 1)); margin: 0 0 calc(var(--nb-pitch) * var(--fit-scale, 1)); padding: 0; border: 0; position: relative; top: 6px;
   text-decoration: underline dashed currentColor; text-decoration-thickness: 2px; text-underline-offset: 0.16em; width: auto;
 }
 .reveal .orz-outline ol { margin: 0; padding-left: 1.6em; }
-.reveal .orz-outline li { line-height: calc(var(--nb-pitch) * 1.5); font-size: 1.25em; margin: 0; padding-left: 0.2em; }
+.reveal .orz-outline li { line-height: calc(var(--nb-pitch) * 1.5 * var(--fit-scale, 1)); font-size: 1.25em; margin: 0; padding-left: 0.2em; }
 .reveal .orz-outline li::marker { font-family: var(--heading-font); color: var(--accent); }
 .reveal .orz-outline li strong { font-weight: 600; }
 .reveal .orz-outline li.orz-here {

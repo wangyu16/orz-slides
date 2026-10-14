@@ -62,6 +62,22 @@ describe('the theme contract (round A)', () => {
     const bad = contractProblems('orchard', { deck, built, layer: `${readFileSync('assets/themes/layers/orchard.css', 'utf8')}\n.reveal .orz-footer p { white-space: normal; }\n.reveal .orz-region { overflow: visible; }\n` });
     expect(bad).toEqual(['orchard: ".reveal .orz-footer p" lets the footer wrap', 'orchard: ".reveal .orz-region" sets overflow on a box (fit needs clip)']);
   });
+
+  it('[T.13] A2-TH-14: the contract checks VALUES — it rejects a footer wrapped through another selector, an accent ink that does not read, empty or duplicate chart colours, colours a colour-blind reader cannot tell apart, a variant "rule" made of an unrelated selector, and a title band that overflows across (each passed --check at rebuild/1.0@6d3aa97)', () => {
+    const deck = readFileSync('assets/themes/deck.css', 'utf8');
+    const built = readFileSync('assets/themes/orchard.css', 'utf8');
+    const layer = readFileSync('assets/themes/layers/orchard.css', 'utf8');
+    const check = (o: { deck?: string; layer?: string; built?: string }): string[] => contractProblems('orchard', { deck: o.deck ?? deck, layer: o.layer ?? layer, built: o.built ?? built });
+    expect(check({})).toEqual([]);
+    expect(check({ layer: `${layer}\n.reveal .orz-chrome .markdown-body p { white-space: normal; }\n` })).toEqual(['orchard: ".reveal .orz-chrome .markdown-body p" lets the footer wrap']);
+    expect(check({ built: `${built}\n.reveal { --sl-accent: #2f8f86; --sl-accent-ink: #2f8f86; }\n` }).join('\n')).toMatch(/--sl-accent-ink on --sl-accent reads 1\.00 : 1/);
+    expect(check({ built: `${built}\n.reveal { --chart-5: ; --chart-6: initial; }\n` })).toEqual(expect.arrayContaining(['orchard: --chart-5 is not a colour ("")', 'orchard: --chart-6 is not a colour ("initial")']));
+    expect(check({ built: `${built}\n.reveal { --chart-5: #5f9e44; }\n` }).join('\n')).toMatch(/--chart-1 and --chart-5 are too alike/);
+    expect(check({ built: `${built}\n.reveal { --chart-4: #7fb6ff; --chart-5: #c59bff; }\n` }).join('\n')).toMatch(/--chart-4 and --chart-5 merge for a deutan reader/);
+    const noOutline3 = deck.split('\n').filter((l) => !/data-template="outline"\]\[data-v="3"\]/.test(l)).join('\n') + '\n.reveal [data-template="outline"] .x, .reveal [data-template="title"][data-v="3"] .y { color: red; }\n';
+    expect(check({ deck: noOutline3 })).toEqual(['deck.css: the outline template\'s variant v=3 has no rule']);
+    expect(check({ layer: `${layer}\n.reveal .orz-title { overflow: visible; }\n` })).toEqual(['orchard: ".reveal .orz-title" lets the title band overflow across (it clips on x)']);
+  });
 });
 
 describe('the header settings (Theme, Ratio and the Q3 keys)', () => {

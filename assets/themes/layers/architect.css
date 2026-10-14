@@ -628,3 +628,25 @@
 
 /* charts: plotted on a clean white panel so the chart grid is not doubled by the sheet grid */
 .reveal .markdown-body .orz-chart-frame { background: #fff; outline: 1.5px solid var(--slate); outline-offset: -1.5px; padding: 8px; box-sizing: border-box; }
+
+.reveal .orz-footer, .reveal .orz-chrome-sec, .reveal .orz-chrome-num { --sl-cover-chrome-ink: var(--slate); } /* the title block keeps its ink on a cover page (round A2) */
+
+/* the dimension line's ticks stand 8px past the title: the oversized variants keep that room (round A2, A2-TH-11) */
+.reveal .orz-title-main { --sl-title-edge: 12px; }
+/* where the title page sets its text wide or beside a band (title v4, v6), the title block follows the text instead of
+   sitting over it at the bottom right (round A2, A2-TH-11/12: a long title or subtitle ran under PREPARED BY) */
+.reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-template-title::before,
+.reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-template-title::after { content: none; }   /* the scale bar gives the title block its corner */
+.reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-title-meta { position: relative; right: auto; bottom: auto; margin-top: 1.4em; margin-left: auto !important; margin-right: 0 !important; max-width: 100%; }
+
+/* the cover pages (title v5, closing v2): the drafting grid, frame and scale bar drawn in the cover's ink, faint —
+   not the bright paper grid across the cover's text; title v5 sits low on the left as on every theme (round A2, A2-TH-5) */
+.reveal .orz-slide:is([data-template="title"][data-v="5"], [data-template="closing"][data-v="2"]) {
+  --grid-major: color-mix(in srgb, var(--sl-cover-ink) 16%, transparent);
+  --grid-minor: color-mix(in srgb, var(--sl-cover-ink) 7%, transparent);
+  --slate-2: color-mix(in srgb, var(--sl-cover-ink) 55%, transparent);
+}
+.reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title { justify-content: flex-end; padding-top: 26px; padding-bottom: 120px; }
+.reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title::after { border-color: var(--sl-cover-ink); background: repeating-linear-gradient(90deg, var(--sl-cover-ink) 0 50px, transparent 50px 100px); }
+.reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title::before { color: var(--sl-cover-ink); }
+

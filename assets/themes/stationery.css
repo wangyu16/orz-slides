@@ -1371,7 +1371,7 @@
   --tag-clip: polygon(0.5em 0, 100% 0, 100% 100%, 0.5em 100%, 0 50%);
   --tag-hole: radial-gradient(circle at 0.72em 50%, transparent 0.13em, #000 0.15em);
 
-  --chart-1: #167a72; --chart-2: #d48f41; --chart-3: #3d63b8; --chart-4: #b83c3b;
+  --chart-1: #167a72; --chart-2: #d48f41; --chart-3: #2855a8; --chart-4: #a62b2e;
   --chart-text: #3f4641;
   --chart-grid: #e4dfd4;
   --chart-font: 'Epilogue', system-ui, sans-serif;
@@ -1388,7 +1388,7 @@
   --sl-accent: #167a72;
   --sl-accent-ink: #ffffff;
   /* six distinct chart colours (round A, TK-5) */
-  --chart-5: #8a5bb0;
+  --chart-5: #9a6ac1; --chart-6: #948243;
 }
 
 .reveal .orz-slide { font-family: var(--font-body); }

@@ -63,7 +63,21 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   background: var(--sl-bg, transparent);
   color: var(--sl-ink, inherit);
 }
-.reveal .orz-slide[data-background-color], .reveal .orz-slide[data-background-image] { background: transparent; }
+/* a slide's bg= is drawn by reveal on its background layer: the slide's own page steps aside, whatever a theme
+   paints there (round A2, A2-TH-1: Sky, Stationery, Chalk, Neon and Paper covered it) */
+.reveal .slides > section.orz-slide:is([data-background-color], [data-background-image]) { background: transparent !important; }
+/* reveal COPIES a section's classes onto its background layer (.backgrounds > .slide-background): no slide rule
+   may style that copy — deck.css's slide box laid the copies out in flow, one under the other, so every bg=
+   after the first slide was off screen (A2-TH-1); a theme's ::before/::after page decoration drew there too.
+   Reveal's own geometry back, with !important; the colour reveal sets inline still wins over the reset. */
+.reveal .backgrounds > .slide-background.orz-slide {
+  position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
+  margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important;
+  background-image: none !important; filter: none !important; isolation: auto !important;
+}
+.reveal .backgrounds > .slide-background.orz-slide.orz-slide.orz-slide { background-color: transparent; }
+.reveal .backgrounds > .slide-background.orz-slide::before,
+.reveal .backgrounds > .slide-background.orz-slide::after { content: none !important; display: none !important; }
 .reveal .slides > section.orz-slide { height: 100%; }
 .reveal .orz-frame { height: 100%; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .reveal aside.notes { display: none !important; }
@@ -149,8 +163,10 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
    measure wrong; the print document draws the same) — orz-markdown 2.4.0 tokens */
 :root { --chart-font-size: 18; --mm-font-size: 18; }
 .reveal.orz-deck { --mm-labels: svg; }
-/* a gantt chart's dates at slide type size: a compact axis (orz-markdown 2.4.0 token; the chart's own axisFormat wins; TK-2) */
-.reveal.orz-deck { --mm-gantt-axis-format: '%b %-d'; }
+/* a gantt chart at slide type size (orz-markdown 2.4.0 tokens; the chart's own axisFormat / tickInterval win): the
+   axis format by the chart's span and the tick interval by its width (TK-2, A2-TH-6), its text at --mm-font-size, and
+   no "today" line — a deck shows the same chart on any day */
+.reveal.orz-deck { --mm-gantt-axis-format: auto; --mm-gantt-today: off; }
 
 /* ---------- reveal's reset strips inline semantics: restore them ---------- */
 .reveal .markdown-body strong, .reveal .markdown-body b { font-weight: 700; }
@@ -212,7 +228,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 }
 .reveal .orz-slide:is([data-template="title"][data-v="5"], [data-template="closing"][data-v="2"]) .orz-template :is(.orz-title-main, .orz-title-sub)::before,
 .reveal .orz-slide:is([data-template="title"][data-v="5"], [data-template="closing"][data-v="2"]) .orz-template :is(.orz-title-main, .orz-title-sub)::after { background-color: var(--sl-cover-ink); border-color: var(--sl-cover-ink); }
-.reveal .orz-slide[data-template="closing"][data-v="2"] .orz-chrome, .reveal .orz-slide[data-template="closing"][data-v="2"] .orz-chrome * { color: var(--sl-cover-ink); -webkit-text-fill-color: currentColor; }
+/* the chrome on the cover in the cover ink — but a chrome part a theme draws on its OWN surface (a title block, a status
+   bar, a badge) keeps its ink: the theme names it --sl-cover-chrome-ink there (round A2, A2-TH-3: white on white) */
+.reveal .orz-slide[data-template="closing"][data-v="2"] .orz-chrome, .reveal .orz-slide[data-template="closing"][data-v="2"] .orz-chrome * { color: var(--sl-cover-chrome-ink, var(--sl-cover-ink)); -webkit-text-fill-color: currentColor; }
 .reveal .orz-slide[data-template="closing"][data-v="2"] .orz-chrome-bar, .reveal .orz-slide[data-template="closing"][data-v="2"] .orz-chrome-bar::after { background: var(--sl-cover-ink); }
 
 /* left-set pages (title v2, v4, v5, v6; section v3; closing v3): the text starts on the left */
@@ -238,7 +256,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .orz-slide[data-template="title"][data-v="4"] .orz-template { margin-left: calc(var(--sl-w, 1280px) * 0.34 - var(--sl-pad-x, 72px) + 0.8em); width: auto; }
 /* title v6 and closing v3 — oversized: the title set large, low on the left */
 .reveal .orz-slide:is([data-template="title"][data-v="6"], [data-template="closing"][data-v="3"]) .orz-template { font-size: calc(1.3em * var(--fit-scale, 1)); }
-.reveal .orz-slide:is([data-template="title"][data-v="6"], [data-template="closing"][data-v="3"]) :is(.orz-title-main) { letter-spacing: -0.025em; line-height: 1; max-width: none; padding-block: 0.16em 0.1em; }
+.reveal .orz-slide:is([data-template="title"][data-v="6"], [data-template="closing"][data-v="3"]) :is(.orz-title-main) { letter-spacing: -0.025em; line-height: 1; max-width: calc(100% - var(--sl-title-edge, 0px)); padding-block: 0.16em 0.1em; }
+/* (the full width less the room a theme's edge marks need, --sl-title-edge: round A2, A2-TH-11 — `none` let Architect's
+   dimension tick stand past the box, and fit shrank the page to the floor) */
 .reveal .orz-slide:is([data-template="title"][data-v="6"], [data-template="closing"][data-v="3"]) .orz-title-meta { font-size: 0.7em; }
 
 /* section v2 — centred, the title in the accent, larger */
@@ -247,11 +267,13 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .orz-slide[data-template="section"][data-v="2"] .orz-section-main { color: var(--sl-accent); -webkit-text-fill-color: currentColor; border: 0; padding-block: 0.14em 0.1em; }
 /* section v3 — the title on a tinted band with an accent bar */
 .reveal .orz-slide[data-template="section"][data-v="3"] .orz-template { align-items: stretch; text-align: left; }
-.reveal .orz-slide[data-template="section"][data-v="3"] .orz-section-main { background: var(--sl-surface); border: 0; border-left: 0.16em solid var(--sl-accent); border-radius: 0 0.25em 0.25em 0; padding: 0.3em 0.6em; text-align: left; }
+.reveal .orz-slide[data-template="section"][data-v="3"] .orz-section-main { background: var(--sl-surface); border: 0; border-left: 0.16em solid var(--sl-accent); border-radius: 0 0.25em 0.25em 0; padding-block: 0.3em; padding-right: 0.6em; padding-left: calc(var(--sl-sec-indent, 0em) + 0.6em); text-align: left; }
 /* section v4 — the title in an outlined box, centred */
 .reveal .orz-slide[data-template="section"][data-v="4"] .orz-template { align-items: center; text-align: center; }
 .reveal .orz-slide[data-template="section"][data-v="4"] .orz-template > * { text-align: center; margin-left: auto; margin-right: auto; }
-.reveal .orz-slide[data-template="section"][data-v="4"] .orz-section-main { border: 0.07em solid var(--sl-accent); border-radius: 0.25em; padding: 0.25em 0.7em; background: none; }
+.reveal .orz-slide[data-template="section"][data-v="4"] .orz-section-main { border: 0.07em solid var(--sl-accent); border-radius: 0.25em; padding-block: 0.25em; padding-right: 0.7em; padding-left: calc(var(--sl-sec-indent, 0em) + 0.7em); background: none; }
+/* (v3, v4: never the padding shorthand — a theme that sets its section number in the title's left padding names
+   that room --sl-sec-indent, and the number keeps it: round A2, A2-TH-2) */
 
 /* outline v2 — each item a card with an accent edge */
 /* (the theme's own numbering and indent stay: the card is drawn behind the item) */
@@ -354,9 +376,12 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   /* fitted like a box (ENG-4): long notes are set smaller, to the floor, then marked */
   font-size: calc(22px * var(--fit-scale, 1));
 }
-.reveal.orz-print .orz-print-notes[data-clipped]::after {
-  content: '… the notes go on past this page'; position: absolute; right: var(--sl-pad-x, 72px); bottom: 6px;
-  padding: 0 0 0 1em; background: #fff; color: #9b2c2c; font: italic 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+/* every cut on paper is visible (round A2, A2-ENG-4): one notice, placed by the print pipeline at the bottom
+   right of the box or notes area it cut — a slide past the floor, fit=off or fit=scroll, long notes */
+.reveal.orz-print .orz-print-cut {
+  position: absolute; z-index: 50; box-sizing: border-box; max-width: 60%; padding: 2px 8px; border-radius: 3px 0 0 0;
+  background: #fff; color: #9b2c2c; font: italic 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  box-shadow: 0 0 0 1px rgba(155, 44, 44, 0.35); white-space: nowrap; pointer-events: none;
 }
 .reveal.orz-print .orz-print-notes .orz-print-notes-head { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: #77776f; margin: 0 0 10px; }
 .reveal.orz-print .orz-print-notes > .notes-body > :first-child { margin-top: 0; }

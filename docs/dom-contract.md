@@ -95,10 +95,10 @@ current item `li.orz-here[aria-current=step]`.
 | `.orz-qr-slot` | closing template | a lone `{{qr}}` lifted out of the text |
 | `--fit-scale` | `.orz-box` | the box's font scale (absent = 1) |
 | `data-scale` | `.orz-box` | `1` or the scale (two decimals; `1` when it rounds to 1) — always set once fitted |
-| `data-clipped` | `.orz-box` | content is cut (at the floor, or `fit=off`) |
+| `data-clipped` | `.orz-box`, `.orz-footer` | content is cut (at the floor, or `fit=off`); on the footer: its one line is ellipsized (its `title` holds the full text) |
 | `data-scroll` | `.orz-box` | `fit=scroll` and the content scrolls |
 | `data-fitted` | section | fit has run on it (a provisional pass: content may still arrive) |
-| `data-fit-settled` | section | its fit is final: the fonts, the content libraries, its images and stylesheets are in, its diagrams drawn, a frame passed with nothing to refit (`timeout`: 10 s passed first). With it the deck root fires `orz-fitted` (`detail: { index, timeout }`); `engine.settled()` resolves. Tests, agents and the editor's badges wait for this, never for `data-fitted` |
+| `data-fit-settled` | section | its fit is final: the fonts, the content libraries, its images and stylesheets (a theme `<style>`'s `@import`ed webfont CSS included: `data-orz-loading` on it while it loads) are in, its diagrams drawn, a frame passed with nothing to refit (`timeout`: 10 s of one settle CYCLE passed first — a cycle begins when the slide shows and whenever a settled slide is unsettled: a refit, a theme or size switch, Present, the deck shown again). With it the deck root fires `orz-fitted` (`detail: { index, timeout }`); `engine.settled()` resolves. Tests, agents and the editor's badges wait for this, never for `data-fitted` |
 
 ## 4. Fit
 
@@ -119,13 +119,22 @@ drawn into them later (a chart's frame, a Mermaid SVG) refit it when its
 content changes size; fonts, stylesheets and images that finish loading do
 too. A chart's canvas follows its frame in CSS (`.orz-chart-frame > canvas
 { width: 100%; height: auto }`), so the size a trial scale gives is what is
-drawn. The search guesses √(overflow ratio) and brackets the answer to
-0.01; a refit starts from the box's last scale for that theme and size.
+drawn. The search guesses √(overflow ratio), learns the exponent from the
+last two measurements when the guess still overflows (content that does not
+reflow scales as s¹), and brackets the answer to 0.01; a refit starts from
+the box's last scale for that theme and size.
 
 On paper and in the speaker view nothing scrolls: a `fit=scroll` slide is
 fitted there like any other; the print document's notes area
 (`.orz-print-notes`) is fitted the same way (font size `calc(22px *
-var(--fit-scale))`) and, cut at the floor, says so on the page.
+var(--fit-scale))`). Every cut on paper is VISIBLE: a box cut at the floor
+or by `fit=off` (a `fit=scroll` slide past the floor included) and notes cut
+at the floor each get the same notice on the page, `.orz-print-cut`
+(absolutely placed at the cut box's bottom right; deck.css draws it), and
+print says which slides it cut (`printHtml().cut`, the reader's notice).
+Images load eagerly in a static copy (`loading="eager"`); audio and video
+never autoplay or preload in one, and on screen `autoplay` becomes reveal's
+`data-autoplay` (played on its slide only).
 
 Boxes clip with `overflow: clip; overflow-clip-margin: 6px` (deck.css):
 nothing scrolls a box, and the glyphs of a big first or last line may stand
@@ -169,7 +178,10 @@ Set by a theme on `:root` (defaults in deck.css):
 | `--sl-surface` | the accent at 12 % | a quiet tint (section v3's band, outline v2's cards) |
 | `--sl-band` | `--sl-accent` | title v4's band |
 | `--sl-cover`, `--sl-cover-ink` | `--sl-accent`, `--sl-accent-ink` | the cover pages (title v5, closing v2); a theme whose title page is already a coloured cover sets others (Notebook: its paper) |
-| `--mm-gantt-axis-format` | `'%b %-d'` (deck root) | a gantt chart's date axis (orz-markdown 2.4.0): compact at slide type size; the chart's own `axisFormat` wins |
+| `--mm-gantt-axis-format`, `--mm-gantt-today` | `auto`, `off` (deck root) | a gantt chart's axis by its span and width, its text at `--mm-font-size`, no today line (orz-markdown 2.4.0); the chart's own `axisFormat` / `tickInterval` win |
+| `--sl-sec-indent` | 0 | on `.orz-section-main`: the room a theme keeps at the title's left for its section number; section v3/v4 add their padding to it (never the `padding` shorthand) |
+| `--sl-cover-chrome-ink` | `--sl-cover-ink` | on a chrome part the theme draws on its OWN surface (a title block, a status bar, a badge): its ink on the cover pages |
+| `--sl-title-edge` | 0 | on `.orz-title-main`: the room the title's edge marks need (title v6 / closing v3 set the title as wide as the box less this) |
 
 Read only: `--progress`, `--fit-scale`, `--sl-w`, `--sl-h`, `--sl-page-h` (print).
 
@@ -180,7 +192,18 @@ and size the slot's parts from it. The footer's Markdown inherits the
 footer's font. Every chrome text lies inside its slot and the slide, or is
 explicitly ellipsized: the footer is ONE line (deck.css: `white-space:
 nowrap; text-overflow: ellipsis` on its text; a theme never lets it wrap) —
-a long course line ends in an ellipsis, never past the slide's edge.
+a long course line ends in an ellipsis, never past the slide's edge, and no
+chrome text overprints another (Nocturne lays its status bar out as one flex
+row). The chart palette (`--chart-1…6`) reads apart for every reader: ΔE ≥
+18 pairwise and ≥ 10 under protan, deutan and tritan simulation (claims T.6,
+T.13).
+
+**reveal's background copies:** reveal copies a section's classes onto its
+background layer (`.backgrounds > .slide-background`), so a `.orz-slide`
+rule also matches that copy. deck.css takes reveal's geometry and paint back
+for it (`!important`) and removes its `::before`/`::after`, and a slide with
+`bg=` has its own page transparent (`!important`), so `bg=` shows on every
+slide in every theme. A theme never styles `.slide-background` (claim T.14).
 
 ## 6. Header keys
 

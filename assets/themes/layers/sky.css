@@ -27,7 +27,7 @@
   --halo: rgba(98, 176, 232, 0.22);
   --sky-teal: linear-gradient(90deg, var(--accent-2), var(--accent-warm));
 
-  --chart-1: #2e8bcf; --chart-2: #d9822b; --chart-3: #1f9a8a; --chart-4: #7a5cc7;
+  --chart-1: #50a3e9; --chart-2: #d9822b; --chart-3: #1f9a8a; --chart-4: #6146ae; --chart-5: #6476d0; --chart-6: #7aad51; /* six of its own, colour-blind safe (round A2) */
   --chart-text: #3a5064;
   --chart-grid: #e1eaf2;
   --chart-font: 'Source Sans 3', system-ui, sans-serif;

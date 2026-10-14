@@ -20,7 +20,7 @@
   --sl-chrome: 58px;
   --sl-controls: var(--link-color);
 
-  --chart-1: #0b4a8b; --chart-2: #c51e21; --chart-3: #007f35; --chart-4: #be7200;
+  --chart-1: #1a4379; --chart-2: #c51e21; --chart-3: #1f6d16; --chart-4: #be7200; --chart-5: #7244a2; --chart-6: #2a7f8f; /* six of its own, colour-blind safe (round A2) */
   --chart-text: #343a44;
   --chart-grid: #e2e5ea;
   --chart-font: 'Fira Sans', 'Helvetica Neue', sans-serif;
@@ -169,6 +169,7 @@
 /* ───────── section: a numbered paper section ───────── */
 .reveal .orz-template-section { align-items: flex-start; padding: 0 4% 0 0; }
 .reveal .orz-section-main {
+  --sl-sec-indent: 2.1em; /* the number's room, kept by deck.css's section variants */
   position: relative; font-family: var(--header-font); font-weight: 700; color: var(--heading);
   font-size: 2.1em; line-height: 1.12; letter-spacing: -0.018em;
   padding: 0.45em 0 0.4em 2.1em; border-top: 2px solid var(--border-color);

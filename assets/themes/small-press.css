@@ -1146,7 +1146,7 @@
   --sl-chrome: 62px;
   --sl-controls: var(--link-color);
 
-  --chart-1: #2f6154; --chart-2: #1762b6; --chart-3: #b72533; --chart-4: #b46e00;
+  --chart-1: #2f6154; --chart-2: #1762b6; --chart-3: #d5253a; --chart-4: #b46e00; --chart-5: #6d5a8a; --chart-6: #7a6a3a; /* six of its own, colour-blind safe (round A2) */
   --chart-text: #45372c;
   --chart-grid: #dbd1bf;
   --chart-font: 'Josefin Sans', 'Avenir Next', sans-serif;
@@ -1289,6 +1289,7 @@
 /* ───────── section: a big round badge cut out of the page, holding the number ───────── */
 .reveal .orz-template-section { align-items: flex-start; padding: 0 4% 0 0; }
 .reveal .orz-section-main {
+  --sl-sec-indent: 2.35em; /* the number's room, kept by deck.css's section variants */
   position: relative; font-family: var(--header-font); font-weight: 600; color: var(--heading);
   font-size: 2.15em; line-height: 1.12; letter-spacing: -0.01em; padding: 0.15em 0 0 2.35em; min-height: 1.9em;
   display: flex; align-items: center;
