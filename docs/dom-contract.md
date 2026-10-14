@@ -120,8 +120,20 @@ ResizeObserver over its box contents plus a MutationObserver for what is
 drawn into them later (a chart's frame, a Mermaid SVG) refit it when its
 content changes size; fonts, stylesheets and images that finish loading do
 too. A chart's canvas follows its frame in CSS (`.orz-chart-frame > canvas
-{ width: 100%; height: auto }`), so the size a trial scale gives is what is
-drawn. The search guesses √(overflow ratio), learns the exponent from the
+{ width: 100%; height: auto }`) at the chart's aspect (`--orz-chart-r` on
+the frame, set by the engine; `--chart-aspect` until then), so the size a
+trial scale gives is what is drawn. A chart that is a block of its own in a
+region is put in a room by the engine, `div.orz-chart-room` (round A4):
+the room takes the space its box leaves (`flex: 1 1 0`, at least
+`--sl-graphic-min`) and is the size container of the largest chart at its
+aspect in it — the frame hugs the chart (a theme whose frame is padded sets
+`--orz-chart-pad-x` / `--orz-chart-pad-y`, padding plus border). A paragraph
+of two or more images and nothing else is `p.orz-pics`, a row that shares
+the room left; a picture anywhere else (a callout, a quote, a list item, a
+table cell) is capped at 12em, so fit scales it. With `section_numbers:
+none` (an empty `data-sec`) deck.css hides `.orz-section-main::before`; a
+theme whose number is its `::after` hides that itself (the build contract
+checks). The search guesses √(overflow ratio), learns the exponent from the
 last two measurements when the guess still overflows (content that does not
 reflow scales as s¹), and brackets the answer to 0.01; a refit starts from
 the box's last scale for that theme and size.

@@ -517,3 +517,175 @@ and themes; kit probes against `orz-markdown@10b2bc6`) and passes now.
   stress decks (with the A3 shapes) and every sheet and variant sheet
   regenerated; Architect's variant sheet (the title block in flow beside
   the scale bar) and Chalk's picture frame looked at.
+
+
+---
+
+## Round A4 — 2026-10-14 (round A3's fixes attacked; rebuild/1.0@ab85c1e)
+
+Two areas (engine, themes); the format area closed at A3. The auditor got
+round A3's list to break. Of A3's fixes, two were **not fixed**:
+A3-ENG-3 (the chart aspect reached only the CURRENT slide) and A3-TH-8 (the
+status-bar fix cut a SHORT footer). All the others were confirmed. Verified:
+2 engine and 4 themes, all MEDIUM, **no HIGH**. LOW: 3 engine, 3 themes.
+
+**Round A is CLOSED by this pass** (owner's stop rule: a round without a
+HIGH ends with one closing fix pass, with tests, and no further review
+round). Engine and themes are looked at again in round B (after step 6).
+
+### Class-level mechanisms introduced
+
+- **A chart is sized like a picture** (engine): a chart that is a block of
+  its own in a region sits in a room (`div.orz-chart-room`, decorate.ts).
+  The room grows into the space its box leaves (it shrinks before text is
+  scaled) and is the size container of the largest chart at its aspect;
+  the frame hugs the chart, so a theme's panel is the chart's size
+  (Architect and Notebook declare their frame padding,
+  `--orz-chart-pad-x/-y`). A frozen chart (an img in print and the
+  speaker's copies) follows its frame the same way.
+- **A chart's aspect for every slide reveal displays** (engine): every
+  canvas has the chart's aspect in CSS from the start
+  (`var(--orz-chart-r, var(--chart-aspect))`); the engine sets the
+  chart's own ratio over the whole deck after enhancement and on every
+  slide change (`chartAspects` moved to decorate.ts).
+- **Every wait on the network is bounded once per load** (engine): a
+  `<link>` stylesheet that never answers counts as failed 5 s after it was
+  first seen loading, like the theme imports and fonts of A3.
+- **A room is no frame** (engine): a video's room carries no theme
+  decoration (no pillar-box bars); the player keeps its corners.
+- **Room shared fairly** (themes): Nocturne's status bar is a grid whose
+  footer and section tracks grow in equal steps, so the short text stays
+  whole and the long one takes the rest.
+- **Images inline by default in running text** (kit M.42): an image in a
+  link, a list item or a table cell stays in its line; only a raw `<img>`
+  of its own is a block.
+- **A number that is not there is not drawn** (themes): deck.css hides an
+  empty `.orz-section-main::before` in every theme. A theme whose number is
+  its `::after` (Notebook) guards it itself, and the build contract checks
+  this.
+- **Pictures in containers and in rows** (themes): `p.orz-pics` (two or
+  more images and nothing else) is a row that shares the room left. Any
+  other picture, including a picture paragraph inside a container, is
+  capped at 12em, so fit's scale reaches it.
+- **A tighter picture contract** (themes, A4-TH-5): a rule that reaches a
+  paragraph by its image may set only cosmetic properties. It is exempt
+  only when one of its own compounds is the picture mark (`:not(.orz-pic)`
+  no longer exempts it). `img` is read in any case, and `[src]` counts too.
+  A rule that makes every image a block is refused.
+- **Offline tests are offline in every frame** (STATUS D-63): every Chrome
+  launch in the tests resolves no host but the loopback
+  (`--host-resolver-rules`, `OFFLINE_ARGS` in tests/helpers.ts; the
+  conformance launch too), unless it says `online: true`. Only the files
+  whose decks load the pinned CDN libraries on purpose do: engine, settle,
+  themes-look, themes-stress, and the hub script.
+
+### Found and fixed
+
+Every probe failed on rebuild/1.0@ab85c1e, with the kit probes on
+`orz-markdown@dc301f7`, and passes now.
+
+| Id | Sev | Finding | Fix | Probe (claim) |
+|---|---|---|---|---|
+| A3-ENG-3 (not fixed) / A4-ENG-1 | MED | the slides reveal displays beside a chart slide still resized their canvases 520 ↔ 521 px forever (up to 33 % CPU idle) | the aspect in CSS for every canvas; `chartAspects` over the deck | F.6 (idle on the slides BEFORE a chart slide) |
+| A4-ENG-2 | MED | a chart in a quad cell could never fit (em-sized, at the floor still taller than the cell): cut on screen and on paper, in every chart type | the chart room | K.7, Q.4 (8 types × quad/3col/2col/alone, 16:9 and 4:3, Orchard + Architect + Notebook, print cut `[]`) |
+| A3-TH-8 (not fixed) / A4-TH-1 | MED | Nocturne cut a short footer ('CHEM 512' → 'C…') beside a long section title | the fair grid | T.11 |
+| A4-TH-2 | MED (UPSTREAM, ours) | the kit's `common.css` made an image in a link, list item or cell a block: a linked icon broke its sentence into three lines (10 slide themes, every document theme) | kit M.42: `:is(p, a, li, td, th) > img` inline | T.11; kit M.42 (common.css + all 12 document themes) |
+| A4-TH-3 | MED | `section_numbers: none` left an empty number badge on the section pages (Sky, Stationery, Notebook, Sticker, Chalk, Architect, Small Press) | deck.css hides an empty `::before`; Notebook its `::after`; contract | C.1, T.13 |
+| A4-TH-4 | MED | a photo in a callout, quote, list or cell, and two side by side, were cut by a third (fit at the 0.6 floor) | `p.orz-pics` row; 12em cap for any other picture, nested picture paragraphs included | F.3, T.11 (every theme at 16:9, three at 4:3) |
+| A4-ENG-3 | LOW (rare) | a stalled `<link>` stylesheet (KaTeX's CSS) held every slide's settle to the 10 s limit | bounded once per load, 5 s from first seen | F.6 |
+| A4-ENG-4 | LOW (UPSTREAM) | `type: polarArea` drew nothing: the kit lower-cased it | kit M.41: Chart.js's names kept in any case; `data-chart-error` when Chart.js refuses a chart | K.7; kit M.41 |
+| A4-ENG-5 | LOW | a video's room kept the theme's frame beside a narrower player | the room is undecorated | Q.4 |
+| A4-TH-5 | LOW (rare) | the picture contract let other properties, `:not(.orz-pic)`, `[src]`, `IMG` and an all-images block rule through | the tighter contract | T.13 |
+
+### Class siblings found while fixing
+
+- **Theme picture rules reached nested picture paragraphs**: Sticker's and
+  Architect's `p.orz-pic` sizing (`max-height: 100%` of an auto height)
+  matched a picture paragraph inside a callout, quote or loose list item,
+  which overrode a plain cap. The cap now also targets those paragraphs.
+- **Notebook's chart slip** targeted a chart frame that is a direct child.
+  It now also reaches the frame in its room.
+- **A static copy's frozen chart** (an img carrying Chart.js's pixel width)
+  did not follow its frame. It now does, in every container.
+- **The kit's preview frame** swallowed a refused chart the same way as
+  `enhanceDocument` did. Both now set `data-chart-error`.
+
+### Dismissed or open by choice (with reasons)
+
+- **A4-TH-6** (LOW, rare; the T.11 occlusion oracle cannot see an opaque
+  `::before`/`::after` box over text): open by choice. A pseudo box cannot
+  be hit-tested. Painting it means re-deriving the stacking order of
+  pseudos (z-index, stacking contexts) from computed styles, and every
+  theme draws its decoration that way, so a naive check flags decorations
+  that sit behind text. No current theme is known to cover text with a
+  pseudo: the A3 screenshots and the hub sheets were looked at. A
+  screenshot-difference oracle is the real fix and belongs to round B.
+- **A4-TH-7** (LOW, UPSTREAM, rare; in document theme dark-elegant-3 the
+  12th extension colour is ΔE 9.3 from the 9th for a tritan reader):
+  open by choice. M.39 binds ten categories (ΔE ≥ 10 for every reader),
+  and this case holds through eleven; the twelfth is best effort. No slide
+  theme is affected (all at 11.7 or more). Widening the candidates would
+  change every document theme's extension colours at the 2.4.0 release, so
+  that is the owner's call.
+- **Improvements** (not findings): a notice when print goes ahead after a
+  bounded wait expired (the 5 s cap stays registered, and a notice belongs
+  with step 5/6's notify work); Architect's 4:3 SCALE label touching the
+  title block (polish, round B); a quad-of-charts slide in the stress deck
+  (covered instead by the A4-ENG-2 probe in three themes).
+- **Side-by-side pictures (`p.orz-pics`) take no theme frame** (Sticker's
+  sticker border, Architect's VIEW label): the themes frame a single
+  picture. A row is plain until a theme designs one (round B).
+
+### Round A — closing summary (rounds A–A4)
+
+| Round | Base | Verified findings (HIGH) | LOW | A previous round's fix not fixed | Fixed in the round |
+|---|---|---|---|---|---|
+| A | 817de2e | 19 (2: FMT-2, ENG-1) | 8 | — | all 19 verified; LOWs per its table |
+| A2 | 6d3aa97 | 20 (1: A2-TH-1) | 12 | 4 (FMT-1, FMT-5, FMT-6, TK-5) | all 20 and the 4, each as a class |
+| A3 | a9f4ab3 | 15 (2: A3-ENG-1, A3-TH-1) | 3 | 2 (A2-ENG-2, A2-TH-12) | all 15 and the 2; the format area closed |
+| A4 | ab85c1e | 6 (0) | 6 | 2 (A3-ENG-3, A3-TH-8) | all 6, the 2, and 4 of 6 LOWs (A4-TH-6, A4-TH-7 open by choice) |
+
+The finding count fell from 27 to 6 plus 6 LOW, and the HIGHs from 2 to 0.
+Each round's not-fixed items were partial fixes of a class, and each was
+fixed as a class in the next round. **Round A is CLOSED.**
+
+Open by choice when round A closed (consolidated; details in each round's
+entry):
+
+- The speaker copies' DPR-1 build and their background-build scheduling
+  (rounds A2, A3).
+- The editor lints for `fit=scroll`/`fit=off` cut on paper and for a cut
+  footer (step 5/6).
+- Kit-side CVD checks for the kit's own themes, the document defaults for
+  the gantt tokens, and the twelfth extension colour (A4-TH-7): the owner
+  decides these at the 2.4.0 release.
+- Gantt charts with another `dateFormat` keep Mermaid's axis.
+- A greyscale print fallback for the palettes (a kit option).
+- The 5 s once-per-load bound on theme webfonts and stylesheets (print made
+  inside it may be cut); a notice is an improvement for step 5/6.
+- The pseudo-element occlusion oracle (A4-TH-6) and picture-row frames:
+  round B.
+
+### After the closing pass
+
+- orz-slides: the full suite once: 18 files, 245/245 green in the run
+  (236 after round A3, plus 9 new probes), conformance included; tsc
+  clean; `build-themes --check` clean (with the A4 contract rules). Every
+  new probe failed on ab85c1e.
+- Kit (orz-markdown 2.4.0, prepared, unpublished; `orz-markdown@0f32c73`):
+  M.41 and M.42. Its suite: 2108 tests, 2107 green in the run; the one
+  failure, E.16 (an editor pacing timing test), was green when its file was
+  re-run alone (131/131). Downstream against the checkout (symlink, run,
+  restore; both git-clean after, and orz-paged's pretest-regenerated theme
+  files restored): orz-paged 373/374 and orz-mdhtml 153/154. Each failed
+  only its stale committed example (paged D.1, mdhtml E.1), as in rounds
+  A–A3.
+- Commits: `orz-slides@ac91d57` (D-63, the offline launches),
+  `orz-slides@1f63776` (the fixes and probes) and the record.
+- The hub (`output/orz-test/slides/engine/`): the 14 decks, the stress
+  decks and every sheet and variant sheet regenerated. Looked at:
+  Architect's and Notebook's chart panel in its room (sample slide 8) and
+  Nocturne's status bar. Also screenshots of section pages with
+  `section_numbers: none` (Sticker, Architect, Sky, Small Press), a quad
+  of charts (Nocturne, Notebook, Paper; polarArea drawn), and pictures
+  side by side, in a callout and as icons (Orchard, Sticker).
