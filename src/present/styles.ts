@@ -24,63 +24,126 @@ export const BUILT_THEMES: readonly string[] = Object.freeze(Object.keys(THEME_C
 
 /**
  * A `<style>` whose `@import`s (a theme's webfont CSS) are still loading
- * carries this attribute until its `load` or `error` event (round A2,
- * A2-ENG-2): while one does, the fit does not settle and print waits — a
- * `<style>` whose imports are pending has no font faces yet, so the fonts
- * alone report "loaded".
+ * carries this attribute (round A2, A2-ENG-2): while one does, the fit does
+ * not settle and print waits — a `<style>` whose imports are pending has no
+ * font faces yet, so the fonts alone report "loaded".
+ *
+ * Readiness is read from the sheet itself (round A3, A3-ENG-2): a style is
+ * loading while its sheet holds an `@import` whose sheet is not there yet
+ * (`CSSImportRule.styleSheet === null`); a `load` or `error` event only says
+ * when to look again. A theme change REPLACES the element (Chrome fires a
+ * `load` for the sheet a `textContent` change replaced: it ended the wait
+ * at once). And the wait is bounded (A3-ENG-4): a mark older than
+ * {@link FONT_WAIT_MS} is a stalled request (a captive portal, a filter
+ * that never answers) — dropped, so it is paid once per theme load, never
+ * per slide, print or copy; the fit runs again when the sheet does load.
  */
 export const STYLE_LOADING = 'data-orz-loading';
 
-/** The sheet a mark waits for (a style element's load names no sheet). */
-const loadingSheet = new WeakMap<HTMLStyleElement, CSSStyleSheet | null>();
+/** How long a theme's webfont CSS, or the fonts themselves, are waited for at most (once, not per slide). */
+export const FONT_WAIT_MS = 5000;
+
+/** When each marked style was marked (its wait's start). */
+const markedAt = new WeakMap<HTMLStyleElement, number>();
+
+/** True while a style's own sheet has an `@import` not yet loaded. */
+function importsPending(el: HTMLStyleElement): boolean {
+  let rules: CSSRuleList | null = null;
+  try { rules = el.sheet?.cssRules ?? null; } catch { return false; }
+  if (!rules) return /@import\b/i.test(el.textContent ?? '');
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i] as CSSRule & { styleSheet?: CSSStyleSheet | null; href?: string };
+    if (r.constructor?.name === 'CSSImportRule' || r.type === 3) { if (r.styleSheet == null) return true; }
+    else break; // @import rules come first
+  }
+  return false;
+}
+
+/** Drop a mark whose sheet is in (or whose wait ran out); true when it is still loading. */
+function stillLoading(el: HTMLStyleElement, now: number): boolean {
+  if (!el.hasAttribute(STYLE_LOADING)) return false;
+  if (!importsPending(el) || now - (markedAt.get(el) ?? now) >= FONT_WAIT_MS) { el.removeAttribute(STYLE_LOADING); return false; }
+  return true;
+}
+
+/** True while an engine `<style>`'s imports are loading (within their bounded wait). */
+export function stylesPending(doc: Document): boolean {
+  const now = Date.now();
+  let any = false;
+  for (const el of Array.from(doc.querySelectorAll<HTMLStyleElement>(`style[${STYLE_LOADING}]`))) if (stillLoading(el, now)) any = true;
+  return any;
+}
+
+function mark(el: HTMLStyleElement, css: string): void {
+  if (/@import\b/i.test(css)) { el.setAttribute(STYLE_LOADING, ''); markedAt.set(el, Date.now()); }
+  else el.removeAttribute(STYLE_LOADING);
+}
 
 /** Put (or replace) a `<style id>` in the head; `nonce` stamped when given. */
 export function ensureStyle(doc: Document, id: string, css: string, attrs: Record<string, string> = {}): HTMLStyleElement {
-  let el = doc.getElementById(id) as HTMLStyleElement | null;
-  if (!el || el.tagName !== 'STYLE') {
-    el = doc.createElement('style');
-    el.id = id;
-    const me = el;
-    // only the CURRENT sheet's load ends the wait (Chrome also fires one for the sheet it replaced)
-    const done = (): void => { if (loadingSheet.get(me) === me.sheet) me.removeAttribute(STYLE_LOADING); };
-    el.textContent = css;
-    el.addEventListener('load', done);
-    el.addEventListener('error', done);
-    if (/@import\b/i.test(css)) el.setAttribute(STYLE_LOADING, '');
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-    (doc.head ?? doc.documentElement).appendChild(el);
-    loadingSheet.set(el, el.sheet);
-    return el;
+  const old = doc.getElementById(id) as HTMLStyleElement | null;
+  if (old && old.tagName === 'STYLE' && old.textContent === css) {
+    for (const [k, v] of Object.entries(attrs)) old.setAttribute(k, v);
+    return old;
   }
+  // a new element for new content: its load and error events are its own sheet's (A3-ENG-2)
+  const el = doc.createElement('style');
+  el.id = id;
+  const look = (): void => { stillLoading(el, Date.now()); };
+  el.addEventListener('load', look);
+  el.addEventListener('error', look);
+  if (old) for (const a of Array.from(old.attributes)) if (a.name !== 'id' && a.name !== STYLE_LOADING) el.setAttribute(a.name, a.value);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-  if (el.textContent !== css) {
-    if (/@import\b/i.test(css)) el.setAttribute(STYLE_LOADING, '');
-    else el.removeAttribute(STYLE_LOADING);
-    el.textContent = css;
-    loadingSheet.set(el, el.sheet);
-  }
+  el.textContent = css;
+  mark(el, css);
+  if (old) old.replaceWith(el);
+  else (doc.head ?? doc.documentElement).appendChild(el);
   return el;
 }
 
-/** Resolves when no engine `<style>` is loading its imports any more (at most `ms`; a failed import counts as done). */
-export function stylesReady(doc: Document, ms: number): Promise<void> {
-  const pending = (): boolean => doc.querySelector(`style[${STYLE_LOADING}]`) !== null;
-  if (!pending()) return Promise.resolve();
+/** Resolves when no engine `<style>` is loading its imports any more (each waited for at most {@link FONT_WAIT_MS} from its mark; a failed import counts as done). */
+export function stylesReady(doc: Document): Promise<void> {
+  if (!stylesPending(doc)) return Promise.resolve();
   return new Promise((resolve) => {
     const win = doc.defaultView;
     let timer = 0;
-    // the element's own listener (target phase) clears the mark after this capture listener ran
-    const check = (): void => { Promise.resolve().then(() => { if (!pending()) finish(); }); };
+    const check = (): void => { Promise.resolve().then(() => { if (!stylesPending(doc)) finish(); }); };
     const finish = (): void => {
       doc.removeEventListener('load', check, true);
       doc.removeEventListener('error', check, true);
-      if (timer) win?.clearTimeout(timer);
+      if (timer) win?.clearInterval(timer);
       resolve();
     };
     doc.addEventListener('load', check, true);
     doc.addEventListener('error', check, true);
-    timer = win ? win.setTimeout(finish, ms) : 0;
+    // the bound: a stalled mark expires (stylesPending drops it)
+    timer = win ? win.setInterval(check, 250) : 0;
   });
+}
+
+/** When the document's fonts were first seen loading (null: not loading now). */
+const fontsLoadingSince = new WeakMap<Document, number>();
+
+/**
+ * True when the fonts are in — or have been loading for longer than
+ * {@link FONT_WAIT_MS} (a stalled font request: waited for once; the
+ * engine fits again on `loadingdone`).
+ */
+export function fontsSettled(doc: Document): boolean {
+  const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fonts || fonts.status === 'loaded') { fontsLoadingSince.delete(doc); return true; }
+  const now = Date.now();
+  const since = fontsLoadingSince.get(doc);
+  if (since === undefined) { fontsLoadingSince.set(doc, now); return false; }
+  return now - since >= FONT_WAIT_MS;
+}
+
+/** Resolves when {@link fontsSettled}: `fonts.ready`, capped by what is left of the bounded wait. */
+export async function fontsReady(doc: Document): Promise<void> {
+  const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
+  if (fontsSettled(doc) || !fonts) return;
+  const left = Math.max(0, FONT_WAIT_MS - (Date.now() - (fontsLoadingSince.get(doc) ?? Date.now())));
+  await Promise.race([fonts.ready.then(() => undefined, () => undefined), new Promise<void>((r) => setTimeout(r, left + 20))]);
 }
 
 /** The page's engine styles: reveal's core, the deck structure and the theme of `themeId`. */

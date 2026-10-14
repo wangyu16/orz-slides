@@ -248,3 +248,113 @@ real('the fit settles (real Chrome, online, CPU throttled)', () => {
     await ctx.close();
   }, 120_000);
 });
+
+/*
+ * Closed-loop round A3 (notes/closed-loop.md): the A2 resize-watch mute hid
+ * real size changes (A3-ENG-1), a replaced theme sheet's load ended the
+ * @import wait (A3-ENG-2), Chart.js and deck.css fought over a canvas's
+ * height forever (A3-ENG-3), and a stalled webfont request cost 10 s per
+ * slide, print and copy (A3-ENG-4). Each probe failed on rebuild/1.0@a9f4ab3.
+ */
+const SPOIL = '{{nyml\nkind: document\ncarrier: slides\ntitle: Spoilers\ntheme: orchard\n}}\n\n<!-- slide -->\n## Check yourself\n\n1. What is a polymer?\n\n::: spoil Answer 1\nA long chain of repeating units.\n:::\n\n3. Why does Đ rise at high conversion?\n\n::: spoil Answer 3\n- Chain transfer to polymer becomes likely when monomer is scarce\n- Termination by combination doubles some chains\n- The gel effect slows termination and broadens the distribution\n- Side reactions accumulate over time and add a high-mass tail\n- Each of these moves Mw more than Mn, so their ratio grows\n- Branching from transfer adds a long tail of very large chains\n- A broad initiator decomposition adds chains of every age\n:::\n';
+const chromeOnly = browser ? describe : describe.skip;
+
+chromeOnly('round A3: the resize watch never stops (real Chrome, offline)', () => {
+  it('[F.6] A3-ENG-1: a spoiler opened after two no-op refits (open and close a short one, then open a long one) is refitted — the watch never stops, only a no-op refit leaves the slide settled; <details> the same', async () => {
+    for (const [name, text] of [['spoil', SPOIL], ['details', SPOIL.replace(/::: spoil (Answer \d)\n([\s\S]*?)\n:::/g, '<details><summary>$1</summary>\n\n$2\n\n</details>')]] as const) {
+      const { page, ctx } = await openDeck(browser!, join(dir, `${name}.slides.html`), assemble(text));
+      for (const k of ['1', '1', '3']) {
+        await page.locator('summary', { hasText: `Answer ${k}` }).click();
+        await page.waitForTimeout(400);
+        await settled(page);
+      }
+      // seen again 3 s on: a refit that was dropped never comes
+      await page.waitForTimeout(3000);
+      await settled(page);
+      const r = await reportBoxes(page, 0);
+      expect(silent(r), `${name}: the long answer is cut without data-clipped`).toEqual([]);
+      expect(r.some((b) => Number(b.scale) < 1), `${name}: the region was refitted`).toBe(true);
+      await settledAndFinal(page, `${name} after the long answer`);
+      await ctx.close();
+    }
+  }, 120_000);
+});
+
+real('round A3: idle cost and late or stalled webfonts (real Chrome, online)', () => {
+  it('[F.6] A3-ENG-3: an idle chart slide is idle — no canvas resize over 3 s (Chart.js and the frame agree on its size: the chart\'s own aspect ratio, not the bitmap\'s rounded one) and under 4 % of the main thread', async () => {
+    const sub = join(dir, 'idle');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    for (const theme of ['orchard', 'stationery']) {
+      const { page, ctx } = await openDeck(browser!, join(sub, `${theme}.slides.html`), assemble(withTheme(SAMPLE, theme)), { network: true });
+      await engine(page, 'go', 7);
+      await settled(page);
+      await page.waitForTimeout(1500);
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Performance.enable');
+      const task = async (): Promise<number> => ((await cdp.send('Performance.getMetrics')).metrics.find((m) => m.name === 'TaskDuration')?.value ?? 0);
+      const t0 = await task();
+      const changes = await page.evaluate(async () => {
+        let n = 0;
+        const mo = new MutationObserver((rs) => { n += rs.length; });
+        for (const c of Array.from(document.querySelectorAll('.reveal .slides > section canvas'))) mo.observe(c, { attributes: true, attributeFilter: ['width', 'height'] });
+        await new Promise((r) => setTimeout(r, 3000));
+        mo.disconnect();
+        return n;
+      });
+      const busy = (await task()) - t0;
+      expect(changes, `${theme}: canvas resizes while idle`).toBe(0);
+      expect(busy, `${theme}: main-thread seconds over 3 s idle`).toBeLessThan(0.12);
+      await settledAndFinal(page, `${theme} chart slide`);
+      await ctx.close();
+    }
+  }, 180_000);
+
+  it('[F.6] A3-ENG-2: a THEME CHANGE with the new theme\'s webfont CSS delayed 4 s — settled() and print wait for its own import (the replaced sheet\'s load no longer ends the wait)', async () => {
+    const sub = join(dir, 'theme-late');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(SAMPLE, 'orchard')), { network: true });
+    await ctx.route(/fonts\.googleapis\.com\/css/, async (r) => { await new Promise((ok) => setTimeout(ok, 4000)); try { await r.continue(); } catch { /* gone */ } });
+    const t0 = Date.now();
+    await page.evaluate(() => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.setSetting({ theme: 'stationery' }); });
+    await page.waitForFunction(() => document.getElementById('orz-slide-theme')?.getAttribute('data-theme-css') === 'stationery');
+    const printed = page.evaluate(async () => {
+      const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { printHtml(): Promise<{ html: string }> };
+      await e.printHtml();
+      return Array.from(document.fonts).some((f) => /Epilogue/.test(f.family) && f.status === 'loaded');
+    });
+    await settled(page);
+    const atSettle = await page.evaluate(() => ({ font: Array.from(document.fonts).some((f) => /Epilogue/.test(f.family) && f.status === 'loaded'), loading: !!document.querySelector('style[data-orz-loading]') }));
+    expect(Date.now() - t0, 'settled waited for the delayed font CSS').toBeGreaterThan(2500);
+    expect(atSettle).toEqual({ font: true, loading: false });
+    expect(await printed, 'the print document was built with the new theme\'s fonts').toBe(true);
+    await settledAndFinal(page, 'after the theme change');
+    await ctx.close();
+  }, 120_000);
+
+  it('[F.6] A3-ENG-4: a webfont CSS request that NEVER answers is waited for once, briefly — the first slide settles within 7 s, the next ones and print at once, the speaker\'s copies are not held — and the fonts would still be fitted when they came', async () => {
+    const sub = join(dir, 'stalled');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    const t0 = Date.now();
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(SAMPLE, 'orchard')), { network: true, wait: 'fitted', hang: /fonts\.googleapis\.com/ });
+    await settled(page);
+    const first = Date.now() - t0;
+    expect(first, 'the first settle (ms)').toBeLessThan(9000);
+    expect(await page.evaluate(() => document.querySelector('.reveal .slides > section.present')!.getAttribute('data-fit-settled'))).toBe('');
+    const r = await page.evaluate(async () => {
+      const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { go(i: number): void; settled(): Promise<void>; printHtml(): Promise<unknown> };
+      let t = performance.now();
+      e.go(1);
+      await e.settled();
+      const next = performance.now() - t;
+      t = performance.now();
+      await e.printHtml();
+      return { next, print: performance.now() - t };
+    });
+    expect(r.next, 'the next slide settles (ms)').toBeLessThan(2500);
+    expect(r.print, 'print (ms)').toBeLessThan(3000);
+    await ctx.close();
+  }, 120_000);
+});

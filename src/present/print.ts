@@ -19,7 +19,8 @@
  * smaller (to the floor) and then marked (closed-loop round A); every cut
  * — a box past the floor, `fit=off`, notes — carries the same visible
  * notice on its page and is listed for the reader (round A2). Images load
- * eagerly, and a theme's `@import`ed webfont CSS is waited for (round A2).
+ * eagerly, and a theme's `@import`ed webfont CSS is waited for (round A2) —
+ * at most once per load (round A3: a stalled request is not waited for again).
  * The same static pipeline gives the speaker view its copies
  * ({@link buildStaticDeck}).
  */
@@ -28,7 +29,7 @@ import { decorate } from './decorate.js';
 import { fitBox, fitSlide } from './fit.js';
 import { gridPrepare } from './grid.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
-import { DECK_CSS, stylesReady, themeStylesheet } from './styles.js';
+import { DECK_CSS, fontsReady, stylesReady, themeStylesheet } from './styles.js';
 
 /** The height of a "with notes" page: the slide (720) and 520 px of notes. */
 export const NOTES_PAGE_HEIGHT = 1240;
@@ -168,10 +169,11 @@ export async function buildStaticDeck(doc: Document, text: string, o: StaticOpti
   const cut: PaperCuts = { slides: [], notes: [] };
   try {
     await enhanceDocument(stage, { scheme: r.theme.scheme, static: true }).catch(() => undefined);
-    // a theme <style>'s @import (its webfont CSS) first: until it is in, the fonts say "loaded" (A2-ENG-2)
-    await stylesReady(doc, 10_000);
+    // a theme <style>'s @import (its webfont CSS) first: until it is in, the fonts say "loaded" (A2-ENG-2); both
+    // waits are bounded once per load, not per build (A3-ENG-4: a stalled request cost 10 s every print and copy)
+    await stylesReady(doc);
     void stage.offsetHeight;
-    try { await (doc as Document & { fonts?: FontFaceSet }).fonts?.ready; } catch { /* fonts as they are */ }
+    try { await fontsReady(doc); } catch { /* fonts as they are */ }
     await imagesLoaded(stage, 10_000);
     const grid = gridPrepare(doc.defaultView ?? window);
     for (const s of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide'))) fitSlide(s, undefined, grid);

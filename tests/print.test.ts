@@ -230,3 +230,42 @@ chrome('round A: print never cuts silently (real Chrome)', () => {
     await ctx.close();
   });
 });
+
+/*
+ * Closed-loop round A3, A3-ENG-5: a {{youtube}} under a title was a player
+ * fit could not shrink (width 100%, its height from 16:9): clipped at the
+ * floor on screen, a blank frame with a false "cut on paper" in print, the
+ * video's address nowhere, and a player loaded again by every static copy.
+ * Failed on rebuild/1.0@a9f4ab3.
+ */
+chrome('round A3: a video slide (real Chrome)', () => {
+  const YT = '{{nyml\nkind: document\ntitle: Video\ntheme: orchard\n}}\n\n<!-- slide -->\n## First\n\nhello\n\n<!-- slide -->\n## Watch this\n\n{{youtube dQw4w9WgXcQ}}\n\n<!-- slide 2col -->\n## Beside the text\n\n- one point\n- another point\n\n<!-- @right -->\n{{youtube https://youtu.be/dQw4w9WgXcQ?t=42}}\n';
+  it('[Q.4] A3-ENG-5: a {{youtube}} player is sized like a picture — the largest 16:9 player in the room its box leaves, never clipped on screen — and on paper (and in the speaker\'s copies) a still of that size with the video\'s address, no live player, nothing cut', async () => {
+    const { page, ctx } = await openDeck(browser!, join(dir, 'yt.slides.html'), assemble(YT));
+    for (const i of [1, 2]) {
+      await page.evaluate((n) => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.go(n); }, i);
+      await page.waitForFunction((n) => document.querySelectorAll('.reveal .slides > section')[n]?.hasAttribute('data-fit-settled'), i);
+      const r = await page.evaluate((n) => {
+        const s = document.querySelectorAll<HTMLElement>('.reveal .slides > section')[n];
+        const k = s.getBoundingClientRect().width / s.offsetWidth;
+        const f = s.querySelector('iframe')!.getBoundingClientRect();
+        const box = s.querySelector('iframe')!.closest('.orz-box')!;
+        const b = box.getBoundingClientRect();
+        return { clipped: box.hasAttribute('data-clipped'), w: f.width / k, ratio: f.width / f.height, inside: f.left >= b.left - 1 && f.right <= b.right + 1 && f.top >= b.top - 1 && f.bottom <= b.bottom + 1 };
+      }, i);
+      expect(r.clipped, `slide ${i + 1}`).toBe(false);
+      expect(r.inside, `slide ${i + 1}: the player inside its box`).toBe(true);
+      expect(Math.abs(r.ratio - 16 / 9), `slide ${i + 1}: 16:9`).toBeLessThan(0.02);
+      expect(r.w, `slide ${i + 1}: the player takes its room`).toBeGreaterThan(i === 1 ? 700 : 450);
+    }
+    const doc = await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}) as Promise<{ html: string; cut: { slides: number[]; notes: number[] } }>);
+    expect(doc.html).not.toMatch(/<iframe/i);
+    expect(doc.html).toMatch(/youtu\.be\/dQw4w9WgXcQ/);
+    expect(doc.html).toMatch(/youtu\.be\/dQw4w9WgXcQ\?t=42/);
+    expect(doc.cut).toEqual({ slides: [], notes: [] });
+    const r = await printOracle(doc.html, 'yt-print.html');
+    expect(r.silent).toEqual([]);
+    expect(r.clipped).toEqual([]);
+    await ctx.close();
+  });
+});

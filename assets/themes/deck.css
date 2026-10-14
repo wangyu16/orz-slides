@@ -155,9 +155,52 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 /* charts: the frame follows the box's width (the kit caps it at --chart-max-width), at a slide's aspect
    (--chart-aspect, read by the kit), and never taller than 13em — sized in em, so fit scales it too */
 .reveal .orz-slide { --chart-aspect: 1.6; --chart-max-width: min(100%, 20.8em); }
-/* the canvas follows its frame in CSS at once (its bitmap keeps its aspect): while fit tries a scale the chart
-   takes that scale's size, so the fit measures what will be drawn (Chart.js redraws the bitmap later; ENG-1) */
+/* the canvas follows its frame in CSS at once: while fit tries a scale the chart takes that scale's size, so the
+   fit measures what will be drawn (Chart.js redraws the bitmap later; ENG-1) — at the CHART's aspect ratio, which
+   the engine sets on the canvas (round A3, A3-ENG-3: with the bitmap's rounded ratio, Chart.js and this rule
+   resized the canvas 520 ↔ 521 px forever) */
 .reveal .markdown-body .orz-chart-frame > canvas { width: 100% !important; height: auto !important; }
+/* a video ({{youtube}}; round A3, A3-ENG-5) is sized like a picture: as a block of its own, the largest 16:9 player
+   in the room its box leaves (it shrinks before text is scaled); inside a container (a callout, a column) it is
+   em-sized, so fit scales it. A static copy (print, the speaker view) shows a still of the same size with the
+   video's address (decorate.ts) — never a live player, never cut */
+.reveal .markdown-body :is(.youtube-embed, .orz-video-still) { position: relative; width: min(100%, 36em); max-width: 100%; aspect-ratio: 16 / 9; margin: 0.4em auto; overflow: hidden; }
+.reveal .orz-region > .markdown-body > :is(.youtube-embed, .orz-video-still) {
+  width: 100%;
+  aspect-ratio: auto;
+  flex: 1 1 0;
+  min-height: var(--sl-graphic-min);
+  container-type: size;
+  overflow: visible;
+  margin: 0;
+}
+.reveal .orz-region > .markdown-body > :is(.youtube-embed, .orz-video-still) > :is(iframe, .orz-video-poster) {
+  position: relative;
+  inset: auto;
+  display: block;
+  width: min(100cqw, 100cqh * 16 / 9);
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+}
+.reveal .markdown-body .orz-video-still .orz-video-poster {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding: 0.6em;
+  text-align: center;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.3em;
+}
+.reveal .orz-region > .markdown-body > .orz-video-still > .orz-video-poster { display: flex; }
+.reveal .markdown-body .orz-video-still .orz-video-mark { font-size: 2.4em; line-height: 1; opacity: 0.7; }
+.reveal .markdown-body .orz-video-still .orz-video-url { font-size: 0.8em; overflow-wrap: anywhere; color: inherit; }
 /* Chart.js and Mermaid text at a slide's size (logical px; a theme sets its own), and Mermaid's labels as
    SVG text everywhere in a deck (reveal scales the slides with a transform, under which HTML labels
    measure wrong; the print document draws the same) — orz-markdown 2.4.0 tokens */

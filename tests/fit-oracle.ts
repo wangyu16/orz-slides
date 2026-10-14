@@ -55,16 +55,18 @@ function boxesIn(n: number): BoxReport[] {
         if (!inside(r, box)) { outside.push(`${what} outside the box`); return; }
         for (const c of chain) if (clips(c) && (c as HTMLElement).clientWidth > 2 && (c as HTMLElement).clientHeight > 2 && !inside(r, c)) { outside.push(`${what} outside ${c.tagName.toLowerCase()}.${(c as HTMLElement).className}`); return; }
       };
+      // what a closed <details> holds besides its summary is not rendered (round A3: its text has rectangles all the same)
+      const unrendered = (el: Element | null): boolean => { const d = el?.closest('details:not([open])'); return !!d && !el!.closest('summary'); };
       const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         if (node.nodeType === 1) {
           const el = node as Element;
-          if (el.closest('.katex-mathml, aside.notes')) continue;
+          if (el.closest('.katex-mathml, aside.notes') || unrendered(el)) continue;
           if (/^(IMG|CANVAS|svg|VIDEO|IFRAME)$/.test(el.tagName)) check(el.getBoundingClientRect(), el, el.tagName.toLowerCase());
           continue;
         }
         const t = node as Text;
-        if (!t.textContent || !t.textContent.trim() || t.parentElement?.closest('.katex-mathml, svg')) continue;
+        if (!t.textContent || !t.textContent.trim() || t.parentElement?.closest('.katex-mathml, svg') || unrendered(t.parentElement)) continue;
         // word by word: white space that hangs past a line's end (pre-wrap) shows nothing
         const range = document.createRange();
         const words = /\S+/g;

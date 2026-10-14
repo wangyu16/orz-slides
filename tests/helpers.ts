@@ -96,17 +96,20 @@ export async function settled(page: Page): Promise<void> {
  * Open an assembled deck in real Chrome (a file: page in a fresh context):
  * `network: false` (default) blocks every non-file request (the file must
  * work offline); `true` lets the pinned CDN libraries load (charts,
- * molecules, diagrams, fonts). Resolves when the kit's app is ready and the
+ * molecules, diagrams, fonts); `delay` holds some requests back, `hang`
+ * never answers some (round A3, A3-ENG-4). Resolves when the kit's app is ready and the
  * engine has rendered (reveal ready, the current slide fitted) and — unless
  * `wait: 'fitted'` — its fit has settled.
  */
-export async function openDeck(browser: Browser, path: string, html: string, o: { network?: boolean; viewport?: { width: number; height: number }; wait?: 'fitted' | 'settled'; delay?: { url: RegExp; ms: number } } = {}): Promise<{ page: Page; ctx: BrowserContext; errors: string[] }> {
+export async function openDeck(browser: Browser, path: string, html: string, o: { network?: boolean; viewport?: { width: number; height: number }; wait?: 'fitted' | 'settled'; delay?: { url: RegExp; ms: number }; hang?: RegExp } = {}): Promise<{ page: Page; ctx: BrowserContext; errors: string[] }> {
   const { writeFileSync } = await import('node:fs');
   writeFileSync(path, html, 'utf8');
   const ctx = await browser.newContext({ viewport: o.viewport ?? { width: 1280, height: 720 } });
   if (!o.network) await ctx.route('**/*', (r) => (r.request().url().startsWith('file:') ? r.continue() : r.abort()));
   // a slow network for some requests (deterministic late content)
   else if (o.delay) { const d = o.delay; await ctx.route(d.url, async (r) => { await new Promise((ok) => setTimeout(ok, d.ms)); try { await r.continue(); } catch { /* the page went */ } }); }
+  // a request that never answers (a stalled network: a captive portal, a filter that drops packets)
+  if (o.hang) await ctx.route(o.hang, () => { /* never answered */ });
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));

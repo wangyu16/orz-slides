@@ -9,7 +9,9 @@
  *   one QR code (`{{qr …}}`) gets it lifted into its own slot,
  *   `.orz-qr-slot`, the template's last child, for the theme to place (its
  *   `data-md` breadcrumb travels with it); a paragraph left empty (or with
- *   only separators) goes.
+ *   only separators) goes;
+ * - **media** never play off their slide, and a static copy shows a video
+ *   as a still of the player's size with its address (round A3).
  */
 
 /** The step units of a region body: list items of top-level lists, other top-level blocks. */
@@ -64,9 +66,42 @@ export function quietMedia(root: ParentNode, still = false): void {
   }
 }
 
+/**
+ * A video in a static copy (round A3, A3-ENG-5): paper cannot play a
+ * `{{youtube}}` player, and every copy loaded it again — each becomes a
+ * still of the same size (`.orz-video-still`, laid out like the player:
+ * deck.css) that shows the video's address (its `data-url`, the kit's
+ * paper line), its `data-md` breadcrumb kept. Not the kit's
+ * `.youtube-embed` any more, so the kit's print rules (which hide the
+ * frame and collapse its box) do not change what was fitted.
+ */
+export function stillVideos(root: ParentNode): void {
+  for (const v of Array.from(root.querySelectorAll<HTMLElement>('.youtube-embed'))) {
+    const doc = v.ownerDocument;
+    const url = v.getAttribute('data-url') ?? v.querySelector('iframe')?.getAttribute('src') ?? '';
+    const still = doc.createElement('div');
+    still.className = 'orz-video-still';
+    for (const a of ['data-md', 'data-url']) { const x = v.getAttribute(a); if (x !== null) still.setAttribute(a, x); }
+    const poster = doc.createElement('div');
+    poster.className = 'orz-video-poster';
+    const mark = doc.createElement('span');
+    mark.className = 'orz-video-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '▶';
+    const line = doc.createElement('a');
+    line.className = 'orz-video-url';
+    if (/^https?:\/\//i.test(url)) line.href = url;
+    line.textContent = `YouTube video: ${url}`;
+    poster.append(mark, line);
+    still.appendChild(poster);
+    v.replaceWith(still);
+  }
+}
+
 /** Every DOM addition of a fresh render; `still`: a static copy (print, the speaker view). */
 export function decorate(root: ParentNode, o: { steps?: boolean; still?: boolean } = {}): void {
   if (o.steps !== false) applySteps(root);
   liftClosingQr(root);
   quietMedia(root, o.still === true);
+  if (o.still === true) stillVideos(root);
 }

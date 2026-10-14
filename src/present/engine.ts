@@ -35,6 +35,19 @@
  * CYCLE: then `data-fit-settled="timeout"`). A cycle begins when a slide is
  * shown and whenever a settled slide is unsettled (a refit, a theme or
  * size, Present, the deck shown again, a late font or image: round A2).
+ *
+ * The resize watch NEVER stops (round A3, A3-ENG-1: the A2 mute dropped
+ * every later size change — a spoiler opened after two no-op refits was
+ * cut at the footer and never refitted). A refit a resize caused that the
+ * fit decides the same (every box within 0.01 of its scale, the same
+ * clipping: the hysteresis) is no news: the slide stays settled and the
+ * watch goes on; after two such refits in a row the next resize refit waits
+ * {@link RESIZE_DEBOUNCE_MS} (an oscillation costs a few fits a second, not
+ * one a frame), while anything else — a drawing, an image, a font, a
+ * `<details>` toggled, a theme — refits at once. A chart's canvas keeps the
+ * chart's own aspect ratio in CSS (A3-ENG-3: its rounded bitmap ratio and
+ * Chart.js's resize fought over a pixel forever), and a stalled webfont is
+ * waited for once, at most `FONT_WAIT_MS` (styles.ts; A3-ENG-4).
  */
 import Reveal, { type RevealApi } from 'reveal.js';
 import { disposeEnhancement, enhanceDocument, redrawEnhancement } from 'orz-markdown/preview-frame';
@@ -45,7 +58,7 @@ import { gridPrepare } from './grid.js';
 import { buildPrintDocument, buildStaticDeck, cutMessage, type PaperCuts, type PrintOptions } from './print.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
 import { PresenterClock, SpeakerView, TimerOverlay } from './speaker.js';
-import { installStyles, STYLE_LOADING } from './styles.js';
+import { fontsSettled, installStyles, stylesPending } from './styles.js';
 
 /** reveal.js's options the engine always sets (and sets again after the URL's query had its say). */
 const FORCED: Readonly<Record<string, unknown>> = Object.freeze({
@@ -125,6 +138,31 @@ export interface EngineOptions {
   title?(): string;
 }
 
+/** How long a resize refit waits after two no-op ones in a row (round A3, A3-ENG-1). */
+export const RESIZE_DEBOUNCE_MS = 250;
+
+/** Two fits the same for the watch: every box within 0.01 of its scale, the same clipping (the hysteresis). */
+function sameFit(a: readonly BoxFit[], b: readonly BoxFit[]): boolean {
+  return a.length === b.length && a.every((x, i) => Math.abs(x.scale - b[i].scale) <= 0.011 && x.clipped === b[i].clipped);
+}
+
+/**
+ * A chart's canvas keeps the CHART's aspect ratio in CSS (round A3, A3-ENG-3): deck.css lets it follow its
+ * frame's width at once (`height: auto`, ENG-1), but with its height from the bitmap's integer size the
+ * frame's fractional width rounds differently each time Chart.js resizes it — 520 ↔ 521 px forever, a
+ * fifth of an idle main thread. With the ratio Chart.js draws at, the frame's size depends on its width
+ * alone, and Chart.js's resize finds nothing to change.
+ */
+function chartAspects(s: HTMLElement): void {
+  for (const c of Array.from(s.querySelectorAll<HTMLCanvasElement>('.orz-chart-frame > canvas'))) {
+    const chart = (c as HTMLCanvasElement & { __orzChart?: { aspectRatio?: number | null; options?: { aspectRatio?: number } } }).__orzChart;
+    const r = Number(chart?.options?.aspectRatio ?? chart?.aspectRatio);
+    if (!(r > 0) || !isFinite(r)) continue;
+    const want = String(Math.round(r * 1e4) / 1e4);
+    if (c.style.getPropertyValue('aspect-ratio') !== want) c.style.setProperty('aspect-ratio', want);
+  }
+}
+
 /** Create the engine in `host` (the read view's element): a `.reveal > .slides` deck. */
 export function createDeckEngine(host: HTMLElement, options: EngineOptions = {}): DeckEngine {
   const doc = host.ownerDocument;
@@ -169,13 +207,12 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   let watchedSlide: HTMLElement | null = null;
   const sizes = new WeakMap<Element, [number, number]>();
   /*
-   * A refit a resize caused that changes nothing, twice in a row, ends the resize watch for this cycle (round A2:
-   * a chart's 1 px resize ↔ layout jitter refit forever and the slide never settled); anything else that asks for a
-   * fit (a font, an image, a drawing, a theme, the slide shown again) watches again.
+   * The resize watch never stops (round A3, A3-ENG-1; see the module comment): a refit a resize caused that the fit
+   * decides the same is no news, and after two in a row the next resize refit is debounced, never dropped.
    */
-  let resizeMuted = false;
-  let sameFits = 0;
-  let lastFit = '';
+  let noopResizes = 0;
+  let lastFits: BoxFit[] | null = null;
+  let lazyResize = 0;
   let cause: 'resize' | 'other' = 'other';
   const failedSheets = new WeakSet<Element>();
   const settleWaiters: Array<() => void> = [];
@@ -191,7 +228,13 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
       const h = b ? b.blockSize : t.offsetHeight;
       const was = sizes.get(t);
       // the fit's own result was recorded when it ended: only a change since then refits
-      if (!was || Math.abs(was[0] - w) > 1 || Math.abs(was[1] - h) > 1) { if (resizeMuted) return; dirty = true; fitSoon('resize'); return; }
+      if (!was || Math.abs(was[0] - w) > 1 || Math.abs(was[1] - h) > 1) {
+        // after two no-op resize refits the next one waits a moment (an oscillation is not refitted every frame)
+        if (noopResizes >= 2) { if (!lazyResize) lazyResize = win.setTimeout(() => { lazyResize = 0; if (!destroyed) fitSoon('resize'); }, RESIZE_DEBOUNCE_MS); return; }
+        dirty = true;
+        fitSoon('resize');
+        return;
+      }
     }
   }) : null;
   const mo: MutationObserver | null = typeof win.MutationObserver === 'function' ? new win.MutationObserver((records) => {
@@ -225,13 +268,23 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   const fitNow = (o: { fresh?: boolean; redraw?: boolean } = {}): BoxFit[] => {
     const s = current();
     if (!s || host.hidden) return [];
-    unsettle(s);
-    if (o.redraw) redrawEnhancement(s);
-    const out = fitSlide(s, undefined, grid, o);
-    const sig = out.map((b) => `${b.scale.toFixed(3)}${b.clipped ? 'c' : ''}`).join(' ');
-    if (cause === 'resize' && sig === lastFit) { if (++sameFits >= 2) resizeMuted = true; } else sameFits = 0;
-    lastFit = sig;
+    const byResize = cause === 'resize' && !o.redraw && !o.fresh;
     cause = 'other';
+    if (!byResize) unsettle(s);
+    if (o.redraw) redrawEnhancement(s);
+    chartAspects(s);
+    const out = fitSlide(s, undefined, grid, o);
+    const same = lastFits !== null && sameFit(out, lastFits);
+    lastFits = out;
+    if (byResize && same) {
+      // a size change the fit decides the same: no news — the slide stays as it was, the watch goes on
+      noopResizes++;
+      watch(s);
+      dirty = false;
+      startSettle();
+      return out;
+    }
+    if (byResize) { unsettle(s); noopResizes = 0; }
     watch(s);
     lastFitFrame = frame;
     dirty = false;
@@ -251,12 +304,15 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     s.removeAttribute('data-fit-settled');
   }
 
-  /** Fit soon (one frame later): a font, stylesheet or image loaded, or the slide's content changed size. */
+  /**
+   * Fit soon (one frame later): a font, stylesheet or image loaded, the slide's content changed size, a
+   * `<details>` toggled. A resize unsettles the slide only if its refit changes the fit (see fitNow).
+   */
   const fitSoon = (why: 'resize' | 'other' = 'other'): void => {
-    if (why === 'other') { resizeMuted = false; sameFits = 0; }
+    if (why === 'other') noopResizes = 0;
     cause = why === 'resize' && (cause === 'resize' || !fitQueued) ? 'resize' : 'other';
     const s = current();
-    if (s) unsettle(s);
+    if (s && why === 'other') unsettle(s);
     startSettle();
     if (fitQueued) return;
     fitQueued = win.requestAnimationFrame(() => { fitQueued = 0; if (!destroyed) fitNow(); });
@@ -265,11 +321,11 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   /** Everything the current slide waits for is in. */
   function quiet(s: HTMLElement): boolean {
     if (fitQueued || dirty || frame - lastFitFrame < 2) return false;
-    const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
-    if (fonts && fonts.status !== 'loaded') return false;
+    // the fonts (waited for once, at most FONT_WAIT_MS: a stalled request is no reason to wait on every slide; A3-ENG-4)
+    if (!fontsSettled(doc)) return false;
     if (!enhanced) return false;
-    // a theme <style> whose @import (its webfont CSS) is loading: its font faces do not exist yet (A2-ENG-2)
-    if (doc.querySelector(`style[${STYLE_LOADING}]`)) return false;
+    // a theme <style> whose @import (its webfont CSS) is loading: its font faces do not exist yet (A2-ENG-2, A3-ENG-2)
+    if (stylesPending(doc)) return false;
     if (Array.from(s.querySelectorAll('img')).some((i) => !i.complete)) return false;
     for (const l of Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))) {
       if (l.media === 'not all' || failedSheets.has(l)) continue;
@@ -400,9 +456,9 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     const s = current();
     if (!s) return;
     cycleSlide = null; // a slide shown starts its own cycle
-    resizeMuted = false;
-    sameFits = 0;
-    lastFit = '';
+    noopResizes = 0;
+    lastFits = null;
+    if (lazyResize) { win.clearTimeout(lazyResize); lazyResize = 0; }
     fitNow({ redraw: true });
     speaker.sync();
     // the speaker's copies of this slide and the next first
@@ -413,6 +469,8 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   // finish loading change what fits; a stylesheet that failed is not waited for
   root.addEventListener('load', (e) => { const t = e.target as Element; if (t && t.tagName === 'IMG' && current()?.contains(t)) fitSoon(); }, true);
   root.addEventListener('error', (e) => { const t = e.target as Element; if (t && t.tagName === 'IMG' && current()?.contains(t)) fitSoon(); }, true);
+  // a <details> (a `::: spoil` answer) opened or closed: an attribute change, no childList (A3-ENG-1); toggle does not bubble
+  root.addEventListener('toggle', (e) => { const t = e.target as Element; if (t && current()?.contains(t)) fitSoon(); }, true);
   const onSheet = (e: Event): void => {
     const t = e.target as Element | null;
     if (!t || (t.tagName !== 'LINK' && t.tagName !== 'STYLE')) return;
@@ -613,6 +671,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
       ro?.disconnect();
       mo?.disconnect();
       if (loop) win.cancelAnimationFrame(loop);
+      if (lazyResize) win.clearTimeout(lazyResize);
       for (const w of settleWaiters.splice(0)) w();
       doc.removeEventListener('fullscreenchange', onFullscreen);
       disposeEnhancement(slidesEl);
