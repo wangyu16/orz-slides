@@ -194,4 +194,88 @@ describe('round A: upgrade keeps what 0.x showed (FMT-1 … FMT-7, FMT-11)', () 
     expect(up.text.startsWith('﻿{{nyml')).toBe(true);
     expect(up.text.split('﻿')).toHaveLength(2);
   });
+
+  /*
+   * Round A2 (notes/closed-loop.md): each probe failed on rebuild/1.0@6d3aa97.
+   */
+  it('[U.6] A2-FMT-1/3/4: upgrade repairs every construct left open before a marker with ITS closer — <pre>, an open comment, ::::, $$ — once each: no 50 blank lines, no 50 ::: lines, one note per repair', () => {
+    const cases: Array<[string, string]> = [
+      ['<pre>\ncode\n', '</pre>'],
+      ['<!-- TODO rework this\n', '-->'],
+      [':::: info\nx\n', '::::'],
+      [':::: cols\n::: col\nx\n:::\n', '::::'],
+      ['$$\nx^2\n', '$$'],
+    ];
+    for (const [open, closer] of cases) {
+      const src = `<!-- slide -->\n## A\n${open}\n<!-- slide -->\n## B\n<!-- @notes -->\nN\n`;
+      const up = upgradeText(src, { uid: UID });
+      const d = parseDeck(up.text);
+      expect(d.slides.map((s) => s.title), open).toEqual(['A', 'B']);
+      expect(d.slides[1].notes, open).toBe('N');
+      expect(d.lint.filter((l) => l.level === 'error'), open).toEqual([]);
+      expect(up.text.length - src.length, open).toBeLessThan(120); // the header and one closer
+      expect(up.text.split(closer).length - src.split(closer).length, open).toBe(1);
+      expect(up.notes.filter((n) => /left open was closed|blank line added/.test(n)), open).toHaveLength(1);
+    }
+  });
+
+  it('[U.6] A2-FMT-1: the repair loop stops when a pass makes no progress, and is bounded by the marker lines — a 1000-slide deck with an open comment upgrades in one repair, not 50 re-parses', () => {
+    let src = '<!-- slide -->\n## A\n<!-- TODO: rework\n\n';
+    for (let i = 0; i < 1000; i++) src += `<!-- slide -->\n## S${i}\ntext\n<!-- @notes -->\nnote ${i}\n\n`;
+    const a = performance.now();
+    const up = upgradeText(src, { uid: UID });
+    expect(performance.now() - a).toBeLessThan(2500); // 5029 ms before
+    expect(parseDeck(up.text).slides).toHaveLength(1001);
+    expect(up.notes.filter((n) => /left open was closed/.test(n))).toHaveLength(1);
+  });
+
+  it('[U.6] A2-FMT-2: a fence (or container) closed only by a later slide\'s block, and 60 slides that each leave a bare ``` open, upgrade to the slides 0.x showed', () => {
+    const src = '<!-- slide -->\n## A\n```python\nprint(1)\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n```js\nlet x = 1\n```\n\n<!-- slide -->\n## D\ntext\n';
+    const d = parseDeck(upgradeText(src, { uid: UID }).text);
+    expect(d.slides.map((s) => s.title)).toEqual(['A', 'B', 'C', 'D']);
+    expect(d.slides[1].notes).toBe('PRIVATE');
+    let sixty = '';
+    for (let i = 1; i <= 60; i++) sixty += `<!-- slide -->\n## S${i}\n\`\`\`\ncode ${i}\n\n`;
+    const up = upgradeText(sixty, { uid: UID });
+    expect(parseDeck(up.text).slides).toHaveLength(60);
+    expect(parseDeck(up.text).lint).toEqual([]);
+  });
+
+  it('[U.6] A2-FMT-5/7: a nested split\'s spaced tracks are squeezed at every depth; a slide marker\'s `key = value` (0.x did not read it) stays as written, and a fit= value 0.x ignored is dropped', () => {
+    const up = upgradeText('<!-- slide row 1 / 1 { a; col 1 / 2 { b; c } } -->\n## T\n<!-- @a -->\nA\n<!-- @b -->\nB\n<!-- @c -->\nC\n', { uid: UID });
+    const d = parseDeck(up.text);
+    expect(d.lint).toEqual([]);
+    expect(d.slides[0].layoutSpec).toBe('row 1/1 { a; col 1/2 { b; c } }');
+    expect(d.slides[0].regions.map((r) => [r.name, r.markdown])).toEqual([['a', 'A'], ['b', 'B'], ['c', 'C']]);
+    const eq = upgradeText('<!-- slide t = fade -->\n## T\n', { uid: UID });
+    expect(eq.text).toMatch(/<!-- slide t = fade -->/);
+    const fit = upgradeText('<!-- slide fit=shrink -->\n## T\n', { uid: UID });
+    expect(fit.text).toMatch(/<!-- slide -->/);
+    expect(fit.notes.join('\n')).toMatch(/fit=shrink dropped/);
+    expect(readDocument(fit.text).lint.filter((l) => l.level === 'error')).toEqual([]);
+  });
+
+  it('[U.6] A2-FMT-6: @notes:private, @notes(speaker), @notes! become @notes (0.x read them as the notes)', () => {
+    const up = upgradeText('<!-- slide -->\n## T\n<!-- @notes:private -->\nsecret\n<!-- slide -->\n## U\n<!-- @notes(speaker) -->\ns2\n<!-- slide -->\n## V\n<!-- @notes! -->\ns3\n', { uid: UID });
+    const d = parseDeck(up.text);
+    expect(d.lint).toEqual([]);
+    expect(d.slides.map((s) => s.notes)).toEqual(['secret', 's2', 's3']);
+  });
+
+  it('[U.6] A2-FMT-8/9: upgrade is idempotent (a marker a repair reveals is normalised too) and keeps the text\'s line ending; notes cite the ORIGINAL lines', () => {
+    for (const eol of ['\n', '\r\n', '\r']) {
+      const src = '<!-- deck\ntheme: neon\n-->\n<!-- slide -->\n## A\ntext\n<!-- slide -->\n<img src=x>\n<!-- @notes: -->\nN\n```\ncode\n<!-- slide -->\n## C\n'.replace(/\n/g, eol);
+      const up = upgradeText(src, { uid: UID });
+      expect(upgradeText(up.text, { uid: UID }).text, JSON.stringify(eol)).toBe(up.text);
+      expect(up.text.replace(new RegExp(eol, 'g'), '').match(/[\r\n]/), JSON.stringify(eol)).toBeNull();
+      const d = parseDeck(up.text);
+      expect(d.slides.map((s) => s.title)).toEqual(['A', undefined, 'C']);
+      expect(d.slides[1].notes).toBe('N\n```\ncode\n```');
+      expect(d.lint.filter((l) => l.level === 'error')).toEqual([]);
+      // the <!-- @notes: --> line is line 9 of the source, the open fence line 11
+      expect(up.notes.join('\n')).toMatch(/line 9: a blank line added/);
+      expect(up.notes.join('\n')).toMatch(/line 11: the code fence left open/);
+      expect(up.notes.join('\n')).toMatch(/line 9: @notes: written @notes/);
+    }
+  });
 });

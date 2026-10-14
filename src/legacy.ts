@@ -47,7 +47,7 @@ import { editHeader, extract, mintUid, normalizeHeader, readHeader, readLegacyIs
 import { compareSemver } from 'orz-markdown/carrier/shell';
 import type { DocMeta } from 'orz-markdown/doc-meta';
 import { assemble, readDocument, type AssembleOptions } from './assemble.js';
-import { normalizeMarker, parseDeck, scanMarkers } from './deck/parse.js';
+import { normalizeMarker, parseDeck, REPAIR_CODES, RUN_ON_OPENER, scanMarkers } from './deck/parse.js';
 import { DROPPED_THEMES, resolveTheme } from './themes.js';
 import { VERSION } from './version.js';
 
@@ -157,6 +157,91 @@ function themeFor(id: string): { theme: string; dropped: boolean } | null {
   return resolveTheme(id) ? { theme: id, dropped: false } : null;
 }
 
+/** The 0-based line of an offset. */
+function lineOf(text: string, at: number): number {
+  return (text.slice(0, at).match(/\r\n|\r|\n/g) ?? []).length;
+}
+
+/**
+ * Line numbers of the text being upgraded back to the ORIGINAL text's (notes
+ * cite the lines the author wrote): every edit that removes or inserts whole
+ * lines is recorded, in order, and undone when a line is reported.
+ */
+class LineMap {
+  private edits: Array<{ at: number; delta: number }> = [];
+  /** `count` lines removed at 0-based line `at` of the current text. */
+  remove(at: number, count: number): void { if (count > 0) this.edits.push({ at, delta: -count }); }
+  /** One line inserted at 0-based line `at` of the current text. */
+  insert(at: number): void { this.edits.push({ at, delta: 1 }); }
+  /** The original 1-based line of the current 1-based `line`. */
+  original(line: number): number {
+    let l = line - 1;
+    for (let i = this.edits.length - 1; i >= 0; i--) {
+      const e = this.edits[i];
+      if (e.delta > 0 && l > e.at) l -= e.delta;
+      else if (e.delta < 0 && l >= e.at) l -= e.delta;
+    }
+    return l + 1;
+  }
+}
+
+/**
+ * Repair the markers a block swallowed (closed-loop rounds A and A2): apply
+ * the hygiene lints' own quick fixes (`REPAIR_CODES`: a raw HTML block's
+ * blank line; the closer of a fence, container, `$$` block or HTML block
+ * left open) until none is left. Each pass applies the fixes that cannot
+ * interact — blank lines before markers in HTML blocks whose rest opens no
+ * construct — else the first fix alone (closing one block may show the
+ * next), and must make at least one more marker line a marker: a pass that
+ * makes no progress is undone and the loop stops (the lint stays for the
+ * author). At most one pass per marker line of the text.
+ */
+function repairHidden(source: string, notes: string[], lines: LineMap): string {
+  let text = source;
+  const budget = (text.match(/^ {0,3}<!--\s*(?:slide\b|@[A-Za-z0-9_-])/gm) ?? []).length + 1;
+  for (let pass = 0; pass < budget; pass++) {
+    const fixes = parseDeck(text).lint.filter((l) => l.fix && REPAIR_CODES.has(l.code));
+    if (fixes.length === 0) break;
+    const batch: typeof fixes = [];
+    for (const l of fixes) {
+      if (l.code !== 'marker-in-html') break;
+      // the rest of its HTML block (up to the next blank line) must open nothing that runs on
+      const rest = text.slice(l.fix!.from).split(/\r\n|\r|\n/);
+      let safe = true;
+      for (let k = 1; k < rest.length && rest[k].trim() !== ''; k++) if (RUN_ON_OPENER.test(rest[k])) { safe = false; break; }
+      if (!safe) break;
+      batch.push(l);
+    }
+    if (batch.length === 0) batch.push(fixes[0]);
+    // progress: every fix makes the marker line it was inserted before a marker (A2-FMT-1: a fix that does not
+    // take is never applied again and again)
+    const takes = (b: typeof fixes): string | null => {
+      const next = applyEdits(text, b.map((l) => l.fix!));
+      const real = new Set(scanMarkers(next).map((m) => m.span.from));
+      let shift = 0;
+      for (const l of [...b].sort((x, y) => x.fix!.from - y.fix!.from)) {
+        shift += l.fix!.insert.length;
+        if (!real.has(l.fix!.from + shift)) return null;
+      }
+      return next;
+    };
+    let next = takes(batch);
+    if (next === null && batch.length > 1) { batch.splice(1); next = takes(batch); }
+    if (next === null) {
+      notes.push(`line ${lines.original(batch[0].line ?? 1)}: ${batch[0].code} could not be repaired (its fix showed no marker); left for the author`);
+      break;
+    }
+    for (const l of [...batch].sort((x, y) => y.fix!.from - x.fix!.from)) {
+      notes.push(l.code === 'marker-in-html'
+        ? `line ${lines.original(lineOf(text, l.fix!.from) + 1)}: a blank line added before the marker (it was inside a raw HTML block; 0.x read it)`
+        : `line ${lines.original(l.line ?? 1)}: the ${l.code === 'unclosed-fence' ? 'code fence' : l.code === 'unclosed-container' ? 'container' : l.code === 'unclosed-math' ? '$$ math block' : 'HTML block'} left open was closed before the next marker (0.x ended it there)`);
+      lines.insert(lineOf(text, l.fix!.from));
+    }
+    text = next;
+  }
+  return text;
+}
+
 /**
  * Upgrade a 0.x deck text (or any slides text that still holds a
  * `<!-- deck -->` block) to text format 1 — see the module comment. A text
@@ -173,6 +258,7 @@ function themeFor(id: string): { theme: string; dropped: boolean } | null {
 export function upgradeText(source: string, options: UpgradeTextOptions = {}): TextUpgrade {
   const notes: string[] = [];
   let text = source;
+  const lines = new LineMap();
   const bom = text.startsWith('﻿') ? 1 : 0;
   // 1. the deck blocks: the first one is the deck's config (0.x read it when it was the first thing in the
   //    source; upgrade applies it wherever it stood); a later one fills only the keys still missing
@@ -200,10 +286,13 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
       to += rest ? rest[0].length : 0;
       removals.push({ from: Math.max(block.span.from, bom), to, insert: '' });
     });
+    for (const r of [...removals].sort((x, y) => y.from - x.from)) lines.remove(lineOf(text, r.from), text.slice(r.from, r.to).split(/\r\n|\r|\n/).length - 1);
     text = applyEdits(text, removals);
   }
 
-  // 2. marker spellings 0.x read (normalizeMarker), then markers a block swallowed
+  // 2. markers a block swallowed (0.x split at every marker line), then the marker spellings 0.x read — in that
+  //    order, so a marker a repair reveals is normalised too (A2-FMT-8: upgrade is idempotent)
+  text = repairHidden(text, notes, lines);
   const rewrites: Array<{ from: number; to: number; insert: string }> = [];
   for (const m of scanMarkers(text)) {
     if (m.type === 'deck') continue;
@@ -211,18 +300,9 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
     if (!n) continue;
     const eol = /\r\n|\r|\n/.exec(text.slice(m.span.from))?.[0] ?? '\n';
     rewrites.push({ from: m.span.from, to: m.span.to, insert: n.content.replace(/\n/g, eol) });
-    for (const x of n.notes) notes.push(`line ${m.span.line}: ${x}`);
+    for (const x of n.notes) notes.push(`line ${lines.original(m.span.line)}: ${x}`);
   }
   text = applyEdits(text, rewrites);
-  for (let guard = 0; guard < 50; guard++) {
-    const fix = parseDeck(text).lint.filter((l) => l.fix && /^(marker-in-html|unclosed-fence|unclosed-container)$/.test(l.code));
-    if (fix.length === 0) break;
-    // a marker hidden in raw HTML: every one at once; an unclosed block: the first (closing it may show the next)
-    const html = fix.filter((l) => l.code === 'marker-in-html');
-    const now = html.length ? html : [fix[0]];
-    for (const l of now) notes.push(l.code === 'marker-in-html' ? `line ${l.line}: a blank line added before the marker (it was inside a raw HTML block; 0.x read it)` : `line ${l.line}: ${l.code === 'unclosed-fence' ? 'the code fence' : 'the ::: container'} left open was closed before the next marker (0.x ended it there)`);
-    text = applyEdits(text, now.map((l) => l.fix!));
-  }
 
   // 3. a leading legacy kind: meta header becomes the format-1 header
   const before = readHeader(text);

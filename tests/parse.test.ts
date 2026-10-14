@@ -5,7 +5,7 @@
  * cases are kept where their meaning is unchanged.
  */
 import { describe, it, expect } from 'vitest';
-import { deckTokens, parseDeck, readMarkerArgs } from '../src/deck/parse.js';
+import { deckTokens, parseDeck, readMarkerArgs, scanMarkers } from '../src/deck/parse.js';
 import { deckConfig, headerLint } from '../src/deck/config.js';
 import { readDocument } from '../src/assemble.js';
 import { lintHeader } from 'orz-markdown/carrier';
@@ -279,7 +279,7 @@ describe('marker hygiene (round A: FMT-1, FMT-5, FMT-6, FMT-9)', () => {
     const fixed = text.slice(0, l.fix!.from) + l.fix!.insert + text.slice(l.fix!.to);
     expect(parseDeck(fixed).slides).toHaveLength(20);
     expect(codes('<!-- slide -->\n## A\n::: info\nhello\n<!-- slide -->\n## B\n')).toContain('unclosed-container');
-    expect(codes('<!-- slide -->\n## A\n~~~\n<!-- slide -->\n~~~\n')).toEqual([]);
+    expect(codes('<!-- slide -->\n## A\n~~~markdown\n<!-- slide -->\n~~~\n')).toEqual([]);
     expect(codes('<!-- slide -->\n## A\n```\nno markers, just open\n')).toEqual([]);
   });
 
@@ -356,5 +356,130 @@ describe('parse cost (round A: FMT-8)', () => {
     const a = parseDeck(t);
     expect(parseDeck(t)).toBe(a);
     expect(Object.isFrozen(a.slides[0])).toBe(true);
+  });
+});
+
+/*
+ * Closed-loop round A2 (notes/closed-loop.md): round A fixed instances of the
+ * hygiene lint (a fence or container that runs to the end, a type-6/7 HTML
+ * block); A2 found the class — every construct that runs on to a terminator
+ * of its own. One mechanism now: each probe below failed on
+ * rebuild/1.0@6d3aa97.
+ */
+describe('marker hygiene, one terminator-aware mechanism (round A2)', () => {
+  const H = '{{nyml\nkind: document\ncarrier: slides\n}}\n\n';
+  /** Apply the first quick fix of a text. */
+  const fixOnce = (t: string): { text: string; code: string; at: number } | null => {
+    const l = parseDeck(t).lint.find((x) => x.fix);
+    return l ? { text: t.slice(0, l.fix!.from) + l.fix!.insert + t.slice(l.fix!.to), code: l.code, at: l.line! } : null;
+  };
+  const real = (t: string): number => scanMarkers(t).length;
+
+  /** Every construct that runs on to its own terminator, left open before a slide marker (the A2 matrix). */
+  const RUN_ON: Record<string, [string, string, string]> = {
+    // name: [opener lines, the lint, the closer the fix inserts]
+    'fence ```': ['```python\nx = 1', 'unclosed-fence', '```'],
+    'fence ~~~~': ['~~~~\nx', 'unclosed-fence', '~~~~'],
+    'fence `````': ['`````md\nx', 'unclosed-fence', '`````'],
+    'container :::': ['::: info\nx', 'unclosed-container', ':::'],
+    'container ::::': [':::: info\nx', 'unclosed-container', '::::'],
+    'container :::::': ['::::: cols\n::: col\nx\n:::', 'unclosed-container', ':::::'],
+    'math $$': ['$$\nx^2', 'unclosed-math', '$$'],
+    '<pre>': ['<pre>\ncode', 'unclosed-html', '</pre>'],
+    '<script>': ['<script>\nlet a = 1', 'unclosed-html', '</script>'],
+    '<style>': ['<style>\n.x { color: red }', 'unclosed-html', '</style>'],
+    '<textarea>': ['<textarea>\ntext', 'unclosed-html', '</textarea>'],
+    'open <!--': ['<!-- TODO rework this', 'unclosed-html', '-->'],
+    '<?': ['<?php echo 1;', 'unclosed-html', '?>'],
+    '<![CDATA[': ['<![CDATA[ x', 'unclosed-html', ']]>'],
+  };
+
+  it('[P.13] A2-FMT-1/3/4: every construct that runs on to its own terminator — a fence of any length and character, a container of any length, $$ math, an HTML block of types 1–5, an open comment — and swallows a slide marker is its unclosed-* error; the fix inserts ITS closer, and applying it removes the lint and shows the slides', () => {
+    for (const [name, [open, code, closer]] of Object.entries(RUN_ON)) {
+      for (const blank of ['\n', '\n\n']) {
+        const t = `${H}<!-- slide -->\n## A\n${open}${blank}<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n`;
+        const d = parseDeck(t);
+        expect(d.slides.length, name).toBe(1);
+        const l = d.lint.find((x) => x.code === code)!;
+        expect(l, name).toMatchObject({ level: 'error', line: 8 });
+        expect(l.fix!.insert, name).toBe(`${closer}\n`);
+        const f = fixOnce(t)!;
+        const g = parseDeck(f.text);
+        expect(g.slides.map((s) => s.title), name).toEqual(['A', 'B']);
+        expect(g.slides[1].notes, name).toBe('PRIVATE');
+        expect(g.lint.filter((x) => x.level === 'error'), name).toEqual([]);
+      }
+    }
+  });
+
+  it('[P.13] A2-FMT-1: an HTML block of types 1–5 closed on purpose may show markers — no false error (a closed <pre> was marker-in-html, its fix did nothing)', () => {
+    for (const t of ['<pre>\n<!-- slide -->\n<!-- @notes -->\n</pre>', '<textarea>\n<!-- slide -->\n</textarea>', '<script type="text/plain">\n<!-- slide -->\n</script>']) {
+      expect(codes(`${H}<!-- slide -->\n## Writing markers\n${t}\n\n<!-- slide -->\n## Two\n`), t).toEqual([]);
+    }
+  });
+
+  it('[P.13] A2-FMT-2: a block closed only by a LATER slide\'s block of its kind (```js in a ``` fence, ::: warning in a ::: container, a second <pre>) is unclosed-*, and its fix gives every slide back; a ```` fence holding ``` (the corpus nesting) is fine', () => {
+    const cases: Array<[string, string, string]> = [
+      ['```python\nprint(1)', '```js\nlet x = 1\n```', 'unclosed-fence'],
+      ['::: info\nhello', '::: warning\nw\n:::', 'unclosed-container'],
+      ['<pre>\nx', '<pre>y</pre>', 'unclosed-html'],
+    ];
+    for (const [open, later, code] of cases) {
+      const t = `${H}<!-- slide -->\n## A\n${open}\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n${later}\n\n<!-- slide -->\n## D\ntext\n`;
+      const d = parseDeck(t);
+      expect(d.slides.length, code).toBe(2);
+      expect(d.lint.map((l) => [l.code, l.level, l.line]), code).toContainEqual([code, 'error', 8]);
+      const f = parseDeck(fixOnce(t)!.text);
+      expect(f.slides.map((s) => s.title), code).toEqual(['A', 'B', 'C', 'D']);
+      expect(f.slides[1].notes, code).toBe('PRIVATE');
+      expect(f.lint.filter((l) => l.level === 'error'), code).toEqual([]);
+    }
+    expect(codes(`${H}<!-- slide -->\n## Nested\n\`\`\`\`markdown\n\`\`\`html\n<!-- slide quad -->\n\`\`\`\n<!-- slide -->\n\`\`\`\`\n\n<!-- slide -->\n## B\n`)).toEqual([]);
+  });
+
+  it('[P.13] A2-FMT-2: two bare fences left open pair up across a slide (each slide\'s ``` closes the one before) — a warning, with the same fix; an info string shows markers on purpose', () => {
+    let t = H;
+    for (let i = 1; i <= 6; i++) t += `<!-- slide -->\n## S${i}\n\`\`\`\ncode ${i}\n\n`;
+    expect(parseDeck(t).slides).toHaveLength(3);
+    expect(parseDeck(t).lint.map((l) => [l.code, l.level])).toEqual([['unclosed-fence', 'warning'], ['unclosed-fence', 'warning'], ['unclosed-fence', 'warning']]);
+    let cur = t;
+    for (let k = 0; k < 10; k++) { const f = fixOnce(cur); if (!f) break; cur = f.text; }
+    expect(parseDeck(cur).slides.map((s) => s.title)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6']);
+    expect(parseDeck(cur).lint).toEqual([]);
+  });
+
+  it('[P.13] A2-FMT-4: a $$ block or a container closed AFTER a slide marker is closed by mistake (a marker line is never shown there)', () => {
+    expect(codes(`${H}<!-- slide -->\n## A\n$$\nx\n<!-- slide -->\n## B\n$$\n`)).toContain('unclosed-math');
+    expect(codes(`${H}<!-- slide -->\n## A\n::: info\nx\n<!-- slide -->\n## B\n:::\n`)).toContain('unclosed-container');
+  });
+
+  it('[P.13] A2-FMT-9 and the fix property: over every construct × LF / CR LF / CR, each quick fix keeps the text\'s line ending, removes its own lint and makes at least one more marker line a marker', () => {
+    const blocks = [...Object.values(RUN_ON).map(([open]) => open), '<img src="x.png">', '<div class="x">'];
+    for (const open of blocks) {
+      for (const eol of ['\n', '\r\n', '\r']) {
+        const t = `${H}<!-- slide -->\n## A\n${open}\n<!-- slide -->\n## B\n<!-- @notes -->\nN\n`.replace(/\n/g, eol);
+        const d = parseDeck(t);
+        const l = d.lint.find((x) => x.fix)!;
+        expect(l, `${open} ${JSON.stringify(eol)}`).toBeDefined();
+        const f = fixOnce(t)!;
+        const others = f.text.replace(new RegExp(eol === '\r' ? '\r' : eol, 'g'), '');
+        expect(/[\r\n]/.test(others), `${open} ${JSON.stringify(eol)}: mixed line endings`).toBe(false);
+        expect(parseDeck(f.text).lint.some((x) => x.code === l.code && x.line === l.line), `${open}: the lint stays`).toBe(false);
+        expect(real(f.text), open).toBeGreaterThan(real(t));
+      }
+    }
+  });
+
+  it('[P.13] A2-FMT-6: anything 0.x read after a region name (@notes:private, @notes(speaker), @notes!) is the marker, noticed — private notes never show on the slide; <!-- Slide --> is a lookalike', () => {
+    for (const m of ['@notes:private', '@notes(speaker)', '@notes!', '@notes:']) {
+      const d = parseDeck(`${H}<!-- slide -->\n## T\n<!-- ${m} -->\nsecret\n`);
+      expect(d.slides[0].notes, m).toBe('secret');
+      expect(d.slides[0].regions.map((r) => r.markdown).join(''), m).not.toMatch(/secret/);
+      expect(d.lint.map((l) => [l.level, l.code]), m).toEqual([['warning', 'marker-punctuation']]);
+    }
+    for (const c of ['<!-- Slide -->', '<!-- SLIDE 2col -->']) {
+      const d = parseDeck(`${H}<!-- slide -->\n## T\n\n${c}\n## U\n`);
+      expect(d.lint.find((l) => l.code === 'marker-lookalike')?.message, c).toMatch(/write <!-- slide/);
+    }
   });
 });

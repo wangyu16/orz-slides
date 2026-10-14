@@ -66,12 +66,13 @@ let lastTokens: { text: string; tokens: Token[] } | null = null;
 /** A slide marker comment: `<!-- slide [args] -->`, args possibly over several lines. */
 const SLIDE_MARKER = /^[ \t]*<!--\s*slide\b([\s\S]*?)-->([\s\S]*)$/;
 /**
- * A region marker comment: `<!-- @name [attrs] -->`. A punctuation mark right
- * after the name (`@notes:`, `@right,` — 0.x read any character there) is
- * read as the marker and noticed (`marker-punctuation`), never left on the
- * slide as text.
+ * A region marker comment: `<!-- @name [attrs] -->`. Anything 0.x read
+ * right after the name that is not a name character (`@notes:`,
+ * `@right,`, `@notes:private`, `@notes(speaker)`, `@notes!` — 0.x's
+ * `@name\b`) is read as the marker and noticed (`marker-punctuation`),
+ * never left on the slide as text (rounds A and A2).
  */
-const REGION_MARKER = /^[ \t]*<!--\s*@([A-Za-z0-9_-]+?)([:.,;])?(?:\s+([\s\S]*?))?\s*-->([\s\S]*)$/;
+const REGION_MARKER = /^[ \t]*<!--\s*@([A-Za-z0-9_-]+?)((?:(?!-->)[^\sA-Za-z0-9_-])(?:(?!-->)\S)*)?(?:\s+([\s\S]*?))?\s*-->([\s\S]*)$/;
 /** The retired 0.x deck block: a comment whose first word is `deck` itself (not `<!-- deck-notes -->`; the kit's rule). */
 const DECK_BLOCK = /^[ \t]*<!--\s*deck(?!\w|-(?!->))/;
 /** A line that starts like a slide or region marker (for the markers a block swallowed). */
@@ -356,18 +357,18 @@ export function readFloatAttrs(attrs: string): { geom: FloatGeom; problems: stri
 export function normalizeMarker(content: string): { content: string; notes: string[] } | null {
   const notes: string[] = [];
   const indent = /^[ \t]*/.exec(content)![0];
-  const squeeze = (args: string, slashes: boolean): string => {
-    // outside quotes: no spaces around '=' (and around '/' between tracks, before any '{')
+  const squeeze = (args: string, at: '=' | '/'): string => {
+    // outside quotes: no spaces around '=' (float markers: 0.x read `left = 50%`) or around '/' (a split's
+    // track separator, at every depth: 0.x read `row 1 / 1 { a; col 1 / 2 { b; c } }`; round A2, A2-FMT-5).
+    // A slide marker's `key = value` was NOT read by 0.x (its options are `key=value` tokens), so it stays
+    // as written (A2-FMT-7).
     let out = '';
     let quote = '';
-    let depth = 0;
     for (let i = 0; i < args.length; i++) {
       const c = args[i];
       if (quote) { out += c; if (c === quote) quote = ''; continue; }
       if (c === '"' || c === "'") { quote = c; out += c; continue; }
-      if (c === '{') depth++;
-      if (c === '}') depth = Math.max(0, depth - 1);
-      if ((c === '=' || (slashes && c === '/' && depth === 0)) && out !== '') {
+      if (c === at && out !== '') {
         out = out.replace(/\s+$/, '') + c;
         while (i + 1 < args.length && /\s/.test(args[i + 1])) i++;
         continue;
@@ -379,13 +380,14 @@ export function normalizeMarker(content: string): { content: string; notes: stri
   let m: RegExpExecArray | null;
   if ((m = SLIDE_MARKER.exec(content))) {
     const was = m[1].replace(/\s+/g, ' ').trim();
-    const toks = tokenizeMarker(squeeze(m[1], true)).map((tok) => {
+    const toks = tokenizeMarker(squeeze(m[1], '/')).map((tok) => {
       const o = tok.startsWith('{') ? null : OPTION_TOKEN.exec(tok);
       return o && o[1] !== o[1].toLowerCase() && SLIDE_OPTIONS.includes(o[1].toLowerCase()) ? `${o[1].toLowerCase()}=${o[2]}` : tok;
     });
     const read = readMarkerArgs(toks.join(' '));
     const kept = toks.filter((tok) => {
       const o = tok.startsWith('{') ? null : OPTION_TOKEN.exec(tok);
+      if (o && o[1] === 'fit' && !['fit', 'scroll', 'off'].includes(unquote(o[2]))) { notes.push(`fit=${o[2]} dropped: not fit, scroll or off (0.x ignored it)`); return false; }
       if (!o || o[1] !== 'v' || read.templateVariant !== undefined) return true;
       notes.push(read.template ? `v=${o[2]} dropped: the ${read.template} template has variants 1 to ${TEMPLATES[read.template]} (0.x showed its first look for it)` : `v=${o[2]} dropped: a variant needs template= (0.x ignored it)`);
       return false;
@@ -400,7 +402,7 @@ export function normalizeMarker(content: string): { content: string; notes: stri
     const was = (m[3] ?? '').replace(/\s+/g, ' ').trim();
     let args = was;
     if (name.toLowerCase() === 'float') {
-      const toks = tokenizeMarker(squeeze(m[3] ?? '', false)).flatMap((tok) => {
+      const toks = tokenizeMarker(squeeze(m[3] ?? '', '=')).flatMap((tok) => {
         const o = OPTION_TOKEN.exec(tok);
         if (!o) return [tok];
         const key = o[1].toLowerCase();
@@ -558,70 +560,163 @@ function linesIn(text: string, L: Lines, a: number, b: number): string[] {
   return out;
 }
 
-/** A closing fence for an opening `markup` (``` or ~~~, at least as long). */
-const closesFence = (line: string, markup: string): boolean => {
-  const m = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
-  return !!m && m[1][0] === markup[0] && m[1].length >= markup.length;
-};
+/** The hygiene lints whose quick fix repairs a marker a block swallowed (upgrade applies them). */
+export const REPAIR_CODES: ReadonlySet<string> = new Set(['marker-in-html', 'unclosed-fence', 'unclosed-container', 'unclosed-math', 'unclosed-html']);
+/** A line that starts like a SLIDE marker (a slide that a block swallowed). */
+const SLIDE_LINE = /^ {0,3}<!--\s*slide\b/;
+/**
+ * A line that opens a construct which runs on to a terminator of its own
+ * (a fence, a container, `$$` math, an HTML block of CommonMark types 1–5, a
+ * comment not closed on its line) — after such a line, what follows is not
+ * read until that terminator.
+ */
+export const RUN_ON_OPENER = /^ {0,3}(?:`{3,}|~{3,}|:{3,}|\$\$|<(?:script|pre|style|textarea)(?=[\s>]|$)|<\?|<![A-Za-z]|<!\[CDATA\[|<!--(?!.*-->))/i;
 
 /**
- * Marker hygiene (FMT-1, FMT-5, FMT-9 of closed-loop round A): marker lines
- * the grammar does not read — FC-18 §7.2 recognises markers only as
- * top-level comment blocks, and that rule stays — are noticed instead of
- * silently changing the deck:
- * - `marker-in-html` (error): a marker line inside a raw HTML block (an
- *   `<img>`, `<div>` … line runs on until a blank line), with the blank line
- *   it needs as the quick fix;
- * - `unclosed-fence` / `unclosed-container` (error): a code fence or a
- *   `:::` container that is never closed runs to the end of the text, so the
- *   slide markers after it are code (a fence or container that IS closed
- *   may show markers: the documented way to write about them);
+ * A block construct that runs on until its own terminator, not until a
+ * blank line (closed-loop round A2: one mechanism for every such construct):
+ * how a line closes it, the line that closes it, and which line opens
+ * another block of the same kind that it cannot hold.
+ */
+interface Terminated {
+  code: 'unclosed-fence' | 'unclosed-container' | 'unclosed-math' | 'unclosed-html';
+  /** What it is, for messages. */
+  what: string;
+  /** The line that closes it (the quick fix inserts it). */
+  closer: string;
+  /** Whether a line closes it. */
+  closes(line: string): boolean;
+  /** Whether a line opens another block of the same kind (one it cannot hold: after a slide marker, it was closed by mistake). */
+  reopens(line: string): boolean;
+}
+
+/** CommonMark's HTML blocks of types 1–5 (they end at their terminator, not at a blank line); types 6 and 7 are null. */
+const HTML_RUN_ON: ReadonlyArray<{ open: RegExp; closes: RegExp; closer: (m: RegExpExecArray) => string; what: string }> = [
+  { open: /^ {0,3}<(script|pre|style|textarea)(?=[\s>]|$)/i, closes: /<\/(?:script|pre|style|textarea)>/i, closer: (m) => `</${m[1].toLowerCase()}>`, what: 'HTML block' },
+  { open: /^ {0,3}<!--/, closes: /-->/, closer: () => '-->', what: 'HTML comment' },
+  { open: /^ {0,3}<\?/, closes: /\?>/, closer: () => '?>', what: 'processing instruction' },
+  { open: /^ {0,3}<!\[CDATA\[/, closes: /\]\]>/, closer: () => ']]>', what: 'CDATA section' },
+  { open: /^ {0,3}<![A-Za-z]/, closes: />/, closer: () => '>', what: 'declaration' },
+];
+
+/** How a level-0 block token ends: a {@link Terminated} construct, `'blank'` (an HTML block of type 6 or 7: at a blank line), or null. */
+function terminatorOf(t: Token, first: string): Terminated | 'blank' | null {
+  const run = (re: RegExp, len: number, ch: string, needInfo: boolean) => (line: string): boolean => {
+    const m = re.exec(line);
+    return !!m && m[1][0] === ch && m[1].length >= len && (m[2].trim() !== '') === needInfo;
+  };
+  if (t.type === 'fence') {
+    const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+    return { code: 'unclosed-fence', what: `code fence (${t.markup})`, closer: t.markup, closes: run(fence, t.markup.length, t.markup[0], false), reopens: run(fence, t.markup.length, t.markup[0], true) };
+  }
+  if (/^container_.*_open$/.test(t.type)) {
+    const colons = /^ {0,3}(:{3,})(.*)$/;
+    return { code: 'unclosed-container', what: `${t.markup} container`, closer: t.markup, closes: run(colons, t.markup.length, ':', false), reopens: run(colons, t.markup.length, ':', true) };
+  }
+  if (t.type === 'math_block') return { code: 'unclosed-math', what: '$$ math block', closer: '$$', closes: (line) => line.trim().endsWith('$$'), reopens: () => false };
+  if (t.type === 'html_block') {
+    for (const h of HTML_RUN_ON) {
+      const m = h.open.exec(first);
+      if (m) return { code: 'unclosed-html', what: `${h.what} (${first.trim().slice(0, 12)}…)`, closer: h.closer(m), closes: (line) => h.closes.test(line), reopens: (line) => h !== HTML_RUN_ON[1] && h.open.test(line) && h.open.exec(line)![1]?.toLowerCase() === m[1]?.toLowerCase() };
+    }
+    return 'blank';
+  }
+  return null;
+}
+
+/** The line ending to use for an insert before line `line` (0-based): the previous line's, else the text's first, else LF. */
+function eolBefore(text: string, L: Lines, line: number): string {
+  if (line > 0 && line < L.starts.length) return text.slice(L.ends[line - 1], L.starts[line]);
+  return /\r\n|\r|\n/.exec(text)?.[0] ?? '\n';
+}
+
+/**
+ * Marker hygiene (closed-loop rounds A and A2): marker lines the grammar
+ * does not read — FC-18 §7.2 recognises markers only as top-level comment
+ * blocks, and that rule stays — are noticed instead of silently changing
+ * the deck. ONE mechanism for every construct that holds a marker line
+ * after its first line, by how the construct ends:
+ * - an HTML block of CommonMark type 6 or 7 (`<img>`, `<div>` … — it runs
+ *   on until a blank line): `marker-in-html` (error) on each marker line,
+ *   the blank line it needs as the quick fix;
+ * - a construct that runs on to a terminator of its own — a code fence of
+ *   any length and character, a `:::` container of any length, a `$$` math
+ *   block, an HTML block of types 1–5 (`<pre>`, `<script>`, `<style>`,
+ *   `<textarea>`, a comment `<!--` left open, `<?`, `<!X`, `<![CDATA[`):
+ *   `unclosed-fence` / `unclosed-container` / `unclosed-math` /
+ *   `unclosed-html` (error) when it was never closed, when a marker line's
+ *   own `-->` closed it, or when it was closed by mistake (after a slide
+ *   marker, a line opens another block of its kind it cannot hold — a
+ *   ```` ```js ```` in a ```` ``` ```` fence, a `::: warning` in a `:::`
+ *   container, a second `<pre>`); the quick fix inserts the construct's
+ *   own closer before its first marker line. One that IS closed on purpose
+ *   may show markers: the documented way to write about them (corpus
+ *   `markers-in-code`);
  * - `marker-lookalike` (warning): a short comment that reads like a marker
- *   but is not one (`<!-- notes -->`, `<!-- @ notes -->`), whose text would
- *   otherwise show on the slide.
+ *   but is not one (`<!-- notes -->`, `<!-- @ notes -->`, `<!-- Slide -->`),
+ *   whose text would otherwise show on the slide.
+ * Every quick fix keeps the text's line ending, and applying it removes its
+ * lint and turns at least one marker line into a marker (tests: P.13).
  */
 function hiddenMarkers(text: string, L: Lines, ix: TokenIndex, bodyLine: number): SlideLint[] {
   const out: SlideLint[] = [];
-  const lastLine = (() => { let n = L.starts.length; while (n > 0 && text.slice(L.starts[n - 1], L.ends[n - 1]).trim() === '') n--; return n; })();
   for (const { token: t } of ix.blocks) {
     const [a, b] = t.map!;
     if (a < bodyLine) continue;
+    const lines = linesIn(text, L, a, b);
     if (t.type === 'html_block') {
       const c = t.content.replace(/\n$/, '');
-      const isMarker = SLIDE_MARKER.test(c) || REGION_MARKER.test(c) || DECK_BLOCK.test(c);
-      if (!isMarker) {
-        const lines = linesIn(text, L, a, b);
-        for (let k = 1; k < lines.length; k++) {
-          if (!MARKER_LINE.test(lines[k])) continue;
-          const line = a + k;
-          const s = spanOf(L, line, line + 1);
-          out.push({ level: 'error', code: 'marker-in-html', message: `the marker on line ${line + 1} is inside a raw HTML block (the HTML that starts on line ${a + 1} runs on until a blank line), so it is not read: add a blank line before it`, line: s.line, from: s.from, to: s.to, fix: { from: s.from, to: s.from, insert: '\n', label: 'Add a blank line before the marker' } });
-        }
-        if (COMMENT_BLOCK.test(c)) {
-          const look = lookalike(c);
-          if (look) { const s = spanOf(L, a, b); out.push({ level: 'warning', code: 'marker-lookalike', message: `this comment looks like a marker but is not one: it is not read, and the text after it stays where it is (write ${look})`, ...{ line: s.line, from: s.from, to: s.to } }); }
-        }
+      if (SLIDE_MARKER.test(c) || REGION_MARKER.test(c) || DECK_BLOCK.test(c)) continue;
+      if (COMMENT_BLOCK.test(c)) {
+        const look = lookalike(c);
+        if (look) { const s = spanOf(L, a, b); out.push({ level: 'warning', code: 'marker-lookalike', message: `this comment looks like a marker but is not one: it is not read, and the text after it stays where it is (write ${look})`, ...{ line: s.line, from: s.from, to: s.to } }); }
+      }
+    }
+    const hidden: number[] = [];
+    for (let k = 1; k < lines.length; k++) if (MARKER_LINE.test(lines[k])) hidden.push(k);
+    if (hidden.length === 0) continue;
+    const end = terminatorOf(t, lines[0]);
+    if (end === null) continue;
+    if (end === 'blank') {
+      for (const k of hidden) {
+        const line = a + k;
+        const s = spanOf(L, line, line + 1);
+        out.push({ level: 'error', code: 'marker-in-html', message: `the marker on line ${line + 1} is inside a raw HTML block (the HTML that starts on line ${a + 1} runs on until a blank line), so it is not read: add a blank line before it`, line: s.line, from: s.from, to: s.to, fix: { from: s.from, to: s.from, insert: eolBefore(text, L, line), label: 'Add a blank line before the marker' } });
       }
       continue;
     }
-    if (t.type === 'fence' || /^container_.*_open$/.test(t.type)) {
-      if (b < lastLine) continue; // closed before the end of the text
-      const lines = linesIn(text, L, a, b);
-      const closed = lines.length > 1 && (t.type === 'fence' ? closesFence(lines[lines.length - 1], t.markup) : /^ {0,3}:{3,}\s*$/.test(lines[lines.length - 1]));
-      if (closed) continue;
-      const hidden = lines.slice(1).filter((x) => MARKER_LINE.test(x)).length;
-      if (hidden === 0) continue;
-      const s = spanOf(L, a, a + 1);
-      const fence = t.type === 'fence';
-      const close = fence ? t.markup : ':::';
-      // the quick fix closes it before its first marker line (where 0.x, which split at every marker line, ended it)
-      const first = a + 1 + lines.slice(1).findIndex((x) => MARKER_LINE.test(x));
-      const at = L.starts[first];
-      out.push({ level: 'error', code: fence ? 'unclosed-fence' : 'unclosed-container', message: fence
-        ? `the code fence opened on line ${a + 1} (${t.markup}) is never closed, so the rest of the text — ${hidden} marker line${hidden === 1 ? '' : 's'} — is code: close it with ${t.markup}`
-        : `the ::: container opened on line ${a + 1} is never closed, so the rest of the text — ${hidden} marker line${hidden === 1 ? '' : 's'} — is inside it: close it with :::`, line: s.line, from: s.from, to: s.to,
-        fix: { from: at, to: at, insert: `${close}\n`, label: `Close it before the marker on line ${first + 1}` } });
+    // how it ended: never (it runs to the end of the text), on a marker line (a comment's `-->`), or on purpose
+    const last = lines[lines.length - 1];
+    const closed = t.type === 'html_block' ? end.closes(last) && !(lines.length === 1) : lines.length > 1 && end.closes(last) && b <= L.starts.length;
+    const byMarker = closed && MARKER_LINE.test(last);
+    let byMistake = false;
+    if (closed && !byMarker) {
+      let slide = false;
+      for (let k = 1; k < lines.length && !byMistake; k++) {
+        if (SLIDE_LINE.test(lines[k])) slide = true;
+        else if (slide && end.reopens(lines[k])) byMistake = true;
+      }
     }
+    let ambiguous = false;
+    if (closed && !byMarker && !byMistake) {
+      // closed: a code fence or a raw-text HTML block may SHOW markers (the documented way to write about them);
+      // a container or a $$ block cannot (a marker line in it is an invisible comment, or LaTeX), so a slide
+      // marker in one was closed by mistake; a fence with no info string that holds a slide marker is
+      // ambiguous (two fences left open pair up: ``` … <!-- slide --> … ```) — a warning, with the same fix
+      if (!lines.slice(1).some((x) => SLIDE_LINE.test(x))) continue;
+      if (/^container_|^math_block$/.test(t.type)) byMistake = true;
+      else if (t.type === 'fence' && t.info.trim() === '') ambiguous = true;
+      else continue;
+    }
+    const s = spanOf(L, a, a + 1);
+    const first = a + hidden[0];
+    const n = hidden.length;
+    const how = !closed ? 'is never closed' : byMarker ? `is closed only by the marker's own "${end.closer}" on line ${a + lines.length}` : byMistake ? `is closed only on line ${a + lines.length}, after a slide marker` : `is closed only on line ${a + lines.length}`;
+    const message = ambiguous
+      ? `the code fence opened on line ${a + 1} has no info string and holds ${n} marker line${n === 1 ? '' : 's'}, a slide marker among them: if it was left open (two open fences pair up), close it with ${end.closer} before line ${first + 1}; to show markers on purpose, give it an info string (${end.closer}markdown)`
+      : `the ${end.what} opened on line ${a + 1} ${how}, so ${n} marker line${n === 1 ? ' is' : 's are'} inside it and not read: close it with ${end.closer} before line ${first + 1}`;
+    out.push({ level: ambiguous ? 'warning' : 'error', code: end.code, message, line: s.line, from: s.from, to: s.to,
+      fix: { from: L.starts[first], to: L.starts[first], insert: `${end.closer}${eolBefore(text, L, first)}`, label: `Close it before the marker on line ${first + 1}` } });
   }
   return out;
 }
@@ -633,6 +728,8 @@ const MARKER_WORDS = /^(?:notes?|speaker|footer|float|slide|region)$/i;
 function lookalike(comment: string): string | null {
   const inner = comment.replace(/^\s*<!--/, '').replace(/-->\s*$/, '').trim();
   if (inner === '' || inner.length > 40) return null;
+  // `<!-- Slide -->`, `<!-- SLIDE 2col -->`: the marker word is lower case (A2 improvement)
+  if (/^slide\b/i.test(inner) && !/^slide\b/.test(inner)) return `<!-- slide${inner.slice(5)} -->`.replace(/\s+-->$/, ' -->');
   const words = inner.replace(/^@\s*/, '').split(/[\s:.,;]+/).filter((w) => w !== '');
   if (words.length === 0 || words.length > 3 || !words.every((w) => MARKER_WORDS.test(w))) return null;
   const name = words.some((w) => /^notes?$/i.test(w)) ? 'notes' : words.find((w) => /^(?:footer|float)$/i.test(w))?.toLowerCase();

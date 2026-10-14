@@ -15,7 +15,7 @@ import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { readLegacy, upgrade } from '../src/legacy.js';
+import { readLegacy, upgrade, upgradeText } from '../src/legacy.js';
 import { readDocument } from '../src/assemble.js';
 import { parseDeck as parse085 } from './fixtures/legacy/parser-0.8.5/slide-parser.js';
 import { upgradeReport } from './support/upgrade-report.js';
@@ -54,4 +54,47 @@ describe('the upgrade report (real 0.x decks)', () => {
     // the fixtures exercise the decisions the report registers
     expect([...accepted].sort()).toEqual(expect.arrayContaining(['deck-block-applied', 'marker-in-code']));
   }, 120_000);
+
+  /*
+   * Round A2: the family's real 0.x decks exercise none of the shapes A2
+   * found, so a synthetic 0.x corpus runs through the same oracle; and the
+   * oracle accepts `marker-in-code` only for the slide that holds the code
+   * (it accepted A2-FMT-2 deck-wide). Each failed on rebuild/1.0@6d3aa97.
+   */
+  it('[U.7] A2: a synthetic 0.x corpus — a fence left open on every slide, a fence closed by a later slide\'s fence, ::::, $$, <pre>, an open comment, a nested spaced split, @notes:private, `key = value` on a slide marker — upgrades to what 0.8.5 showed', () => {
+    let perSlide = '';
+    for (let i = 1; i <= 12; i++) perSlide += `<!-- slide -->\n## S${i}\n\`\`\`\ncode ${i}\n\n`;
+    const corpus: Record<string, string> = {
+      perSlide,
+      laterFence: '<!-- slide -->\n## A\n```python\nprint(1)\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n```js\nlet x = 1\n```\n\n<!-- slide -->\n## D\ntext\n',
+      laterContainer: '<!-- slide -->\n## A\n::: info\nhello\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n::: warning\nw\n:::\n\n<!-- slide -->\n## D\ntext\n',
+      fourColons: '<!-- slide -->\n## A\n:::: cols\n::: col\nx\n:::\n\n<!-- slide -->\n## B\n<!-- @notes -->\nN\n',
+      math: '<!-- slide -->\n## A\n$$\nx^2\n\n<!-- slide -->\n## B\n<!-- @notes -->\nN\n',
+      pre: '<!-- slide -->\n## A\n<pre>\ncode\n\n<!-- slide -->\n## B\n<!-- @notes -->\nsecret\n',
+      comment: '<!-- slide -->\n## A\n<!-- TODO rework this\n\n<!-- slide -->\n## B\ntext\n',
+      nestedSplit: '<!-- slide row 1 / 1 { a; col 1 / 2 { b; c } } -->\n## T\n<!-- @a -->\nA\n<!-- @b -->\nB\n<!-- @c -->\nC\n',
+      notesPunct: '<!-- slide -->\n## T\n<!-- @notes:private -->\nsecret\n<!-- slide -->\n## U\n<!-- @notes(speaker) -->\ns\n',
+      keyEqValue: '<!-- slide template = title V = 3 -->\n# T\n\n<!-- slide t = fade -->\n## U\n',
+      codeOnPurpose: '<!-- slide -->\n## How\n```markdown\n<!-- slide 2col -->\n## Inner\n```\n\n<!-- slide -->\n## Next\nn\n',
+    };
+    for (const [name, src] of Object.entries(corpus)) {
+      const up = upgradeText(src, { uid: 'doc-0000000000' });
+      const r = upgradeReport(src, up.text, '');
+      expect(r.unexplained, name).toEqual([]);
+      const errors085 = parse085(src).slides.some((s) => s.lint.some((l) => l.level === 'error'));
+      if (!errors085) expect(readDocument(up.text).lint.filter((l) => l.level === 'error').map((l) => `${l.code}@${l.line}`), name).toEqual([]);
+    }
+  });
+
+  it('[U.7] A2: the oracle accepts marker-in-code only for the slide that holds the code — an unrepaired fence closed by a later slide\'s fence is unexplained, a deliberate one is accepted', () => {
+    const later = '<!-- slide -->\n## A\n```python\nprint(1)\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n```js\nlet x = 1\n```\n\n<!-- slide -->\n## D\ntext\n';
+    const head = '{{nyml\nkind: document\ntheme: paper\n}}\n\n';
+    expect(upgradeReport(later, head + later, '').unexplained.length).toBeGreaterThan(0);
+    const purpose = '<!-- slide -->\n## How\n```markdown\n<!-- slide 2col -->\n## Inner\n```\n\n<!-- slide -->\n## Next\nn\n<!-- slide -->\n## Last\nl\n';
+    const r = upgradeReport(purpose, head + purpose, '');
+    expect(r.unexplained).toEqual([]);
+    expect(r.accepted.every((a) => /^marker-in-code: (0\.x slide 2|slide 1 )/.test(a))).toBe(true);
+    // a difference on a slide that holds no code is never accepted
+    expect(upgradeReport(purpose, head + purpose.replace('## Last\nl', '## Last\nchanged'), '').unexplained).toEqual(['slide 3 (0.x 4) region body: "l" -> "changed"']);
+  });
 });
