@@ -127,7 +127,7 @@ chrome('the print document (real Chrome)', () => {
 });
 
 /** In a print document: every box (and the notes area) shows all its text, or says data-clipped. */
-async function printOracle(html: string, name: string): Promise<{ silent: string[]; clipped: string[]; scales: string[]; notesScales: string[]; mark: string[] }> {
+async function printOracle(html: string, name: string): Promise<{ silent: string[]; clipped: string[]; scales: string[]; notesScales: string[]; mark: string[]; unmarked: string[] }> {
   const path = join(dir, name);
   writeFileSync(path, html, 'utf8');
   const ctx = await browser!.newContext();
@@ -159,7 +159,17 @@ async function printOracle(html: string, name: string): Promise<{ silent: string
       silent, clipped,
       scales: Array.from(document.querySelectorAll('.orz-page > section.orz-slide')).map((s) => s.getAttribute('data-fit') ?? ''),
       notesScales: Array.from(document.querySelectorAll('.orz-print-notes')).map((n) => n.getAttribute('data-scale') ?? ''),
-      mark: Array.from(document.querySelectorAll('.orz-print-notes[data-clipped]')).map((n) => getComputedStyle(n, '::after').content),
+      mark: Array.from(document.querySelectorAll('.orz-print-cut')).map((n) => n.textContent ?? ''),
+      // every cut is visible (A2-ENG-4): a notice inside the cut box's (or notes area's) rect, on its page, drawn
+      unmarked: Array.from(document.querySelectorAll<HTMLElement>('.orz-box[data-clipped], .orz-print-notes[data-clipped]')).filter((b) => {
+        const page = b.closest('.orz-page')!;
+        const br = b.getBoundingClientRect();
+        return !Array.from(page.querySelectorAll<HTMLElement>(':scope > .orz-print-cut')).some((n) => {
+          const r = n.getBoundingClientRect();
+          const cs = getComputedStyle(n);
+          return r.width > 20 && r.height > 8 && cs.visibility === 'visible' && Number(cs.opacity) > 0.9 && r.right <= br.right + 1 && r.bottom <= br.bottom + 1 && r.left >= br.left - 1 && r.top >= br.top - 1;
+        });
+      }).map((b) => `page ${Array.from(document.querySelectorAll('.orz-page')).indexOf(b.closest('.orz-page')!) + 1} ${b.className}`),
     };
   });
   await ctx.close();
@@ -189,6 +199,34 @@ chrome('round A: print never cuts silently (real Chrome)', () => {
     expect(Number(r.notesScales[0])).toBeLessThan(1);
     expect(r.clipped).toEqual(['page 2 orz-print-notes']);
     expect(r.mark[0]).toMatch(/notes go on/);
+    expect(r.unmarked).toEqual([]);
+    await ctx.close();
+  });
+
+  it('[Q.4] A2-ENG-4: every cut on paper is visible — a fit=scroll slide past the floor and a fit=off slide carry the same notice on the page as long notes — and print says which slides it cut', async () => {
+    const { page, ctx } = await openDeck(browser!, join(dir, 'cuts.slides.html'), assemble(readFileSync('tests/fixtures/settle/scroll.slides.md', 'utf8')));
+    const doc = await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}) as Promise<{ html: string; cut: { slides: number[]; notes: number[] } }>);
+    const r = await printOracle(doc.html, 'cuts-print.html');
+    expect(r.silent).toEqual([]);
+    expect(r.clipped.length).toBeGreaterThanOrEqual(2);
+    expect(r.unmarked).toEqual([]);
+    expect(r.mark.every((m) => /cut on paper/.test(m))).toBe(true);
+    expect(doc.cut).toEqual({ slides: [1, 2], notes: [] });
+    await ctx.close();
+  });
+
+  it('[Q.4] A2-ENG-5: a raw-HTML <img loading="lazy"> on a slide never shown loads for print — the slide is fitted with it, not after a 10 s wait without it', async () => {
+    const sub = join(dir, 'lazy');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/stress/big.svg', join(sub, 'big.svg'));
+    const text = '{{nyml\nkind: document\ntitle: Lazy\ntheme: orchard\n}}\n\n<!-- slide -->\n## First\n\nhello\n\n<!-- slide -->\n## Second\n\n- one\n- two\n\n<img src="big.svg" loading="lazy" width="560">\n';
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(text));
+    const t0 = Date.now();
+    const doc = await printHtml(page);
+    expect(Date.now() - t0).toBeLessThan(8000);
+    expect(doc.html).toMatch(/loading="eager"/);
+    const r = await printOracle(doc.html.replace(/src="big\.svg"/, `src="file://${join(sub, 'big.svg')}"`), 'lazy-print.html');
+    expect(r.silent).toEqual([]);
     await ctx.close();
   });
 });

@@ -15,6 +15,7 @@
  * images and fitted in the speaker window. The page's stylesheets are synced
  * into the window on every update (a Theme switch shows there too).
  */
+import { quietMedia } from './decorate.js';
 import { fitSlide } from './fit.js';
 
 /** The elapsed-time clock both views show. */
@@ -61,6 +62,8 @@ export interface SpeakerSource {
   title(): string;
   /** The static copy of slide `i` (its section's HTML, enhanced and fitted), when built. */
   copy?(i: number): string | null;
+  /** True while the static copy of slide `i` is still being built (the pane waits for it instead of fitting a live copy). */
+  pending?(i: number): boolean;
 }
 
 const SPEAKER_CSS = [
@@ -128,7 +131,8 @@ export class SpeakerView {
     win.addEventListener('resize', () => this.sync());
     this.clock.start();
     this.ensureTick();
-    this.sync();
+    // the panes in a task of their own (the window's stylesheets are parsed there; round A2, A2-ENG-3)
+    this.page.setTimeout(() => this.sync(), 0);
     win.focus();
     return win;
   }
@@ -188,12 +192,13 @@ export class SpeakerView {
   }
 
   /** A static, fully revealed copy of a slide, scaled into a stage: the built copy, else the live slide's. */
-  private stage(el: Element | null, section: HTMLElement | null, copy: string | null): void {
+  private stage(el: Element | null, section: HTMLElement | null, copy: string | null, pending = false): void {
     if (!el) return;
     const d = el.ownerDocument;
     const { width, height } = this.src.size();
     el.textContent = '';
     if (!section) { el.innerHTML = '<div class="sv-end">— End —</div>'; (el as HTMLElement).style.height = `${Math.round(height * ((el as HTMLElement).clientWidth / width))}px`; return; }
+    if (!copy && pending) { el.innerHTML = '<div class="sv-end">…</div>'; (el as HTMLElement).style.height = `${Math.round(height * ((el as HTMLElement).clientWidth / width))}px`; return; }
     const root = d.createElement('div');
     root.className = 'reveal orz-deck orz-print';
     const theme = section.closest('[data-orz-theme]')?.getAttribute('data-orz-theme');
@@ -229,6 +234,7 @@ export class SpeakerView {
       page.appendChild(clone);
     }
     clone.querySelectorAll('aside.notes').forEach((n) => n.remove());
+    quietMedia(clone, true); // a copy never plays (A2-ENG-7)
     clone.removeAttribute('hidden');
     clone.removeAttribute('aria-hidden');
     clone.style.removeProperty('display');
@@ -253,8 +259,8 @@ export class SpeakerView {
     const i = this.src.index();
     const cur = slides[i] ?? null;
     this.syncStyles();
-    this.stage(d.querySelector('[data-sv="cur"]'), cur, cur ? this.src.copy?.(i) ?? null : null);
-    this.stage(d.querySelector('[data-sv="next"]'), slides[i + 1] ?? null, slides[i + 1] ? this.src.copy?.(i + 1) ?? null : null);
+    this.stage(d.querySelector('[data-sv="cur"]'), cur, cur ? this.src.copy?.(i) ?? null : null, this.src.pending?.(i) ?? false);
+    this.stage(d.querySelector('[data-sv="next"]'), slides[i + 1] ?? null, slides[i + 1] ? this.src.copy?.(i + 1) ?? null : null, this.src.pending?.(i + 1) ?? false);
     const notesEl = d.querySelector('[data-sv="notes"]');
     if (notesEl) {
       const notes = cur ? cur.querySelector(':scope > aside.notes') : null;

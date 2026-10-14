@@ -146,32 +146,105 @@ real('the fit settles (real Chrome, online, CPU throttled)', () => {
     await ctx.close();
   }, 120_000);
 
-  it('[F.7] ENG-7, ENG-9: fit guesses from the overflow ratio and refines (≤ 6 measured trials a box; 10 before round A), a refit of an unchanged slide starts from the last scale (≤ 3); a scale that rounds to 1 reports 1', async () => {
-    const out: Record<string, { first: number; again: number; ms: number }> = {};
-    for (const id of ['orchard', 'notebook']) {
-      const sub = join(dir, `cost-${id}`);
+  it('[F.7] ENG-7, ENG-9, A2-ENG-6: fit guesses from the overflow ratio, learns the exponent when the guess still overflows, and refines — ≤ 8 measured trials for EVERY box of the sample and stress decks (the stress deck: 7–8 before round A2, now ≤ 5; 10 before round A), a refit of an unchanged slide ≤ 3; a scale that rounds to 1 reports 1', async () => {
+    const STRESS = readFileSync('tests/fixtures/stress/stress.slides.md', 'utf8');
+    const out: Record<string, { first: number; again: number; boxes: number }> = {};
+    for (const [name, text, asset] of [['sample-paper', withTheme(SAMPLE, 'paper'), 'tests/fixtures/sample/gpc-traces.svg'], ['sample-notebook', withTheme(SAMPLE, 'notebook'), 'tests/fixtures/sample/gpc-traces.svg'], ['stress-neon', withTheme(STRESS, 'neon'), 'tests/fixtures/stress/big.svg'], ['stress-notebook', withTheme(STRESS, 'notebook'), 'tests/fixtures/stress/big.svg']] as const) {
+      const sub = join(dir, `cost-${name}`);
       mkdirSync(sub, { recursive: true });
-      copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
-      const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(SAMPLE, id)), { network: true });
-      await engine(page, 'go', 4);
-      await settled(page);
-      // the first fit of this slide (a fresh box: no last scale), and a refit
-      const r = await page.evaluate(() => {
-        const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { fitCurrent(o?: { fresh?: boolean }): Array<{ scale: number; trials: number }> };
-        const t0 = performance.now();
-        const first = e.fitCurrent({ fresh: true });
-        const ms = performance.now() - t0;
-        const again = e.fitCurrent();
-        return { first, again, ms };
+      copyFileSync(asset, join(sub, asset.split('/').pop()!));
+      const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(text), { network: true });
+      // every slide: the first fit of each box (a fresh box: no last scale), and a refit
+      const r = await page.evaluate(async () => {
+        const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { total(): number; go(i: number): void; settled(): Promise<void>; fitCurrent(o?: { fresh?: boolean }): Array<{ scale: number; trials: number }> };
+        const over: string[] = [];
+        let first = 0, again = 0, boxes = 0;
+        for (let i = 0; i < e.total(); i++) {
+          e.go(i);
+          await e.settled();
+          const f = e.fitCurrent({ fresh: true });
+          const a = e.fitCurrent();
+          f.forEach((b, k) => {
+            boxes++;
+            first = Math.max(first, b.trials);
+            again = Math.max(again, a[k].trials);
+            if (b.trials > 8 || a[k].trials > 3 || Math.abs(a[k].scale - b.scale) > 1e-9) over.push(`slide ${i + 1} box ${k + 1}: ${b.trials} / ${a[k].trials} trials, ${b.scale} / ${a[k].scale}`);
+          });
+        }
+        return { over, first, again, boxes };
       });
-      for (const b of r.first) expect(b.trials, `${id}: first fit trials`).toBeLessThanOrEqual(6);
-      for (const b of r.again) expect(b.trials, `${id}: refit trials`).toBeLessThanOrEqual(3);
-      expect(r.again.map((b) => b.scale)).toEqual(r.first.map((b) => b.scale));
-      out[id] = { first: Math.max(...r.first.map((b) => b.trials)), again: Math.max(...r.again.map((b) => b.trials)), ms: Math.round(r.ms) };
+      expect(r.over, name).toEqual([]);
+      out[name] = { first: r.first, again: r.again, boxes: r.boxes };
       const scales = await page.evaluate(() => Array.from(document.querySelectorAll('.reveal .slides > section.present .orz-box')).map((b) => b.getAttribute('data-scale')));
-      for (const s of scales) expect(s).toMatch(/^(1|0\.\d\d)$/);
+      for (const x of scales) expect(x).toMatch(/^(1|0\.\d\d)$/);
       await ctx.close();
     }
-    console.log('[F.7] fit cost on the sample math slide (max trials a box, first / refit; ms of the first fit):', JSON.stringify(out));
-  }, 180_000);
+    console.log('[F.7] fit cost (max trials a box, first / refit, over every box):', JSON.stringify(out));
+  }, 600_000);
+
+  it('[F.6] A2-ENG-1: settling is per fit CYCLE, not per slide age — a refit more than 10 s into a slide (Present, a theme switch) settles with the new fit, never "timeout" at once with the stale scale', async () => {
+    const { page, ctx } = await openDeck(browser!, join(dir, 'cycle.slides.html'), assemble(fixture('charts.slides.md')), { network: true });
+    await engine(page, 'go', 3);
+    await settled(page);
+    await page.waitForTimeout(11_000);
+    await page.evaluate(() => {
+      const w = window as unknown as { __ev: Array<{ timeout: boolean; attr: string | null }> };
+      w.__ev = [];
+      document.querySelector('.reveal.orz-deck')!.addEventListener('orz-fitted', (e) => {
+        w.__ev.push({ timeout: (e as CustomEvent<{ timeout: boolean }>).detail.timeout, attr: document.querySelector('.reveal .slides > section.present')!.getAttribute('data-fit-settled') });
+      });
+    });
+    await key(page, 'f');
+    await settledAndFinal(page, 'Present after 11 s');
+    await page.evaluate(() => { (globalThis as unknown as PageGlobal).OrzCarrier.standalone.setSetting({ theme: 'notebook', ratio: '4:3' }); });
+    await page.waitForFunction(() => document.getElementById('orz-slide-theme')!.getAttribute('data-theme-css') === 'notebook');
+    await settledAndFinal(page, 'theme switch after 11 s');
+    const ev = await page.evaluate(() => (window as unknown as { __ev: Array<{ timeout: boolean; attr: string | null }> }).__ev);
+    expect(ev.length).toBeGreaterThan(0);
+    expect(ev.filter((x) => x.timeout || x.attr !== ''), JSON.stringify(ev)).toEqual([]);
+    await settled(page);
+    expect(await page.evaluate(() => document.querySelector('.reveal .slides > section.present')!.getAttribute('data-fit-settled'))).toBe('');
+    await ctx.close();
+  }, 120_000);
+
+  it('[F.6] A2-ENG-2: a theme <style>\'s @import (its webfont CSS, delayed 4 s) is waited for — settled() and the print document come after the theme\'s fonts, never with fallback fonts', async () => {
+    const sub = join(dir, 'late-import');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(SAMPLE, 'orchard')), { network: true, wait: 'fitted', delay: { url: /fonts\.googleapis\.com\/css/, ms: 4000 } });
+    const t0 = Date.now();
+    const printed = page.evaluate(async () => {
+      const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { printHtml(): Promise<{ html: string }> };
+      await e.printHtml();
+      return Array.from(document.fonts).some((f) => /Bricolage/.test(f.family) && f.status === 'loaded');
+    });
+    await settled(page);
+    const atSettle = await page.evaluate(() => ({ font: Array.from(document.fonts).some((f) => /Bricolage/.test(f.family) && f.status === 'loaded'), loading: !!document.querySelector('style[data-orz-loading]') }));
+    expect(Date.now() - t0, 'settled waited for the delayed font CSS').toBeGreaterThan(2500);
+    expect(atSettle).toEqual({ font: true, loading: false });
+    expect(await printed, 'the print document was built with the theme\'s fonts').toBe(true);
+    await settledAndFinal(page, 'after the late import');
+    await ctx.close();
+  }, 120_000);
+
+  it('[F.6] round A2: a chart whose frame jitters by a pixel (Chart.js resize ↔ layout; Stationery\'s bar and pie slide) still settles — a resize refit that changes nothing, twice, ends the resize watch — within seconds, never "timeout" nor never', async () => {
+    const STRESS = readFileSync('tests/fixtures/stress/stress.slides.md', 'utf8');
+    const sub = join(dir, 'jitter');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/stress/big.svg', join(sub, 'big.svg'));
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(STRESS, 'stationery')), { network: true });
+    const i = STRESS.split(/^<!-- slide/m).slice(1).findIndex((x) => x.includes('## Bar chart'));
+    const r = await page.evaluate(async (n) => {
+      const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { go(i: number): void; settled(): Promise<void> };
+      const t = performance.now();
+      e.go(n);
+      const ok = await Promise.race([e.settled().then(() => 'settled'), new Promise((res) => setTimeout(() => res('never'), 20_000))]);
+      return { ok, ms: performance.now() - t, attr: document.querySelector('.reveal .slides > section.present')!.getAttribute('data-fit-settled') };
+    }, i);
+    expect(r.ok).toBe('settled');
+    expect(r.attr).toBe('');
+    expect(r.ms).toBeLessThan(8000);
+    await settledAndFinal(page, 'the jittering chart slide');
+    await ctx.close();
+  }, 120_000);
 });

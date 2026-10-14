@@ -51,8 +51,22 @@ export function liftClosingQr(root: ParentNode): void {
   }
 }
 
-/** Every DOM addition of a fresh render. */
-export function decorate(root: ParentNode, o: { steps?: boolean } = {}): void {
+/**
+ * Media never play off their slide (round A2, A2-ENG-7): an `autoplay` audio
+ * or video becomes reveal's `data-autoplay` (started when its slide shows,
+ * stopped when it leaves); in a static copy (`still`: print, the speaker's
+ * copies) media do not play or preload at all.
+ */
+export function quietMedia(root: ParentNode, still = false): void {
+  for (const m of Array.from(root.querySelectorAll<HTMLMediaElement>('audio, video'))) {
+    if (m.hasAttribute('autoplay')) { m.removeAttribute('autoplay'); if (!still) m.setAttribute('data-autoplay', ''); }
+    if (still) { m.removeAttribute('data-autoplay'); m.setAttribute('preload', 'none'); m.muted = true; m.setAttribute('muted', ''); }
+  }
+}
+
+/** Every DOM addition of a fresh render; `still`: a static copy (print, the speaker view). */
+export function decorate(root: ParentNode, o: { steps?: boolean; still?: boolean } = {}): void {
   if (o.steps !== false) applySteps(root);
   liftClosingQr(root);
+  quietMedia(root, o.still === true);
 }

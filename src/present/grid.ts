@@ -32,15 +32,20 @@ export function gridPrepare(win: Window): BoxPrepare {
       if (!win.getComputedStyle(body).getPropertyValue('--orz-grid').trim()) continue;
       if (body.hasAttribute(PAD)) { body.style.removeProperty('padding-top'); body.removeAttribute(PAD); }
       try { g.align(body); } catch { /* the grid's own failure: the text as CSS lays it out */ continue; }
-      if (box.style.getPropertyValue('--fit-scale') !== '') continue;
-      onSlideLines(win, box, body, g);
+      // a box fit shrank is a sheet with its own ruling — but one that REPORTS scale 1 (≥ 0.995, data-scale "1") is
+      // unscaled: it is written on the slide's lines (round A2, A2-TH-9: the pad pushed a row to 0.995, which then
+      // dropped the pad and wrote between the lines while it said "1")
+      const fs = parseFloat(box.style.getPropertyValue('--fit-scale'));
+      if (fs < 0.995) continue;
+      onSlideLines(win, box, body, g, Number.isFinite(fs) ? fs : 1);
     }
   };
 }
 
 /** Pad an aligned body's top so its first line is one of the slide's lines (a multiple of the pitch from the slide's top). */
-function onSlideLines(win: Window, box: HTMLElement, body: HTMLElement, g: Grid): void {
-  const pitch = parseFloat(body.getAttribute('data-orz-grid') ?? '');
+function onSlideLines(win: Window, box: HTMLElement, body: HTMLElement, g: Grid, scale = 1): void {
+  // the slide's pitch (the body's is scaled with the box)
+  const pitch = parseFloat(body.getAttribute('data-orz-grid') ?? '') / scale;
   const slide = box.closest('section');
   if (!slide || !(pitch > 1)) return;
   const sr = slide.getBoundingClientRect();

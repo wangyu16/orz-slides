@@ -31,8 +31,10 @@
  * The slide is SETTLED — `data-fit-settled` on its section, the `orz-fitted`
  * event on the deck root, `settled()` resolves — once the fonts, the
  * content libraries, its images and stylesheets are in, its diagrams drawn,
- * and a frame passed with nothing to refit (at most 10 s after it showed:
- * then `data-fit-settled="timeout"`).
+ * and a frame passed with nothing to refit (at most 10 s into a settle
+ * CYCLE: then `data-fit-settled="timeout"`). A cycle begins when a slide is
+ * shown and whenever a settled slide is unsettled (a refit, a theme or
+ * size, Present, the deck shown again, a late font or image: round A2).
  */
 import Reveal, { type RevealApi } from 'reveal.js';
 import { disposeEnhancement, enhanceDocument, redrawEnhancement } from 'orz-markdown/preview-frame';
@@ -40,10 +42,10 @@ import { printDocument } from 'orz-markdown/carrier/editor';
 import { decorate } from './decorate.js';
 import { fitSlide, type BoxFit } from './fit.js';
 import { gridPrepare } from './grid.js';
-import { buildPrintDocument, buildStaticDeck, type PrintOptions } from './print.js';
+import { buildPrintDocument, buildStaticDeck, cutMessage, type PaperCuts, type PrintOptions } from './print.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
 import { PresenterClock, SpeakerView, TimerOverlay } from './speaker.js';
-import { installStyles } from './styles.js';
+import { installStyles, STYLE_LOADING } from './styles.js';
 
 /** reveal.js's options the engine always sets (and sets again after the URL's query had its say). */
 const FORCED: Readonly<Record<string, unknown>> = Object.freeze({
@@ -105,9 +107,9 @@ export interface DeckEngine {
   settled(): Promise<void>;
   /** Show or hide the deck (edit mode hides it); relayout when shown. */
   setVisible(visible: boolean): void;
-  /** The print document of the last rendered text. */
-  printHtml(o?: { notes?: boolean }): Promise<{ html: string; pages: number; width: number; height: number }>;
-  /** Print it (the kit's `printDocument`). */
+  /** The print document of the last rendered text, and what it cut (each cut also marked on its page). */
+  printHtml(o?: { notes?: boolean }): Promise<{ html: string; pages: number; width: number; height: number; cut: PaperCuts }>;
+  /** Print it (the kit's `printDocument`); what it cut is said through `notify` (round A2, A2-ENG-4). */
   print(o?: { notes?: boolean }): Promise<boolean>;
   destroy(): void;
 }
@@ -159,11 +161,22 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   let frame = 0;
   let lastFitFrame = -1;
   let dirty = false;
-  let shownAt = 0;
+  /** When the current settle CYCLE began (round A2, A2-ENG-1): the slide showed, or a settled slide was unsettled. */
+  let cycleAt = 0;
+  let cycleSlide: HTMLElement | null = null;
   let loop = 0;
   let enhanced = false;
   let watchedSlide: HTMLElement | null = null;
   const sizes = new WeakMap<Element, [number, number]>();
+  /*
+   * A refit a resize caused that changes nothing, twice in a row, ends the resize watch for this cycle (round A2:
+   * a chart's 1 px resize ↔ layout jitter refit forever and the slide never settled); anything else that asks for a
+   * fit (a font, an image, a drawing, a theme, the slide shown again) watches again.
+   */
+  let resizeMuted = false;
+  let sameFits = 0;
+  let lastFit = '';
+  let cause: 'resize' | 'other' = 'other';
   const failedSheets = new WeakSet<Element>();
   const settleWaiters: Array<() => void> = [];
 
@@ -178,7 +191,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
       const h = b ? b.blockSize : t.offsetHeight;
       const was = sizes.get(t);
       // the fit's own result was recorded when it ended: only a change since then refits
-      if (!was || Math.abs(was[0] - w) > 1 || Math.abs(was[1] - h) > 1) { dirty = true; fitSoon(); return; }
+      if (!was || Math.abs(was[0] - w) > 1 || Math.abs(was[1] - h) > 1) { if (resizeMuted) return; dirty = true; fitSoon('resize'); return; }
     }
   }) : null;
   const mo: MutationObserver | null = typeof win.MutationObserver === 'function' ? new win.MutationObserver((records) => {
@@ -212,8 +225,13 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   const fitNow = (o: { fresh?: boolean; redraw?: boolean } = {}): BoxFit[] => {
     const s = current();
     if (!s || host.hidden) return [];
+    unsettle(s);
     if (o.redraw) redrawEnhancement(s);
     const out = fitSlide(s, undefined, grid, o);
+    const sig = out.map((b) => `${b.scale.toFixed(3)}${b.clipped ? 'c' : ''}`).join(' ');
+    if (cause === 'resize' && sig === lastFit) { if (++sameFits >= 2) resizeMuted = true; } else sameFits = 0;
+    lastFit = sig;
+    cause = 'other';
     watch(s);
     lastFitFrame = frame;
     dirty = false;
@@ -222,9 +240,23 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   };
   const fitCurrent = (o: { fresh?: boolean } = {}): BoxFit[] => fitNow(o);
 
+  /**
+   * The slide is no longer settled: a new settle cycle starts when it WAS
+   * settled (or is another slide) — the 10 s limit counts from the change
+   * that unsettled it, never from when the slide was shown (A2-ENG-1: any
+   * refit 10 s into a slide was reported `timeout` at once, before it ran).
+   */
+  function unsettle(s: HTMLElement): void {
+    if (s.hasAttribute('data-fit-settled') || cycleSlide !== s) { cycleAt = performance.now(); cycleSlide = s; }
+    s.removeAttribute('data-fit-settled');
+  }
+
   /** Fit soon (one frame later): a font, stylesheet or image loaded, or the slide's content changed size. */
-  const fitSoon = (): void => {
-    current()?.removeAttribute('data-fit-settled');
+  const fitSoon = (why: 'resize' | 'other' = 'other'): void => {
+    if (why === 'other') { resizeMuted = false; sameFits = 0; }
+    cause = why === 'resize' && (cause === 'resize' || !fitQueued) ? 'resize' : 'other';
+    const s = current();
+    if (s) unsettle(s);
     startSettle();
     if (fitQueued) return;
     fitQueued = win.requestAnimationFrame(() => { fitQueued = 0; if (!destroyed) fitNow(); });
@@ -236,6 +268,8 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
     if (fonts && fonts.status !== 'loaded') return false;
     if (!enhanced) return false;
+    // a theme <style> whose @import (its webfont CSS) is loading: its font faces do not exist yet (A2-ENG-2)
+    if (doc.querySelector(`style[${STYLE_LOADING}]`)) return false;
     if (Array.from(s.querySelectorAll('img')).some((i) => !i.complete)) return false;
     for (const l of Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))) {
       if (l.media === 'not all' || failedSheets.has(l)) continue;
@@ -259,7 +293,9 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     if (!s) { flushSettled(); return; }
     if (host.hidden) return; // resumes when shown (setVisible refits)
     if (!s.hasAttribute('data-fit-settled')) {
-      const timeout = performance.now() - shownAt > SETTLE_MAX_MS;
+      // the limit ends a cycle that never quiets — a fit that is queued runs first (2 s of grace, never more)
+      const age = performance.now() - cycleAt;
+      const timeout = age > SETTLE_MAX_MS && ((!fitQueued && !dirty) || age > SETTLE_MAX_MS + 2000);
       if (!quiet(s) && !timeout) { startSettle(); return; }
       s.setAttribute('data-fit-settled', timeout && !quiet(s) ? 'timeout' : '');
       // drawings at the final scale (their layout is CSS: no refit follows)
@@ -287,22 +323,63 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     });
   }
 
-  /* the speaker view's slides: static copies from the print pipeline (ENG-5/6), built while it is open */
-  let copies: { generation: number; html: string[] } | null = null;
+  /*
+   * The speaker view's slides: static copies from the print pipeline (ENG-5/6), built while it is open —
+   * LAZILY (round A2, A2-ENG-3: the whole deck at once froze the page for 1–8 s): the current and next
+   * slides first, then the others one at a time in idle time, nearest first; kept per render, theme and
+   * size, so a slide change costs nothing built and a theme switch rebuilds two slides before it shows.
+   */
+  let copies: { key: string; html: Map<number, string> } | null = null;
   let building = false;
   let rebuild = false;
+  /** A static build failed: the live copies stand in. */
+  let copyFailed = false;
+  const copyKey = (): string => `${generation}|${root.getAttribute('data-orz-theme') ?? ''}|${last?.width ?? 0}x${last?.height ?? 0}`;
+  const idle = (): Promise<void> => new Promise((resolve) => {
+    const ric = (win as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (typeof ric === 'function') ric.call(win, () => resolve(), { timeout: 500 });
+    else win.setTimeout(resolve, 16);
+  });
+  const buildSome = async (ks: number[], key: string): Promise<boolean> => {
+    if (!last) return false;
+    const d = await buildStaticDeck(doc, lastText, { ...lastCtx, rendered: last, only: ks });
+    try {
+      if (destroyed || !copies || copies.key !== key || copyKey() !== key) return false;
+      for (const page of Array.from(d.stage.querySelectorAll<HTMLElement>(':scope > .orz-page'))) {
+        const section = page.querySelector<HTMLElement>(':scope > section.orz-slide');
+        if (section) copies.html.set(Number(page.getAttribute('data-i')), section.outerHTML);
+      }
+      return true;
+    } finally { d.remove(); }
+  };
   const buildCopies = async (): Promise<void> => {
     if (building) { rebuild = true; return; }
-    if (!speaker.isOpen() || lastText === '') return;
+    if (!speaker.isOpen() || lastText === '' || !last) return;
     building = true;
-    const gen = generation;
     try {
-      const d = await buildStaticDeck(doc, lastText, { ...lastCtx });
-      try {
-        const html = Array.from(d.stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide')).map((x) => x.outerHTML);
-        if (gen === generation && !destroyed) { copies = { generation: gen, html }; speaker.sync(); }
-      } finally { d.remove(); }
-    } catch { /* the live copies stand in */ } finally {
+      const key = copyKey();
+      if (!copies || copies.key !== key) copies = { key, html: new Map() };
+      const have = copies.html;
+      const n = sections().length;
+      // what the speaker shows now: the current and next slides, in one build
+      const at = index();
+      const first = [at, at + 1].filter((k) => k < n && !have.has(k));
+      if (first.length > 0) {
+        if (!(await buildSome(first, key))) return;
+        speaker.sync();
+      }
+      // the rest, nearest first, one slide per idle period; a slide change re-orders, a new render stops
+      for (;;) {
+        await idle();
+        if (destroyed || !speaker.isOpen() || copyKey() !== key) return;
+        const here = index();
+        let next = -1;
+        for (let d = 0; d < n && next < 0; d++) for (const k of [here + d, here - d]) if (k >= 0 && k < n && !have.has(k)) { next = k; break; }
+        if (next < 0) return;
+        if (!(await buildSome([next], key))) return;
+        if (next === here || next === here + 1) speaker.sync();
+      }
+    } catch { copyFailed = true; speaker.sync(); /* the live copies stand in */ } finally {
       building = false;
       if (rebuild && !destroyed) { rebuild = false; void buildCopies(); }
     }
@@ -315,16 +392,21 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     styles: () => Array.from(doc.querySelectorAll('style#orz-reveal-css, style#orz-deck-css, style#orz-slide-theme, link[rel="stylesheet"]')).filter((e) => e.getAttribute('media') !== 'not all'),
     key: (e) => { onKey(e); },
     title: () => options.title?.() ?? doc.title,
-    copy: (i) => (copies && copies.generation === generation ? copies.html[i] ?? null : null),
+    copy: (i) => (copies && copies.key === copyKey() ? copies.html.get(i) ?? null : null),
+    pending: (i) => !copyFailed && lastText !== '' && !(copies && copies.key === copyKey() && copies.html.has(i)),
   }, clock, win);
 
   const shown = (): void => {
     const s = current();
     if (!s) return;
-    shownAt = performance.now();
-    s.removeAttribute('data-fit-settled');
+    cycleSlide = null; // a slide shown starts its own cycle
+    resizeMuted = false;
+    sameFits = 0;
+    lastFit = '';
     fitNow({ redraw: true });
     speaker.sync();
+    // the speaker's copies of this slide and the next first
+    if (speaker.isOpen()) { const i = index(); if (!copies || copies.key !== copyKey() || !copies.html.has(i) || (i + 1 < sections().length && !copies.html.has(i + 1))) void buildCopies(); }
   };
 
   // images, stylesheets (KaTeX's from the CDN, and a theme <style>'s @import of its webfonts) and fonts that
@@ -413,7 +495,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
       // another theme or size: the current slide fits again (and settles again); the speaker's copies are made again
       if (changed) {
         fitSoon();
-        if (speaker.isOpen()) { copies = null; void buildCopies(); }
+        if (speaker.isOpen()) void buildCopies();
       }
     }
   }
@@ -454,7 +536,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   function openSpeaker(): Window | null {
     const w = speaker.open();
     if (!w) options.notify?.('The speaker view could not open: allow pop-ups for this page, then press S again.');
-    else if (!copies || copies.generation !== generation) void buildCopies();
+    else void buildCopies();
     return w;
   }
 
@@ -481,7 +563,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     return used;
   }
 
-  async function printHtml(o: { notes?: boolean } = {}): Promise<{ html: string; pages: number; width: number; height: number }> {
+  async function printHtml(o: { notes?: boolean } = {}): Promise<{ html: string; pages: number; width: number; height: number; cut: PaperCuts }> {
     const p: PrintOptions = { ...lastCtx, notes: o.notes === true, lang: options.lang?.() ?? (doc.documentElement.lang || 'en'), title: options.title?.() ?? doc.title };
     return buildPrintDocument(doc, lastText, p);
   }
@@ -514,7 +596,9 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     },
     printHtml,
     async print(o: { notes?: boolean } = {}): Promise<boolean> {
-      const { html } = await printHtml(o);
+      const { html, cut } = await printHtml(o);
+      const said = cutMessage(cut);
+      if (said) options.notify?.(said);
       return printDocument(html, { title: o.notes ? 'Print slides with notes' : 'Print slides' });
     },
     destroy(): void {

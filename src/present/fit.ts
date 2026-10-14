@@ -13,11 +13,14 @@
  * overflow still reported (`data-clipped`); `scroll` — the boxes scroll
  * (`data-scroll` when they do), nothing is clipped.
  *
- * The search is cheap (closed-loop round A, ENG-7): a first guess from the
- * overflow ratio (√ratio: text height goes as the scale squared) or the
- * box's last scale, steps to bracket the answer, then bisection to 0.01 — at most 6 measured trials a box, 3 for a refit
- * of an unchanged slide (claim F.7) — and a box's clipping descendants are
- * read once per fit, not at every trial.
+ * The search is cheap (closed-loop rounds A and A2, ENG-7, A2-ENG-6): a
+ * first guess from the overflow ratio (√ratio: text height goes as the
+ * scale squared) or the box's last scale; when it still overflows, the
+ * exponent is learned from the last two measurements (content that does not
+ * reflow scales as s¹) — a secant in log space; then a step to bracket the
+ * answer and bisection to 0.01 — at most 8 measured trials a box, 3 for a
+ * refit of an unchanged slide (claim F.7) — and a box's clipping
+ * descendants are read once per fit, not at every trial.
  *
  * Overflow is measured in logical px (layout sizes are not affected by
  * reveal's scaling transform): the box's own scroll size, and every element
@@ -172,26 +175,44 @@ export function fitBox(box: HTMLElement, mode: 'fit' | 'off' | 'scroll' = 'fit',
     if (mode === 'off') return report(box, { scale: 1, clipped: true, trials });
   }
   // the first guess: the last scale, or from what the box shows of its content at scale 1 — text set at
-  // scale s holds 1/s more per line and its lines are s high, so its height goes as s²: the guess is √ratio
-  let g = Math.min(0.995, Math.max(floor, prior ?? Math.sqrt(shownRatio(box, clippers))));
+  // scale s holds 1/s more per line and its lines are s high, so its height goes as s^k with k ≈ 2: the
+  // guess is ratio^(1/2). A box whose content does not reflow (a table, a picture, code) scales as s^1, so
+  // after a guess that still overflows the exponent is LEARNED from the last two measurements (a secant in
+  // log space; round A2, A2-ENG-6: √ratio alone stepped down 0.04 at a time on such boxes)
+  let k = 2;
+  let rAt = prior === undefined ? shownRatio(box, clippers) : Number.NaN;
+  let sAt = 1;
+  let g = Math.min(0.995, Math.max(floor, prior ?? Math.pow(rAt, 1 / k)));
   if (fits(g)) {
-    // up in growing steps until it overflows (brackets the largest scale that fits)
     lo = g;
-    let step = prior !== undefined ? PRECISION : 0.02;
-    for (;;) {
-      const up = Math.min(lo + step, hi - PRECISION / 2);
-      if (up <= lo + 1e-9) break;
-      if (fits(up)) { lo = up; step *= 2; }
-      else { hi = up; break; }
+    if (prior !== undefined) {
+      // a refit: up in growing steps from the last scale until it overflows (brackets the answer)
+      let step = PRECISION;
+      for (;;) {
+        const up = Math.min(lo + step, hi - PRECISION / 2);
+        if (up <= lo + 1e-9) break;
+        if (fits(up)) { lo = up; step *= 2; }
+        else { hi = up; break; }
+      }
+    } else {
+      // √ratio fitted: this content shrinks faster than s² — one more guess with k = 3, then bisection
+      const up = Math.min(hi - PRECISION / 2, Math.max(lo + PRECISION, Math.pow(rAt, 1 / 3)));
+      if (up > lo + 1e-9) { if (fits(up)) lo = up; else hi = up; }
     }
   } else {
-    // down by what the box shows at the guess (√ratio again), until it fits
     for (;;) {
       hi = g;
       if (g <= floor) return remember({ scale: floor, clipped: true, trials });
-      g = Math.max(floor, Math.min(g - PRECISION, g * Math.sqrt(shownRatio(box, clippers)) * 0.995));
+      const r = shownRatio(box, clippers);
+      if (Number.isFinite(rAt) && sAt > g && r > rAt) k = Math.min(4, Math.max(0.5, Math.log(r / rAt) / Math.log(sAt / g)));
+      sAt = g;
+      rAt = r;
+      g = Math.max(floor, Math.min(g - PRECISION, g * Math.pow(r, 1 / k) * 0.997));
       if (fits(g)) { lo = g; break; }
     }
+    // the secant usually lands within the precision of the answer: one step up tells
+    const up = Math.min(lo + PRECISION, hi - PRECISION / 2);
+    if (up > lo + 1e-9) { if (fits(up)) lo = up; else hi = up; }
   }
   if (lo >= 1) return remember({ scale: 1, clipped: false, trials });
   while (hi - lo > PRECISION + 1e-9) {
@@ -217,6 +238,11 @@ export function fitSlide(slide: HTMLElement, floor = FIT_FLOOR, prepare?: BoxPre
   const boxes = boxesOf(slide);
   for (const b of boxes) b.style.removeProperty('--fit-scale');
   const out = boxes.map((b) => fitBox(b, mode, floor, prepare, o));
+  // the footer is one ellipsized line: when it is cut it says so (data-clipped; its title holds the full text: A2-TH-13)
+  for (const f of Array.from(slide.querySelectorAll<HTMLElement>('.orz-footer'))) {
+    const cut = Array.from(f.querySelectorAll<HTMLElement>(':scope > .markdown-body > *')).some((p) => p.scrollWidth > p.clientWidth + 1);
+    if (cut) f.setAttribute('data-clipped', ''); else f.removeAttribute('data-clipped');
+  }
   slide.setAttribute('data-fitted', '');
   return out;
 }

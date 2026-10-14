@@ -312,6 +312,43 @@ chrome('the engine (real Chrome)', () => {
     await ctx.close();
   }, 180_000);
 
+  (online ? it : it.skip)('[K.9] A2-ENG-3: opening the speaker view on an 80-slide chart deck never freezes the page — its copies are built lazily (current and next first, the rest one slide per idle period): no long task over 1 s (5–12 s before), the Next pane drawn within 5 s, a key answered while it builds', async () => {
+    let t = '{{nyml\nkind: document\ntitle: Perf\ntheme: orchard\n}}\n\n';
+    for (let i = 1; i <= 80; i++) t += `<!-- slide 2col -->\n## Slide ${i}\n\n- point $x_${i}^2$\n\n\`\`\`js\nlet a = ${i};\n\`\`\`\n<!-- @right -->\n{{chart type: bar\nlabels: A, B, C, D\ndata: ${i}, 3, 5, 2\n}}\n\n`;
+    const { page, ctx } = await openDeck(browser!, sampleFile('k9-perf'), assemble(t), { network: true });
+    await page.evaluate(() => {
+      const w = window as unknown as { __lt: number[] };
+      w.__lt = [];
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) w.__lt.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false });
+    });
+    const t0 = Date.now();
+    const popup = ctx.waitForEvent('page');
+    await press(page, 's');
+    const sv = await popup;
+    await sv.waitForFunction(() => !!document.querySelector('[data-sv="next"] section.orz-slide [data-orz-frozen]'), null, { timeout: 30_000, polling: 100 });
+    expect(Date.now() - t0, 'the Next pane drawn').toBeLessThan(5000);
+    const k0 = Date.now();
+    await press(page, 'ArrowRight');
+    await page.waitForFunction(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.index() === 1);
+    expect(Date.now() - k0, 'a key while the copies build').toBeLessThan(1500);
+    await page.waitForTimeout(10_000);
+    const lt = await page.evaluate(() => (window as unknown as { __lt: number[] }).__lt);
+    console.log('[K.9] long tasks while the speaker view opens (ms):', JSON.stringify(lt.slice(0, 12)), `… ${lt.length} in all`);
+    expect(Math.max(0, ...lt), 'the longest task').toBeLessThan(1000);
+    await ctx.close();
+  }, 120_000);
+
+  it('[K.9] A2-ENG-7: media never play off their slide — an autoplay <audio> becomes reveal\'s data-autoplay (started on its slide), and a static copy (print, the speaker view) has no autoplay at all', async () => {
+    const text = '{{nyml\nkind: document\ntitle: Media\n}}\n\n<!-- slide -->\n## One\n\nhello\n\n<!-- slide -->\n## Two\n\n<audio src="tone.wav" autoplay controls></audio>\n';
+    const { page, ctx } = await openDeck(browser!, sampleFile('media'), assemble(text));
+    const live = await page.evaluate(() => { const a = document.querySelector('.reveal .slides audio')!; return { autoplay: a.hasAttribute('autoplay'), data: a.hasAttribute('data-autoplay') }; });
+    expect(live).toEqual({ autoplay: false, data: true });
+    const doc = await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}) as Promise<{ html: string }>);
+    expect(doc.html).not.toMatch(/autoplay/);
+    expect(doc.html).toMatch(/preload="none"/);
+    await ctx.close();
+  });
+
   it('[C.1] the chrome slots: the bottom slot shows the number n / total, the section and the progress bar (its width follows --progress); the header keys turn number and bar off; the top slot holds the deck and section titles', async () => {
     const { page, ctx } = await openDeck(browser!, sampleFile('c1'), assemble(SAMPLE));
     await goTo(page, 3);
