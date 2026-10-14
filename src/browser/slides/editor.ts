@@ -1,0 +1,529 @@
+/**
+ * KIND-SPECIFIC (slides): what editing mode (a), whole deck, adds to the
+ * kit's editor shell (REBUILD §3c owner decision 1(a), plan step 5) — the
+ * trusted page's half; the frame's half is src/browser/slides/live-frame.ts.
+ *
+ * - **The live view** of the caret's slide, pinned in the preview frame:
+ *   after a pause in typing ({@link LIVE_PAUSE_MS}; a caret move alone,
+ *   {@link CARET_PAUSE_MS}) the caret's slide is rendered HERE from the text
+ *   (src/render-slide.ts with the deck plan — the engine's DOM) and posted
+ *   to the frame as data (`orz-slides-live`); the frame draws, fits and
+ *   reports it (`orz-slides-fit`). Never per keystroke: a key only moves a
+ *   timer. On by default; the reader's preference `liveSlide` (stored in the
+ *   document's preference namespace) hides it — the toolbar's **Live
+ *   slide** toggle.
+ * - **Lints** in the toolbar (**Issues**, with their count): the kit's
+ *   header lints and the deck's (`readDocument`: parseDeck's, its
+ *   marker-hygiene quick fixes included), and the two the live view finds
+ *   (the closed-loop items left to step 5): `cut-on-paper` — a slide whose
+ *   box is still too big at the fit floor, or `fit=off` and overflowing (on
+ *   paper nothing scrolls: a `fit=scroll` slide counts as fitted) — and
+ *   `footer-cut`, a footer ellipsized to its one line. Both come from the
+ *   live view's fit reports, remembered per slide content, theme, ratio
+ *   and footer, so a slide is checked once it has been shown at the caret;
+ *   recomputed after a pause, never blocking typing. A lint's **Show**
+ *   selects its text; **Fix** applies its quick fix through `applyEdits`
+ *   (ONE undo step), recomputed on the current text first (a stale fix is
+ *   never applied).
+ * - **This slide** (the per-slide mode's entry point; rebuild step 6 seam):
+ *   the same text editor with the text outside the caret's slide dimmed
+ *   (`setFocusRange`, one history for both modes, Q6) and the live view as
+ *   the stage; the layout GUI is a {@link SlideLayoutGui} (src/browser/slides/
+ *   per-slide.ts) attached to the stage — none in step 5.
+ * - **Read view ↔ edit view** keep the slide: the editor opens with the
+ *   caret on the slide the read view showed (`startSlide`), and leaving
+ *   reports the caret's slide (`onLeave`), which the read view goes to.
+ */
+import { md, prepareSources } from 'orz-markdown';
+import { readHeader } from 'orz-markdown/carrier';
+import { installCss, WIDGET_CSS, button } from 'orz-markdown/carrier/app';
+import { includeRecordEnv, rewriteAssetUrls, type EditorShell } from 'orz-markdown/carrier/editor';
+import { createPreferenceStore, showToast, type PreferenceSpec, type PreferenceStore } from 'orz-markdown/carrier/shell';
+import { readDocument } from '../../assemble.js';
+import { parseDeck } from '../../deck/parse.js';
+import { planDeck } from '../../deck/plan.js';
+import { presentationOf, slideSize } from '../../presentation.js';
+import { renderSlide, type Renderer } from '../../render-slide.js';
+import type { Deck, Slide, SlideLint } from '../../types.js';
+import type { SlideLayoutGui, StageGeometry, StageHost } from './per-slide.js';
+
+/** The pause in typing after which the live view and the lints follow the text (ms). */
+export const LIVE_PAUSE_MS = 450;
+/** A caret move without typing: the live view follows after this (ms). */
+export const CARET_PAUSE_MS = 90;
+
+export interface SlidesToolsOptions {
+  /** Resolved includes (the file's `#orz-includes`, or the app's `includes`). */
+  includes?: Readonly<Record<string, string>>;
+  fetchInclude?(target: string): Promise<string | null>;
+  resolveAsset?(path: string): string;
+  /** Icon-only toolbar (`chrome: 'compact'`). */
+  iconOnly?: boolean;
+  /** The read view's slide (0-based): the caret starts there. */
+  startSlide?: number;
+  /** Leaving: the caret's slide (0-based), for the read view. */
+  onLeave?(slide: number): void;
+  /** Step 6: the layout GUI the per-slide mode attaches to its stage (none in step 5). */
+  layoutGui?: SlideLayoutGui | null;
+}
+
+/** A fit report of the live view (data from the frame; validated). */
+export interface FitReport {
+  boxes: Array<{ kind: string; name: string; scale: number; clipped: boolean; x: number; y: number; w: number; h: number }>;
+  footerCut: boolean;
+  scrolls: boolean;
+}
+
+export interface SlidesTools {
+  /** The caret's slide (0-based; 0 before the first). */
+  caretSlide(): number;
+  /** The lints shown now (the last computed). */
+  lints(): readonly SlideLint[];
+  /** Compute the lints now (tests; the panel does it after a pause). */
+  refreshLints(): readonly SlideLint[];
+  /** Apply a lint's quick fix (recomputed on the current text); false when there is none any more. */
+  applyFix(lint: Pick<SlideLint, 'code' | 'line'>): boolean;
+  /** The live view: shown (the reader preference) or not. */
+  isLive(): boolean;
+  setLive(on: boolean): void;
+  /** The per-slide mode (step 6 seam). */
+  isPerSlide(): boolean;
+  setPerSlide(on: boolean): void;
+  /** The live view's last fit report for the caret's slide (null before one). */
+  lastFit(): (FitReport & { index: number }) | null;
+  /** Post the caret's slide now (tests). */
+  syncLive(): Promise<void>;
+  destroy(): void;
+}
+
+const isBoolean = (v: unknown): v is boolean => typeof v === 'boolean';
+const SLIDES_PREFERENCES = { liveSlide: { default: true, valid: isBoolean } as PreferenceSpec<boolean> };
+
+/** A short, stable hash (FNV-1a, 32 bit) of a string, as hex. */
+function hash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16);
+}
+
+/** The slide that holds an offset (0-based; the first for the text before it; -1 with no slides). */
+export function slideIndexAt(deck: Deck, offset: number): number {
+  const s = deck.slides;
+  if (s.length === 0) return -1;
+  let lo = 0;
+  let hi = s.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (s[mid].span.from <= offset) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+
+/** Where the caret goes on a slide: the start of its title, else the end of its marker line. */
+export function caretOf(slide: Slide): number {
+  return slide.titleSpan ? slide.titleSpan.from : slide.marker.to;
+}
+
+/** What the fit lints are remembered by: the slide's text, the theme, the ratio and the deck footer. */
+const fitKeyOf = (text: string, slide: Slide): string => {
+  const p = presentationOf(text);
+  return `${p.theme.id}|${p.ratio}|${hash(readHeader(text)?.fields['footer'] ?? '')}|${hash(slide.raw)}`;
+};
+
+const PANEL_CSS = `
+.orz-slides-lint { position: relative; display: inline-flex; }
+.orz-slides-lint__count { min-width: 1.4em; padding: 0 .4em; border-radius: 99px; font-size: var(--orz-chrome-text-xs); font-weight: 600; text-align: center; background: var(--orz-chrome-hover); }
+.orz-slides-lint[data-level="error"] .orz-slides-lint__count { background: oklch(58% 0.19 27); color: #fff; }
+.orz-slides-lint[data-level="warning"] .orz-slides-lint__count { background: oklch(78% 0.15 75); color: #241a00; }
+.orz-slides-lint__panel {
+  position: absolute; z-index: var(--orz-chrome-z); top: calc(100% + 6px); left: 0; width: min(440px, 80vw);
+  max-height: min(60vh, 420px); overflow: auto; padding: var(--orz-chrome-space-2);
+  border: 1px solid var(--orz-chrome-border); border-radius: var(--orz-chrome-radius-m);
+  background: var(--orz-chrome-surface); color: var(--orz-chrome-fg); box-shadow: var(--orz-chrome-shadow);
+}
+.orz-slides-lint__empty { padding: var(--orz-chrome-space-3); color: var(--orz-chrome-muted); }
+.orz-slides-lint__item { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--orz-chrome-space-3); padding: var(--orz-chrome-space-2) var(--orz-chrome-space-3); border-radius: var(--orz-chrome-radius-s); }
+.orz-slides-lint__item:hover { background: var(--orz-chrome-hover); }
+.orz-slides-lint__dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: oklch(78% 0.15 75); }
+.orz-slides-lint__item[data-level="error"] .orz-slides-lint__dot { background: oklch(58% 0.19 27); }
+.orz-slides-lint__item[data-level="info"] .orz-slides-lint__dot { background: var(--orz-chrome-muted); }
+.orz-slides-lint__msg { font-size: var(--orz-chrome-text-sm); line-height: 1.45; }
+.orz-slides-lint__where { color: var(--orz-chrome-muted); font-size: var(--orz-chrome-text-xs); }
+.orz-slides-lint__acts { grid-column: 2; display: flex; gap: var(--orz-chrome-space-2); margin-top: 2px; }
+.orz-slides-lint__acts .orz-btn { min-height: 24px; padding: 0 var(--orz-chrome-space-3); font-size: var(--orz-chrome-text-xs); border: 1px solid var(--orz-chrome-border); }
+.orz-slides-lint__acts .orz-btn[data-fix] { border-color: var(--orz-chrome-accent); color: var(--orz-chrome-accent); }
+.orz-slides-toggle[aria-pressed="true"] { color: var(--orz-chrome-accent); border-color: var(--orz-chrome-accent); }
+`;
+
+/** Attach the slides tools to a mounted editor shell (see the module comment). */
+export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}): SlidesTools {
+  const toolbar = shell.toolbar as unknown as HTMLElement | null;
+  const doc = (toolbar?.ownerDocument ?? (globalThis as unknown as { document?: Document }).document) as Document;
+  const win = doc?.defaultView ?? (globalThis as unknown as Window);
+  const root = shell.root as unknown as ShadowRoot;
+  let destroyed = false;
+  const offs: Array<() => void> = [];
+  const timers = new Set<number>();
+  const later = (fn: () => void, ms: number): number => { const id = win.setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); return id; };
+  const cancel = (id: number | null): void => { if (id !== null) { win.clearTimeout(id); timers.delete(id); } };
+
+  // the reader preference (the document's namespace: its header uid)
+  const uid = readHeader(shell.getText())?.fields['uid']?.trim();
+  let prefs: PreferenceStore<typeof SLIDES_PREFERENCES> | null = null;
+  try { prefs = createPreferenceStore(uid, undefined, SLIDES_PREFERENCES); } catch { prefs = null; }
+  let live = prefs ? prefs.get('liveSlide') !== false : true;
+  let perSlide = false;
+
+  // ── the caret ──
+  const initial = shell.getText();
+  let caret = 0;
+  {
+    const deck = parseDeck(initial);
+    const i = typeof o.startSlide === 'number' && Number.isFinite(o.startSlide) ? Math.max(0, Math.min(deck.slides.length - 1, Math.floor(o.startSlide))) : -1;
+    if (i >= 0 && deck.slides[i]) {
+      caret = caretOf(deck.slides[i]);
+      shell.select(caret, caret, { scroll: true });
+      // CodeMirror may load after the mount: the caret goes there again once it has
+      void shell.ready.then(() => { if (!destroyed && caret === caretOf(parseDeck(initial).slides[i])) shell.select(caret, caret, { scroll: true }); });
+    }
+  }
+  const caretSlide = (): number => Math.max(0, slideIndexAt(parseDeck(shell.getText()), caret));
+
+  // ── the live view ──
+  let lastTyping = -Infinity;
+  let liveTimer: number | null = null;
+  let posted: { key: string; index: number; fitKey: string } | null = null;
+  const postedFitKeys = new Map<string, { fitKey: string; index: number }>();
+  const fits = new Map<string, FitReport>();
+  let last: (FitReport & { index: number }) | null = null;
+  let sourceCache: { text: string; source: Promise<string> } | null = null;
+  const env = (): Record<string, unknown> => ({ ...includeRecordEnv(o.includes ?? {}), orzTwinLinks: true });
+
+  /** The text the live slide renders from: URL includes resolved as the engine resolves them (rare; cached per text). */
+  const sourceOf = (text: string): Promise<string> => {
+    if (!/\{\{[^}\n]*[a-z][a-z0-9+.-]*:\/\//i.test(text)) return Promise.resolve(text);
+    if (sourceCache?.text === text) return sourceCache.source;
+    const rec = o.includes;
+    const fetcher = async (url: string): Promise<string | null> => {
+      if (o.fetchInclude) { try { const t = await o.fetchInclude(url); if (typeof t === 'string') return t; } catch { /* the record */ } }
+      return rec && Object.prototype.hasOwnProperty.call(rec, url) && typeof rec[url] === 'string' ? rec[url] : null;
+    };
+    const source = prepareSources(text, { fetcher, includeEnv: env() as never }).catch(() => text);
+    sourceCache = { text, source };
+    return source;
+  };
+
+  let postTries = 0;
+  const message = (slide: unknown): Record<string, unknown> => ({ type: 'orz-slides-live', show: live, stage: perSlide, ...(slide ? { slide } : {}) });
+  const post = (m: Record<string, unknown>): void => {
+    if (destroyed) return;
+    if (shell.preview.post(m)) { postTries = 0; return; }
+    // the frame is not ready yet (or is being rebuilt): again shortly
+    if (postTries++ < 100) later(() => post(m), 100);
+  };
+
+  async function syncLive(force = false): Promise<void> {
+    liveTimer = null;
+    if (destroyed) return;
+    const text = shell.getText();
+    const deck = parseDeck(text);
+    const i = slideIndexAt(deck, caret);
+    if (perSlide) focusSlide(deck, i);
+    if (!live && !perSlide) { post(message(null)); return; }
+    if (i < 0) { post(message(null)); return; }
+    const source = await sourceOf(text);
+    if (destroyed || shell.getText() !== text) return;
+    const d = source === text ? deck : parseDeck(source);
+    const slide = d.slides[Math.min(i, d.slides.length - 1)];
+    if (!slide) return;
+    const p = presentationOf(text);
+    const size = slideSize(p.ratio);
+    const plans = planDeck(d, p.theme.sectionNumbers);
+    let html = renderSlide(slide, plans[slide.index], md as unknown as Renderer, d.config, { env: env(), themeNumbers: p.theme.sectionNumbers });
+    if (o.resolveAsset) { const ra = o.resolveAsset; html = rewriteAssetUrls(html, (path) => ra(path)); }
+    const key = `${p.theme.id}|${p.ratio}|${hash(html)}`;
+    const fitKey = fitKeyOf(text, deck.slides[i] ?? slide);
+    postedFitKeys.set(key, { fitKey, index: i });
+    if (!force && posted && posted.key === key && posted.index === i) { post(message(null)); return; }
+    posted = { key, index: i, fitKey };
+    post(message({ key, html, theme: p.theme.id, scheme: p.theme.scheme, width: size.width, height: size.height, index: i, total: deck.slides.length }));
+  }
+  const scheduleLive = (ms: number): void => {
+    cancel(liveTimer);
+    liveTimer = later(() => { void syncLive(); }, ms);
+  };
+
+  // the frame's reports: data only (a document script can forge them — at worst a badge or a lint)
+  offs.push(shell.preview.on('orz-slides-live-ready', () => { posted = null; scheduleLive(0); }));
+  offs.push(shell.preview.on('orz-slides-fit', (m: unknown) => {
+    const d = m as { key?: unknown; boxes?: unknown; footerCut?: unknown; scrolls?: unknown } | null;
+    if (!d || typeof d.key !== 'string' || !Array.isArray(d.boxes)) return;
+    const at = postedFitKeys.get(d.key);
+    if (!at) return;
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const boxes = d.boxes.slice(0, 64).map((b: { kind?: unknown; name?: unknown; scale?: unknown; clipped?: unknown; x?: unknown; y?: unknown; w?: unknown; h?: unknown }) => ({
+      kind: String(b?.kind ?? '').slice(0, 16), name: String(b?.name ?? '').slice(0, 64), scale: Math.max(0, Math.min(1, num(b?.scale) || 1)), clipped: b?.clipped === true,
+      x: num(b?.x), y: num(b?.y), w: num(b?.w), h: num(b?.h),
+    }));
+    const r: FitReport = { boxes, footerCut: d.footerCut === true, scrolls: d.scrolls === true };
+    fits.set(at.fitKey, r);
+    last = { ...r, index: at.index };
+    layout?.refresh();
+    scheduleLints(150);
+  }));
+
+  // ── the lints ──
+  let lints: SlideLint[] = [];
+  let lintTimer: number | null = null;
+  function fitLints(text: string, deck: Deck): SlideLint[] {
+    const out: SlideLint[] = [];
+    /** The deck footer (the header's `footer`) cut: one lint for every slide it is cut on. */
+    const deckFooterCut: Slide[] = [];
+    for (const s of deck.slides) {
+      const r = fits.get(fitKeyOf(text, s));
+      if (!r) continue;
+      const at = { line: s.marker.line, from: s.marker.from, to: s.marker.to };
+      const cut = r.boxes.filter((b) => b.clipped);
+      if (cut.length > 0) {
+        const names = [...new Set(cut.map((b) => (b.kind === 'region' ? b.name : b.kind)))].join(', ');
+        const off = s.options.fit === 'off';
+        out.push({ level: 'warning', code: 'cut-on-paper', message: off
+          ? `slide ${s.index + 1} is fit=off and its ${names} overflow${cut.length === 1 ? 's' : ''}: it is cut on screen and on paper — shorten it, split it, or let it fit`
+          : `slide ${s.index + 1} will be cut on paper: its ${names} still overflow${cut.length === 1 ? 's' : ''} at the smallest size (60%) — shorten it or split it into more slides`, ...at });
+      }
+      if (r.footerCut) {
+        if (s.footer !== undefined) out.push({ level: 'warning', code: 'footer-cut', message: `the footer of slide ${s.index + 1} (its @footer) is cut to one line, shown with "…": shorten it`, ...at });
+        else deckFooterCut.push(s);
+      }
+    }
+    if (deckFooterCut.length > 0) {
+      const n = deckFooterCut.map((s) => s.index + 1);
+      const list = n.length === 1 ? `slide ${n[0]}` : `slides ${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+      const s = deckFooterCut[0];
+      out.push({ level: 'warning', code: 'footer-cut', message: `the deck footer (the header's footer) is cut to one line, shown with "…", on ${list}: shorten it`, line: s.marker.line, from: s.marker.from, to: s.marker.to });
+    }
+    return out;
+  }
+  function computeLints(): SlideLint[] {
+    const text = shell.getText();
+    let base: SlideLint[] = [];
+    try { base = readDocument(text, { kind: 'slides' }).lint as SlideLint[]; } catch { base = []; }
+    const all = [...base, ...fitLints(text, parseDeck(text))];
+    all.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+    return all;
+  }
+  function refreshLints(): readonly SlideLint[] {
+    lintTimer = null;
+    if (destroyed) return lints;
+    lints = computeLints();
+    drawLintButton();
+    if (panel) drawPanel();
+    return lints;
+  }
+  const scheduleLints = (ms: number): void => { cancel(lintTimer); lintTimer = later(() => { refreshLints(); }, ms); };
+
+  function applyFix(l: Pick<SlideLint, 'code' | 'line'>): boolean {
+    if (destroyed || shell.isReadOnly()) return false;
+    const now = computeLints();
+    const f = now.find((x) => x.code === l.code && x.line === l.line && x.fix);
+    if (!f?.fix) return false;
+    try {
+      if (!shell.applyEdits([{ from: f.fix.from, to: f.fix.to, insert: f.fix.insert }], { label: f.fix.label })) return false;
+    } catch (e) {
+      showToast(root as never, `Could not apply the fix: ${e instanceof Error ? e.message : String(e)}`, { tone: 'error' });
+      return false;
+    }
+    refreshLints();
+    return true;
+  }
+
+  // ── the toolbar: Issues, Live slide, This slide ──
+  let lintWrap: HTMLElement | null = null;
+  let lintBtn: HTMLElement | null = null;
+  let lintCount: HTMLElement | null = null;
+  let panel: HTMLElement | null = null;
+  let liveBtn: HTMLElement | null = null;
+  let slideBtn: HTMLElement | null = null;
+  const onOutside = (e: Event): void => { if (panel && lintWrap && !e.composedPath().includes(lintWrap)) closePanel(); };
+  function closePanel(): void {
+    if (!panel) return;
+    panel.remove();
+    panel = null;
+    lintBtn?.setAttribute('aria-expanded', 'false');
+    win.removeEventListener('pointerdown', onOutside, true);
+  }
+  function drawLintButton(): void {
+    if (!lintWrap || !lintCount || !lintBtn) return;
+    const errors = lints.filter((l) => l.level === 'error').length;
+    lintCount.textContent = String(lints.length);
+    lintWrap.setAttribute('data-level', errors > 0 ? 'error' : lints.length > 0 ? 'warning' : 'none');
+    lintBtn.setAttribute('aria-label', lints.length === 0 ? 'Issues: none' : `Issues: ${lints.length}${errors ? ` (${errors} error${errors === 1 ? '' : 's'})` : ''}`);
+  }
+  function drawPanel(): void {
+    if (!panel) return;
+    panel.replaceChildren();
+    if (lints.length === 0) {
+      const p = doc.createElement('div');
+      p.className = 'orz-slides-lint__empty';
+      p.textContent = 'No issues in this deck.';
+      panel.append(p);
+      return;
+    }
+    for (const l of lints) {
+      const item = doc.createElement('div');
+      item.className = 'orz-slides-lint__item';
+      item.setAttribute('role', 'listitem');
+      item.setAttribute('data-level', l.level);
+      item.setAttribute('data-code', l.code);
+      const dot = doc.createElement('span');
+      dot.className = 'orz-slides-lint__dot';
+      const msg = doc.createElement('div');
+      msg.className = 'orz-slides-lint__msg';
+      const where = doc.createElement('div');
+      where.className = 'orz-slides-lint__where';
+      where.textContent = `${l.level === 'error' ? 'Error' : l.level === 'warning' ? 'Warning' : 'Note'} · line ${l.line ?? '?'} · ${l.code}`;
+      const text = doc.createElement('div');
+      text.textContent = l.message;
+      msg.append(where, text);
+      const acts = doc.createElement('div');
+      acts.className = 'orz-slides-lint__acts';
+      if (typeof l.from === 'number') {
+        const show = button(doc as never, { label: 'Show', variant: 'ghost' }) as unknown as HTMLElement;
+        show.addEventListener('click', () => { closePanel(); shell.select(l.from!, Math.max(l.from!, l.to ?? l.from!), { scroll: true }); shell.focus(); });
+        acts.append(show);
+      }
+      if (l.fix) {
+        const fix = button(doc as never, { label: `Fix: ${l.fix.label}`, variant: 'ghost' }) as unknown as HTMLElement;
+        fix.setAttribute('data-fix', '');
+        fix.addEventListener('click', () => { if (!applyFix(l)) showToast(root as never, 'The text changed: the issue has no fix now.', { tone: 'warning' }); });
+        acts.append(fix);
+      }
+      item.append(dot, msg, acts);
+      panel.append(item);
+    }
+  }
+  function openPanel(): void {
+    if (panel || !lintWrap) return;
+    refreshLints();
+    panel = doc.createElement('div');
+    panel.className = 'orz-slides-lint__panel';
+    panel.setAttribute('role', 'list');
+    panel.setAttribute('aria-label', 'Issues in this deck');
+    drawPanel();
+    lintWrap.append(panel);
+    lintBtn?.setAttribute('aria-expanded', 'true');
+    win.addEventListener('pointerdown', onOutside, true);
+  }
+  const syncToggles = (): void => {
+    liveBtn?.setAttribute('aria-pressed', String(live));
+    slideBtn?.setAttribute('aria-pressed', String(perSlide));
+  };
+  if (toolbar) {
+    installCss(root as never, WIDGET_CSS);
+    installCss(root as never, PANEL_CSS);
+    lintWrap = doc.createElement('span');
+    lintWrap.className = 'orz-slides-lint';
+    lintBtn = button(doc as never, { label: 'Issues', iconOnly: false }) as unknown as HTMLElement;
+    lintBtn.setAttribute('aria-haspopup', 'true');
+    lintBtn.setAttribute('aria-expanded', 'false');
+    lintBtn.setAttribute('data-orz-slides-lint', '');
+    lintCount = doc.createElement('span');
+    lintCount.className = 'orz-slides-lint__count';
+    lintBtn.append(lintCount);
+    lintBtn.addEventListener('click', () => { if (panel) closePanel(); else openPanel(); });
+    lintWrap.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape' && panel) { e.stopPropagation(); closePanel(); lintBtn?.focus(); } });
+    lintWrap.append(lintBtn);
+    liveBtn = button(doc as never, { label: 'Live slide', iconOnly: o.iconOnly === true, title: 'Show the slide at the cursor in the preview' }) as unknown as HTMLElement;
+    liveBtn.classList.add('orz-slides-toggle');
+    liveBtn.setAttribute('data-orz-slides-live', '');
+    liveBtn.addEventListener('click', () => setLive(!live));
+    slideBtn = button(doc as never, { label: 'This slide', iconOnly: o.iconOnly === true, title: 'Edit the slide at the cursor: the rest of the deck dimmed, the slide as the stage' }) as unknown as HTMLElement;
+    slideBtn.classList.add('orz-slides-toggle');
+    slideBtn.setAttribute('data-orz-slides-per-slide', '');
+    slideBtn.addEventListener('click', () => setPerSlide(!perSlide));
+    toolbar.append(lintWrap, liveBtn, slideBtn);
+    syncToggles();
+    drawLintButton();
+  }
+
+  function setLive(on: boolean): void {
+    if (destroyed) return;
+    live = on === true;
+    try { prefs?.set('liveSlide', live); } catch { /* storage refused */ }
+    syncToggles();
+    posted = null;
+    void syncLive(true);
+  }
+
+  // ── the per-slide mode (step 6 seam) ──
+  let focused: { index: number; from: number; to: number } | null = null;
+  let layout: { refresh(): void; destroy(): void } | null = null;
+  function focusSlide(deck: Deck, i: number): void {
+    const s = i >= 0 ? deck.slides[i] : undefined;
+    if (!s) { if (focused) { shell.setFocusRange(null); focused = null; } return; }
+    if (focused && focused.index === i && focused.from === s.span.from && focused.to === s.span.to) return;
+    focused = { index: i, from: s.span.from, to: s.span.to };
+    shell.setFocusRange(s.span.from, s.span.to, { mode: 'dim' });
+  }
+  const stageHost: StageHost = {
+    shell,
+    slide: () => { const d = parseDeck(shell.getText()); const i = slideIndexAt(d, caret); return i >= 0 ? { index: i, slide: d.slides[i] } : null; },
+    geometry: (): StageGeometry | null => (last ? { index: last.index, boxes: last.boxes.map((b) => ({ ...b })) } : null),
+  };
+  function setPerSlide(on: boolean): void {
+    if (destroyed || on === perSlide) return;
+    perSlide = on;
+    syncToggles();
+    if (perSlide) {
+      layout = o.layoutGui ? o.layoutGui.attach(stageHost) : null;
+    } else {
+      layout?.destroy();
+      layout = null;
+      focused = null;
+      shell.setFocusRange(null);
+    }
+    posted = null;
+    void syncLive(true);
+  }
+
+  // ── events ──
+  offs.push(shell.on('selection', (e) => {
+    caret = e.to;
+    // during typing the live view waits for the pause; a caret move alone follows at once
+    scheduleLive(Date.now() - lastTyping < LIVE_PAUSE_MS ? LIVE_PAUSE_MS : CARET_PAUSE_MS);
+  }));
+  offs.push(shell.on('change', () => {
+    lastTyping = Date.now();
+    scheduleLive(LIVE_PAUSE_MS);
+    scheduleLints(LIVE_PAUSE_MS + 150);
+  }));
+  scheduleLive(0);
+  scheduleLints(300);
+
+  return {
+    caretSlide,
+    lints: () => lints,
+    refreshLints,
+    applyFix,
+    isLive: () => live,
+    setLive,
+    isPerSlide: () => perSlide,
+    setPerSlide,
+    lastFit: () => (last ? { ...last, boxes: last.boxes.map((b) => ({ ...b })) } : null),
+    syncLive: () => syncLive(true),
+    destroy() {
+      if (destroyed) return;
+      try { o.onLeave?.(caretSlide()); } catch { /* the read view's */ }
+      destroyed = true;
+      layout?.destroy();
+      layout = null;
+      for (const off of offs.splice(0)) { try { off(); } catch { /* gone */ } }
+      for (const id of timers) win.clearTimeout(id);
+      timers.clear();
+      closePanel();
+      lintWrap?.remove();
+      liveBtn?.remove();
+      slideBtn?.remove();
+    },
+  };
+}

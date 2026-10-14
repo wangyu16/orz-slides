@@ -25,9 +25,10 @@ slides kind), `spec/conformance.md`; the family plan `../docs/REBUILD.md` §3c
 (owner decisions 1–6 and the approved plan).
 
 Rebuild status: steps 1 (base), 2 (format-1 parser + isomorphic
-assembler), 3 (the engine: the read view, present, print) and 4 (the 14
-themes) on branch `rebuild/1.0`; closed-loop rounds A, A2 and A3 (after step 4)
-applied — their record is notes/closed-loop.md.
+assembler), 3 (the engine: the read view, present, print), 4 (the 14
+themes) and 5 (editing mode (a), whole deck: area W) on branch
+`rebuild/1.0`; closed-loop round A (rounds A–A4, after step 4) closed — its
+record is notes/closed-loop.md.
 
 ## B — base (rebuild step 1)
 
@@ -179,6 +180,20 @@ applied — their record is notes/closed-loop.md.
 | Q.4 | Print never cuts silently (rounds A and A2: ENG-3/ENG-4, A2-ENG-4/5): on paper nothing scrolls — a `fit=scroll` slide is fitted — and long speaker notes are set smaller to the floor; every cut (a box past the floor, `fit=off`, notes) carries the same visible notice on its page (`.orz-print-cut`) and print names the cut slides to the reader (`printHtml().cut`, `notify`); images load eagerly (a `loading="lazy"` one on a slide never shown is fitted with, not after a 10 s wait without); a `{{youtube}}` player is sized like a picture (the largest 16:9 player in the room its box leaves; em-sized inside a container) and on paper and in the speaker's copies is a still of the same size with the video's address — no live player, nothing cut (round A3, A3-ENG-5); the room a player sits in draws no frame beside a narrower player (round A4, A4-ENG-5). | real |
 | Q.5 | Print never uses fallback fonts silently (round A4's improvement, rebuild step 5): when the theme's webfonts or a stylesheet have not arrived by the end of the bounded wait (5 s, once per load), print goes ahead and says so (`printHtml().cut.fontsLate`, the `notify` line); a font or stylesheet that FAILED (offline) is no late one. | real |
 | Q.3 | Print is the action with id `print`: Cmd/Ctrl+P in the read view prints the print document in the kit's sandboxed frame (`allow-scripts allow-modals`), never the page; Print with notes is in the pencil's list. | real |
+
+## W — editing mode (a), whole deck (rebuild step 5; owner decision 1(a))
+
+| ID | Claim | Oracle |
+|---|---|---|
+| W.1 | `mountEditor` is the kit's editor shell for the slides kind (CodeMirror, the sandboxed preview frame, the settings, the save with its conflict question, New document / Save as new copy and the quiet update from the kit; the seal and the GitHub link in edit mode) with the slides tools in its toolbar — Issues (with their count), Live slide, This slide — for the assembled file's Edit and for an app's own `mountEditor` (`hooks.save`); the preview frame carries the engine's deck structure and the header's slide theme. | real |
+| W.2 | The preview is the FLATTENED deck — an ordinary flow, every slide's content in text order, in-slide layout ignored (no grid, no fit): a thin divider per slide (`.orz-flat-slide`) with its number, its title (plain text) and its layout and options or its template, a label per region (the marked ones, and the leading region of a layout with more than one box; floats with their geometry), the speaker notes (`aside.orz-flat-notes`) and a slide's footer apart and labelled, the text before the first slide and a 0.x deck block said; a marker the grammar does not read is no divider. | unit, real |
+| W.3 | Every block, divider and label of the flattened preview carries `data-src-line`, its 0-based line in the whole text (header counted; LF, CR LF, CR, BOM), so the kit's diff preview and scroll sync work as for md: the editor scrolled to a slide brings its divider to the preview's top, and the reader's wheel in the preview scrolls the editor. | unit, real |
+| W.4 | A live view of the caret's slide is pinned in the preview frame, on by default: the engine's slide DOM rendered by the trusted page and drawn by the engine's static (paper) pipeline at the logical size (1280 × 720 / 960 × 720), scaled to its card, fitted — every box reports `data-scale` — with a fit badge (fits / shrunk to N% / footer cut / cut on paper); it follows the caret and, after a pause, the typing; the frame reports the fit as data only (`orz-slides-fit`); the reader preference `liveSlide` hides it and is remembered. | real |
+| W.5 | Lints surface in the editor: the kit's header lints and the deck's (`readDocument`, with parseDeck's marker-hygiene quick fixes) in the Issues panel (Show selects the text; Fix applies the quick fix through `applyEdits` — ONE undo step, recomputed on the current text first); and the closed-loop items of step 5 from the live view's fit reports: `cut-on-paper` (a box still overflowing at the fit floor, or `fit=off` and overflowing) and `footer-cut` (a footer ellipsized to its line; the deck footer's as one lint naming its slides) — after a pause, never per key. | real |
+| W.6 | A format-1 text twin goes through the editor byte-exact: unedited, or edited and undone, its standalone save writes the exact text (BOM, CR LF) back into the file's `#orz-src`; an edit is saved as the editor's exact text in the document's line endings and BOM. | real |
+| W.7 | Typing stays fast on a 100-slide deck (orz-paged's typing pattern): per-key round trip p90 ≤ 100 ms (max ≤ 250 ms) and no long task over 200 ms while typing — the live view's render and fit and the lints wait for a pause in typing; the preview and the live view catch up after. | real |
+| W.8 | The read view and the edit view keep the slide: Edit opens with the caret on the slide the deck showed (the live view shows it), Done returns the deck to the caret's slide. | real |
+| W.9 | The per-slide mode's entry point (the step-6 seam, `src/browser/slides/per-slide.ts`): This slide dims the text outside the caret's slide in the SAME text editor (`setFocusRange`; one undo history for both modes, Q6) and shows the slide as the stage; it follows the caret; off restores the whole deck. The layout GUI attaches as a `SlideLayoutGui` (none before step 6). | real |
 
 ## R — the assembled file in real Chrome
 

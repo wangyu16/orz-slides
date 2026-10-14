@@ -1,7 +1,8 @@
 /**
- * KIND-SPECIFIC (slides): the flattened render of a deck — the read view's
- * stub (rebuild step 1–2) and the editor preview until step 5 (the flattened
- * preview with slide dividers): the kit's `renderMarkdownPreviewWithIncludes`
+ * KIND-SPECIFIC (slides): the plain render of a deck for `renderPreview`
+ * (FC-19 §2, an app's thumbnails and read-only views; the editor preview is
+ * the flattened deck of src/browser/slides/flat.ts since rebuild step 5):
+ * the kit's `renderMarkdownPreviewWithIncludes`
  * (the body without its header, twin links, `data-src-line` anchors, the
  * file's includes). The slide and region markers are HTML comments: they
  * render nothing.

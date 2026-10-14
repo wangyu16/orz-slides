@@ -7,16 +7,14 @@
  * The read view's slide themes live INSIDE the engine (src/present/styles.ts,
  * built by scripts/build-themes.ts), so the shell's head carries no theme
  * stylesheet — only KaTeX's and highlight.js's (non-blocking). The editor's
- * flattened preview (until rebuild step 5) is styled with the orz-markdown
- * theme each slide theme derives from (`themeHref`; the four updated 0.x
- * themes with a stand-in), from the pinned orz-markdown CDN.
+ * preview frame carries the same engine stylesheets (rebuild step 5,
+ * src/browser/slides/frame.ts).
  *
  * Only the header decides (never anything but the text): an absent or
  * unknown theme is the default theme, an absent or unknown ratio is 16:9.
  * Isomorphic: no Node built-ins.
  */
 import { PREVIEW_CDN } from 'orz-markdown/preview-frame';
-import { VERSION as ORZ_MARKDOWN_VERSION } from 'orz-markdown/version';
 import { deckConfig } from './deck/config.js';
 import { themeOf, type SlideTheme } from './themes.js';
 import type { Ratio } from './types.js';
@@ -36,15 +34,6 @@ export function presentationOf(text: string): Presentation {
 /** The logical slide size (Q2: height 720 for every ratio). */
 export function slideSize(ratio: Ratio): { width: number; height: number } {
   return ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 };
-}
-
-/** Until rebuild step 5 (the flattened preview): the orz-markdown theme standing in for an updated 0.x theme. */
-const STAND_IN: Readonly<Record<string, string>> = Object.freeze({ architect: 'light-neat-2', chalk: 'dark-elegant-1', neon: 'dark-elegant-3', paper: 'light-academic-1' });
-
-/** The editor preview's stylesheet URL of a slide theme (until rebuild step 5: its orz-markdown source theme). */
-export function themeHref(theme: SlideTheme): string {
-  const md = theme.derivedFrom ?? STAND_IN[theme.id] ?? 'light-neat-3';
-  return `https://cdn.jsdelivr.net/npm/orz-markdown@${ORZ_MARKDOWN_VERSION}/themes/${md}.css`;
 }
 
 const attr = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -80,7 +69,3 @@ export function readViewMarkup(p: Presentation, delivery: 'inline' | 'cdn' = 'in
   return `<main id="orz-view" class="orz-view orz-slides" data-orz-theme="${attr(p.theme.id)}" data-orz-ratio="${attr(p.ratio)}"><p class="orz-fallback" style="opacity:.6;font:14px/1.5 system-ui,sans-serif;margin:1.5em">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p></main>`;
 }
 
-/** The editor preview frame's presentation (FC-19 §8.4): the theme stylesheet and its scheme. */
-export function previewPresentation(p: Presentation): { head: string; scheme: 'light' | 'dark'; articleClass: string } {
-  return { head: `<link rel="stylesheet" href="${attr(themeHref(p.theme))}">`, scheme: p.theme.scheme, articleClass: 'markdown-body' };
-}

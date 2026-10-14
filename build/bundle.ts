@@ -140,12 +140,29 @@ export function checkBundleRule(code: string, what: string): void {
   if (/[^\x00-\x7f]/.test(code)) throw new Error(`${what}: holds a non-ASCII character (the build is charset: 'ascii')`);
 }
 
+/**
+ * Build the live view's runtime (src/browser/slides/live-frame.ts: fit,
+ * decoration, the card) in memory: an IIFE, script-safe and ASCII — the
+ * editor preview's frame document carries it (`__ORZ_SLIDES_LIVE__`).
+ */
+export async function buildLiveRuntime(): Promise<string> {
+  const out = await build({
+    bundle: true, minify: true, platform: 'browser', target: ['es2020'], write: false, logLevel: 'silent',
+    charset: 'ascii', legalComments: 'none', absWorkingDir: ROOT, entryPoints: ['src/browser/slides/live-frame.ts'], format: 'iife',
+  });
+  const code = scriptSafe(asciiOnly(out.outputFiles[0].text)).replace(/\n$/, '');
+  checkBundleRule(code, 'the live view runtime');
+  return code;
+}
+
 /** Build the IIFE, the ESM build and release.json in memory. */
 export async function buildBrowser(o: { version?: string } = {}): Promise<BrowserBuild> {
   const version = o.version ?? VERSION;
+  const live = await buildLiveRuntime();
   const common = {
     bundle: true, minify: true, platform: 'browser' as const, target: ['es2020'], write: false, logLevel: 'silent' as const,
     charset: 'ascii' as const, legalComments: 'none' as const, absWorkingDir: ROOT, plugins: [oneKatex, versionAs(o.version), slideThemes],
+    define: { __ORZ_SLIDES_LIVE__: JSON.stringify(live) },
   };
   const [iifeOut, esmOut] = await Promise.all([
     build({ ...common, entryPoints: ['src/browser/index.ts'], format: 'iife' }),

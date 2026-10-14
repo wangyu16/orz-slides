@@ -19,8 +19,13 @@ import { attachAiMenu, attachSettings, captureEngineSource, followPresentation, 
 import { createEditorShell, type EditorHooks, type EditorShell } from 'orz-markdown/carrier/editor';
 import type { PreferenceStore } from 'orz-markdown/carrier/shell';
 import { assemble as assembleSync, cdnBundleUrl, FORMATS, readDocument as slidesReadDocument, type AssembleOptions } from '../assemble.js';
-import { presentationOf, previewPresentation, shellHead } from '../presentation.js';
+import { presentationOf, shellHead } from '../presentation.js';
 import { VERSION } from '../version.js';
+import { attachSlidesTools, type SlidesTools } from './slides/editor.js';
+import { renderFlat } from './slides/flat.js';
+import { slidesFrameDocument, slidesPreviewPresentation, type FrameTheme } from './slides/frame.js';
+import type { SlideLayoutGui } from './slides/per-slide.js';
+import { activeReadView } from './slides/read-view.js';
 import { renderSlides } from './slides/render.js';
 import { SLIDES_SETTINGS } from './slides/settings.js';
 
@@ -153,8 +158,17 @@ export interface EditorOptions {
 /**
  * The Editor of FC-19 §4 (the kit's editor shell, which implements it) —
  * among others `ready` (the engine is final) and `refreshPreview({ includes })`
- * (a new include record for the preview; an app whose includes changed). */
-export type Editor = EditorShell;
+ * (a new include record for the preview; an app whose includes changed) — and
+ * `slides`, this carrier's tools (rebuild step 5, src/browser/slides/editor.ts:
+ * the caret's slide, the lints and their quick fixes, the live view, the
+ * per-slide mode's entry point).
+ */
+export type Editor = EditorShell & { readonly slides: SlidesTools };
+
+/** Carrier-internal mount options (not FC-19): the step-6 layout GUI. */
+export interface SlidesMountExtras {
+  layoutGui?: SlideLayoutGui | null;
+}
 
 /**
  * Mount the slides editor (FC-19 §3–4) in `element`: the kit's editor shell with
@@ -168,7 +182,7 @@ export type Editor = EditorShell;
  * elsewhere an inline assembly through the File System Access picker or a
  * download.
  */
-export function mountEditor(element: HTMLElement, options: EditorOptions, standalone?: StandaloneContext): Editor {
+export function mountEditor(element: HTMLElement, options: EditorOptions, standalone?: StandaloneContext, extras: SlidesMountExtras = {}): Editor {
   if (!element || typeof element !== 'object') throw new TypeError('orz-slides: mountEditor needs an element');
   if (!options || typeof options.text !== 'string') throw new TypeError('orz-slides: options.text must be a string');
   const appHooks: EditorHooks = options.hooks ?? {};
@@ -180,11 +194,16 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
   const fetchInclude = appHooks.fetchInclude ?? ctx?.fetchInclude;
   const hooks: EditorHooks = { ...appHooks, ...(ai ? { ai } : {}), ...(fetchInclude ? { fetchInclude } : {}) };
   const preferences = options.preferences ?? ctx?.preferences;
-  const present = (text: string) => previewPresentation(presentationOf(text));
+  // the frame is written for the header's theme (followPresentation rebuilds it when the theme changes)
+  const theme: FrameTheme = { id: presentationOf(options.text).theme.id };
+  const present = (text: string) => slidesPreviewPresentation(text, theme);
+  // an editor mounted on the page's own file keeps the read view's slide (and gives it back on leaving)
+  const view = ctx ? activeReadView() : null;
+  const startSlide = view ? view.engine.index() : undefined;
 
   const shell = createEditorShell(element as never, {
     text: options.text,
-    render: (text, rc) => renderSlides(text, rc),
+    render: (text, rc) => renderFlat(text, rc),
     kind: 'slides',
     formats: [...FORMATS],
     ...(options.mode ? { mode: options.mode } : {}),
@@ -211,7 +230,7 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
       ...(options.includes ? { includes: options.includes } : {}),
       ...(typeof options.fileName === 'string' && options.fileName !== '' ? { fileName: options.fileName } : {}),
     }),
-    preview: present(options.text),
+    preview: { ...present(options.text), frameDocument: (parts) => slidesFrameDocument(parts, theme) },
   });
 
   // the carrier's tools in the toolbar (FC-19 §1: the same tools for every host)
@@ -223,15 +242,27 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
   const aiMenu = appAi && !ctx?.ai ? attachAiMenu(shell, { operations: () => (Array.isArray(appAi.operations) ? appAi.operations : []), iconOnly }) : null;
   // the preview follows the header's theme
   const unfollow = followPresentation(shell, present);
+  // the slides tools: the live view, the lints, the per-slide mode's entry point, the slide kept across modes
+  const includes = isApp ? options.includes : ctx?.includes;
+  const tools = attachSlidesTools(shell, {
+    ...(includes ? { includes } : {}),
+    ...(fetchInclude ? { fetchInclude } : {}),
+    ...(appHooks.resolveAsset ? { resolveAsset: appHooks.resolveAsset } : {}),
+    iconOnly,
+    ...(startSlide !== undefined ? { startSlide } : {}),
+    ...(view ? { onLeave: (i: number) => view.goTo(i) } : {}),
+    ...(extras.layoutGui ? { layoutGui: extras.layoutGui } : {}),
+  });
 
   const destroy = shell.destroy.bind(shell);
   shell.destroy = () => {
+    tools.destroy();
     unfollow();
     settings.destroy();
     aiMenu?.destroy();
     destroy();
   };
-  return shell;
+  return Object.assign(shell, { slides: tools }) as Editor;
 }
 
 /** Re-exported for apps: the header edit the pickers apply (FC-18 §9). */

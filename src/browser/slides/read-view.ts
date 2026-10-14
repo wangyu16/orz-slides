@@ -26,7 +26,15 @@ export interface SlidesReadView extends CarrierReadView {
   present(text: string): { scheme: 'light' | 'dark' };
   onKey(event: KeyboardEvent): boolean;
   setVisible(visible: boolean): void;
+  /** Go to a slide (0-based) now and after the next render (leaving edit mode: the caret's slide; rebuild step 5). */
+  goTo(index: number): void;
   destroy(): void;
+}
+
+/** The page's read view (one per assembled file; null in an app's page): the editor keeps its slide (rebuild step 5). */
+let active: SlidesReadView | null = null;
+export function activeReadView(): SlidesReadView | null {
+  return active;
 }
 
 /** The app's handle, when the kit's app runs this page (for its chrome and toasts). */
@@ -80,7 +88,9 @@ export function createReadView(doc: Document): SlidesReadView {
     return { scheme: p.theme.scheme };
   };
 
-  return {
+  /** A slide to show once the next render is in (leaving edit mode). */
+  let pending: number | null = null;
+  const self: SlidesReadView = {
     element: view,
     engine,
     present,
@@ -93,11 +103,20 @@ export function createReadView(doc: Document): SlidesReadView {
       });
       // the shell's fallback line goes once the deck shows
       view.querySelector(':scope > .orz-fallback')?.remove();
+      if (pending !== null) { const i = pending; pending = null; if (engine.index() !== i) engine.go(i); }
     },
     onKey: (e) => engine.onKey(e),
     setVisible: (v) => engine.setVisible(v),
+    goTo(i) {
+      if (!Number.isInteger(i) || i < 0) return;
+      pending = i;
+      engine.go(i);
+    },
     destroy() {
+      if (active === self) active = null;
       engine.destroy();
     },
   };
+  active = self;
+  return self;
 }
