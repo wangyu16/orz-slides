@@ -20,7 +20,7 @@
  * network, as K.7 and K.8.
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assemble } from '../src/lib.js';
@@ -421,4 +421,158 @@ chromeOnly('round A3: theme rules that reach only what they mean (real Chrome, o
       await ctx.close();
     }
   }, 120_000);
+});
+
+/*
+ * Closed-loop round A4 (notes/closed-loop.md): A3's status-bar fix cut a SHORT
+ * footer beside a long section title (A4-TH-1); the kit's common.css made a
+ * picture inside a link, a list item or a table cell a block, breaking an
+ * icon's sentence (A4-TH-2); `section_numbers: none` left an empty number
+ * badge on the section pages (A4-TH-3); a photo inside a callout, quote,
+ * list or cell, and two pictures side by side, were not sized to their box —
+ * the fit floored at 0.6 and cut a third of the picture (A4-TH-4). Offline,
+ * every theme; each failed on rebuild/1.0@ab85c1e (kit orz-markdown@dc301f7).
+ */
+const PHOTO = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="#7a9"/><circle cx="600" cy="400" r="300" fill="#357"/></svg>';
+const GEAR = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#c33"/></svg>';
+const offlineWith = async (name: string, text: string, o: { viewport?: { width: number; height: number } } = {}): Promise<{ page: Page; ctx: import('playwright-core').BrowserContext }> => {
+  const sub = join(dir, name);
+  mkdirSync(sub, { recursive: true });
+  writeFileSync(join(sub, 'photo.svg'), PHOTO);
+  writeFileSync(join(sub, 'gear.svg'), GEAR);
+  const r = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(text), o);
+  await r.page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+  return r;
+};
+
+chromeOnly('round A4: footers, icons, section badges and pictures in containers (real Chrome, offline, every theme)', () => {
+  it('[T.11] A4-TH-1: Nocturne\'s status bar shares its room fairly — a short footer beside a long section title is never cut (4:3 and 16:9), a long footer beside a short section takes the rest, two long texts each keep a fair share', async () => {
+    const LONG_SEC = 'Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow';
+    const LONG_FOOT = 'CHEM 512 · Controlled radical polymerization · University of Louisiana at Lafayette · Fall 2026';
+    const cases: Array<[string, string, string]> = [['short-foot', 'CHEM 512', LONG_SEC], ['long-foot', LONG_FOOT, 'Kinetics'], ['both-long', LONG_FOOT, LONG_SEC]];
+    const bad: string[] = [];
+    for (const ratio of ['4:3', '16:9']) for (const [name, foot, sec] of cases) {
+      const body = `<!-- slide template=section -->\n# ${sec}\n\n<!-- slide -->\n## A normal slide\ntext\n`;
+      const { page, ctx } = await offlineWith(`a4noc-${name}-${ratio.replace(':', 'x')}`, A3('nocturne', ratio, body, `footer: ${foot}\n`));
+      await goTo(page, 1);
+      const r = await page.evaluate(() => {
+        const s = document.querySelector('.reveal .slides > section.present')!;
+        const chrome = s.querySelector<HTMLElement>('.orz-chrome')!;
+        const sec = s.querySelector<HTMLElement>('.orz-chrome-sec')!;
+        const line = s.querySelector<HTMLElement>('.orz-footer .markdown-body > *')!;
+        const outer = (e: Element | null): number => { if (!e) return 0; const c = getComputedStyle(e); return e.getBoundingClientRect().width + parseFloat(c.marginLeft) + parseFloat(c.marginRight); };
+        const cs = getComputedStyle(chrome);
+        const k = chrome.getBoundingClientRect().width / chrome.offsetWidth;
+        const room = chrome.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const used = (outer(s.querySelector('.orz-chrome > .orz-footer')) + outer(sec) + outer(s.querySelector('.orz-chrome > .orz-chrome-num'))) / k;
+        return { chrome: chrome.clientWidth, free: Math.round(room - used), foot: line.clientWidth, footFull: line.scrollWidth, sec: sec.clientWidth, secFull: sec.scrollWidth };
+      });
+      const tag = `${ratio} ${name} ${JSON.stringify(r)}`;
+      if (name === 'short-foot' && r.footFull > r.foot + 1) bad.push(`${tag}: the short footer is cut`);
+      if (name === 'long-foot' && r.secFull > r.sec + 1) bad.push(`${tag}: the short section is cut`);
+      if (name === 'long-foot' && r.free > 4) bad.push(`${tag}: the long footer is cut while ${r.free} px stay free`);
+      if (name === 'both-long' && (r.foot < r.chrome * 0.25 || r.sec < r.chrome * 0.25)) bad.push(`${tag}: one long text starves the other`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 120_000);
+
+  it('[T.11] A4-TH-2: a picture inside a link, a list item or a table cell keeps its line — a linked inline icon, an icon in a tight list item and in a cell, and a badge row stay inline, on the line of the text beside them, in every theme', async () => {
+    const body = '<!-- slide -->\n## Icons\nPress the ![gear](gear.svg) button, then [![gear](gear.svg)](https://x.org) and pick the format.\n\n- Press ![gear](gear.svg) in a list\n\n| Key | What |\n|---|---|\n| ![gear](gear.svg) here | a cell |\n\n[![build](gear.svg)](https://x.org) [![cov](gear.svg)](https://x.org) badges\n';
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const { page, ctx } = await offlineWith(`a4icon-${t.id}`, A3(t.id, '16:9', body));
+      const r = await page.evaluate(() => {
+        const s = document.querySelector('.reveal .slides > section.present')!;
+        const out: string[] = [];
+        for (const im of Array.from(s.querySelectorAll<HTMLImageElement>('.orz-region img'))) {
+          const where = `${im.parentElement!.tagName.toLowerCase()} > img`;
+          if (getComputedStyle(im).display === 'block') out.push(`${where}: display block`);
+          // the text node next to it (before, else after) shares its line
+          const host = im.parentElement!.tagName === 'A' ? im.parentElement! : im;
+          let n: Node | null = host.previousSibling;
+          while (n && !(n.nodeType === 3 && (n.textContent ?? '').trim())) n = n.previousSibling;
+          if (!n) { n = host.nextSibling; while (n && !(n.nodeType === 3 && (n.textContent ?? '').trim())) n = n.nextSibling; }
+          if (!n) continue;
+          const rg = document.createRange();
+          rg.selectNodeContents(n);
+          const rects = Array.from(rg.getClientRects());
+          const near = n === host.previousSibling || (n.compareDocumentPosition(host) & Node.DOCUMENT_POSITION_FOLLOWING) ? rects[rects.length - 1] : rects[0];
+          const c = im.getBoundingClientRect();
+          const mid = (c.top + c.bottom) / 2;
+          if (!near || mid < near.top - 2 || mid > near.bottom + 2) out.push(`${where}: not on the line of its text`);
+        }
+        return out;
+      });
+      for (const x of r) bad.push(`${t.id}: ${x}`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[C.1] A4-TH-3: section_numbers: none takes the section page\'s number badge away entirely — no pseudo-element that shows the number with 01 is drawn (an empty disc, tag, tab or ring), in every theme', async () => {
+    const body = '<!-- slide template=section -->\n# Kinetics\n\n<!-- slide -->\n## A normal slide\ntext\n';
+    const pseudo = (page: Page): Promise<Record<string, { content: string; display: string; w: number; h: number }>> => page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('.reveal .slides > section.present .orz-section-main')!;
+      const out: Record<string, { content: string; display: string; w: number; h: number }> = {};
+      for (const p of ['::before', '::after']) { const cs = getComputedStyle(el, p); out[p] = { content: cs.content, display: cs.display, w: parseFloat(cs.width) || 0, h: parseFloat(cs.height) || 0 }; }
+      return out;
+    });
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const a = await offlineWith(`a4sec01-${t.id}`, A3(t.id, '16:9', body, 'section_numbers: 01\n'));
+      const withNumber = await pseudo(a.page);
+      await a.ctx.close();
+      const b = await offlineWith(`a4secnone-${t.id}`, A3(t.id, '16:9', body, 'section_numbers: none\n'));
+      const without = await pseudo(b.page);
+      const title = await b.page.evaluate(() => document.querySelector('.reveal .slides > section.present .orz-section-main')!.textContent ?? '');
+      await b.ctx.close();
+      for (const p of ['::before', '::after']) {
+        if (!/01/.test(withNumber[p].content)) continue; // not the number's pseudo
+        if (without[p].display !== 'none' && without[p].content !== 'none') bad.push(`${t.id} ${p}: drawn without a number (${JSON.stringify(without[p])})`);
+      }
+      if (!/Kinetics/.test(title)) bad.push(`${t.id}: the section title is gone`);
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[T.11][F.3] A4-TH-4: a photo inside a callout, a quote, a list item or a table cell, and two pictures side by side, are sized to their box — no box clipped, no picture cut — in every theme at 16:9 (and three at 4:3)', async () => {
+    const S = [
+      '## Two side by side\n![a](photo.svg) ![b](photo.svg)',
+      '## In a list\n- ![a](photo.svg)\n- second item',
+      '## In a loose list\n- ![a](photo.svg)\n\n- second item',
+      '## In a quote\n> ![a](photo.svg)',
+      '## In a callout\n::: info\n![a](photo.svg)\n:::',
+      '## In a table\n| a | b |\n|---|---|\n| ![a](photo.svg) | text |',
+    ];
+    const body = S.map((x) => `<!-- slide -->\n${x}\n`).join('\n');
+    const bad: string[] = [];
+    const runs: Array<[string, string]> = [...THEMES.map((t): [string, string] => [t.id, '16:9']), ['orchard', '4:3'], ['architect', '4:3'], ['notebook', '4:3']];
+    for (const [id, ratio] of runs) {
+      const { page, ctx } = await offlineWith(`a4pho-${id}-${ratio.replace(':', 'x')}`, A3(id, ratio, body), { viewport: ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 } });
+      for (let i = 0; i < S.length; i++) {
+        await goTo(page, i);
+        const r = await page.evaluate(() => {
+          const s = document.querySelector('.reveal .slides > section.present')!;
+          const out: string[] = [];
+          if (s.querySelector('[data-clipped]')) out.push('clipped');
+          for (const im of Array.from(s.querySelectorAll('.orz-region img'))) {
+            const r = im.getBoundingClientRect();
+            let v = { l: r.left, t: r.top, r: r.right, b: r.bottom };
+            for (let p = im.parentElement; p && p !== s; p = p.parentElement) {
+              const c = getComputedStyle(p);
+              if (c.overflowX !== 'visible' || c.overflowY !== 'visible') { const q = p.getBoundingClientRect(); v = { l: Math.max(v.l, q.left), t: Math.max(v.t, q.top), r: Math.min(v.r, q.right), b: Math.min(v.b, q.bottom) }; }
+            }
+            const cut = 1 - (Math.max(0, v.b - v.t) * Math.max(0, v.r - v.l)) / Math.max(1, r.width * r.height);
+            if (cut > 0.02) out.push(`a picture cut ${Math.round(cut * 100)} %`);
+            if (r.height < 60) out.push(`a picture shrunk to ${Math.round(r.height)} px`);
+          }
+          return out;
+        });
+        for (const x of r) bad.push(`${id} ${ratio} ${S[i].split('\n')[0]}: ${x}`);
+      }
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
 });

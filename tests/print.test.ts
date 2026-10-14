@@ -269,3 +269,28 @@ chrome('round A3: a video slide (real Chrome)', () => {
     await ctx.close();
   });
 });
+
+/*
+ * Closed-loop round A4, A4-ENG-5: a {{youtube}} that is a block of its own was
+ * centred narrower than its wrapper, and the theme's wrapper frame (background,
+ * border, shadow) still spanned the box — pillar-box bars beside the player.
+ * Failed on rebuild/1.0@ab85c1e.
+ */
+chrome('round A4: a video\'s frame (real Chrome)', () => {
+  it('[Q.4] A4-ENG-5: a {{youtube}} sized by its box draws no frame wider than its player — the wrapper of a narrower player is undecorated (Orchard\'s surface, Nocturne\'s black)', async () => {
+    for (const theme of ['orchard', 'nocturne']) {
+      const YT = `{{nyml\nkind: document\ntitle: Video\ntheme: ${theme}\n}}\n\n<!-- slide -->\n## Watch this\n\n{{youtube dQw4w9WgXcQ}}\n`;
+      const { page, ctx } = await openDeck(browser!, join(dir, `yt-frame-${theme}.slides.html`), assemble(YT));
+      const r = await page.evaluate(() => {
+        const w = document.querySelector<HTMLElement>('.reveal .slides > section.present .youtube-embed')!;
+        const f = w.querySelector('iframe')!;
+        const cs = getComputedStyle(w);
+        const wide = w.getBoundingClientRect().width - f.getBoundingClientRect().width;
+        const drawn = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none' || parseFloat(cs.borderLeftWidth) > 0;
+        return { wide, drawn, bg: cs.backgroundColor, shadow: cs.boxShadow, border: cs.borderLeftWidth };
+      });
+      expect(r.wide > 2 && r.drawn, `${theme}: the wrapper's frame spans ${Math.round(r.wide)} px past the player ${JSON.stringify(r)}`).toBe(false);
+      await ctx.close();
+    }
+  });
+});

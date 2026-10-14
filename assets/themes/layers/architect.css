@@ -634,6 +634,7 @@
 
 /* charts: plotted on a clean white panel so the chart grid is not doubled by the sheet grid */
 .reveal .markdown-body .orz-chart-frame { background: #fff; outline: 1.5px solid var(--slate); outline-offset: -1.5px; padding: 8px; box-sizing: border-box; }
+.reveal .orz-chart-room > .orz-chart-frame { --orz-chart-pad-x: 16px; --orz-chart-pad-y: 16px; }   /* its padding, for a chart in its room (round A4) */
 
 .reveal .orz-footer, .reveal .orz-chrome-sec, .reveal .orz-chrome-num { --sl-cover-chrome-ink: var(--slate); } /* the title block keeps its ink on a cover page (round A2) */
 

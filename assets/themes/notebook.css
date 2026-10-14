@@ -140,7 +140,7 @@
   height: auto;
 }
 
-.markdown-body p > img {
+.markdown-body :is(p, a, li, td, th) > img {
   display: inline;
   margin: 0;
 }
@@ -1456,7 +1456,8 @@
 
 /* slips stuck on top: diagrams, charts, molecules, pictures */
 .reveal .orz-region .markdown-body > :is(.mermaid, .smiles-render, p.orz-pic, p:has(> .orz-chart-frame)),
-.reveal .orz-region .markdown-body > .orz-chart-frame {
+.reveal .orz-region .markdown-body > .orz-chart-frame,
+.reveal .orz-region .markdown-body > .orz-chart-room > .orz-chart-frame {
   background: var(--paper-slip);
   border: 1px solid var(--border-color);
   border-radius: 3px;
@@ -1464,6 +1465,8 @@
   padding: 0.35em;
   line-height: 0;
 }
+/* a chart in its room (round A4) is sized with its slip's padding and border */
+.reveal .orz-chart-room > .orz-chart-frame { --orz-chart-pad-x: calc(0.7em + 2px); --orz-chart-pad-y: calc(0.7em + 2px); }
 .reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
 .reveal .orz-region .markdown-body > p.orz-pic::after,
 .reveal .orz-region .markdown-body > .smiles-render::after {
@@ -1622,6 +1625,7 @@
   background: var(--note-pink); color: var(--ink-danger); font-size: 0.82em; line-height: 1; text-decoration: none;
   border-radius: 16px 0 0 16px; box-shadow: -2px 2px 0 rgba(80, 60, 30, 0.12);
 }
+.reveal .orz-section-main[data-sec=""]::after { display: none; }   /* section_numbers: none — no empty tab (round A4, A4-TH-3) */
 .reveal .orz-section-meta { font-family: var(--body-font); color: var(--accent-blue); line-height: var(--nb-pitch); margin-top: var(--nb-pitch); font-size: 1em; }
 .reveal .orz-section-meta p { margin: 0; line-height: var(--nb-pitch); }
 

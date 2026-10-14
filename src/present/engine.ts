@@ -52,13 +52,13 @@
 import Reveal, { type RevealApi } from 'reveal.js';
 import { disposeEnhancement, enhanceDocument, redrawEnhancement } from 'orz-markdown/preview-frame';
 import { printDocument } from 'orz-markdown/carrier/editor';
-import { decorate } from './decorate.js';
+import { chartAspects, decorate } from './decorate.js';
 import { fitSlide, type BoxFit } from './fit.js';
 import { gridPrepare } from './grid.js';
 import { buildPrintDocument, buildStaticDeck, cutMessage, type PaperCuts, type PrintOptions } from './print.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
 import { PresenterClock, SpeakerView, TimerOverlay } from './speaker.js';
-import { fontsSettled, installStyles, stylesPending } from './styles.js';
+import { FONT_WAIT_MS, fontsSettled, installStyles, stylesPending } from './styles.js';
 
 /** reveal.js's options the engine always sets (and sets again after the URL's query had its say). */
 const FORCED: Readonly<Record<string, unknown>> = Object.freeze({
@@ -146,23 +146,6 @@ function sameFit(a: readonly BoxFit[], b: readonly BoxFit[]): boolean {
   return a.length === b.length && a.every((x, i) => Math.abs(x.scale - b[i].scale) <= 0.011 && x.clipped === b[i].clipped);
 }
 
-/**
- * A chart's canvas keeps the CHART's aspect ratio in CSS (round A3, A3-ENG-3): deck.css lets it follow its
- * frame's width at once (`height: auto`, ENG-1), but with its height from the bitmap's integer size the
- * frame's fractional width rounds differently each time Chart.js resizes it — 520 ↔ 521 px forever, a
- * fifth of an idle main thread. With the ratio Chart.js draws at, the frame's size depends on its width
- * alone, and Chart.js's resize finds nothing to change.
- */
-function chartAspects(s: HTMLElement): void {
-  for (const c of Array.from(s.querySelectorAll<HTMLCanvasElement>('.orz-chart-frame > canvas'))) {
-    const chart = (c as HTMLCanvasElement & { __orzChart?: { aspectRatio?: number | null; options?: { aspectRatio?: number } } }).__orzChart;
-    const r = Number(chart?.options?.aspectRatio ?? chart?.aspectRatio);
-    if (!(r > 0) || !isFinite(r)) continue;
-    const want = String(Math.round(r * 1e4) / 1e4);
-    if (c.style.getPropertyValue('aspect-ratio') !== want) c.style.setProperty('aspect-ratio', want);
-  }
-}
-
 /** Create the engine in `host` (the read view's element): a `.reveal > .slides` deck. */
 export function createDeckEngine(host: HTMLElement, options: EngineOptions = {}): DeckEngine {
   const doc = host.ownerDocument;
@@ -215,6 +198,8 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   let lazyResize = 0;
   let cause: 'resize' | 'other' = 'other';
   const failedSheets = new WeakSet<Element>();
+  /** When a <link> stylesheet was first seen without its sheet (A4-ENG-3: waited for once per load, bounded). */
+  const sheetSeen = new WeakMap<Element, number>();
   const settleWaiters: Array<() => void> = [];
 
   /** What a box holds that can change size after a fit: its blocks, pictures, drawings, code, tables, formulas. */
@@ -272,7 +257,8 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     cause = 'other';
     if (!byResize) unsettle(s);
     if (o.redraw) redrawEnhancement(s);
-    chartAspects(s);
+    // every chart drawn so far, not just this slide's: reveal displays the neighbours too (A4-ENG-1)
+    chartAspects(o.redraw ? slidesEl : s);
     const out = fitSlide(s, undefined, grid, o);
     const same = lastFits !== null && sameFit(out, lastFits);
     lastFits = out;
@@ -320,6 +306,9 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
 
   /** Everything the current slide waits for is in. */
   function quiet(s: HTMLElement): boolean {
+    // a stylesheet's wait counts from when it was first seen loading, whatever else is still waited for (A4-ENG-3)
+    const links = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
+    for (const l of links) if (!l.sheet && !sheetSeen.has(l)) sheetSeen.set(l, performance.now());
     if (fitQueued || dirty || frame - lastFitFrame < 2) return false;
     // the fonts (waited for once, at most FONT_WAIT_MS: a stalled request is no reason to wait on every slide; A3-ENG-4)
     if (!fontsSettled(doc)) return false;
@@ -327,9 +316,14 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     // a theme <style> whose @import (its webfont CSS) is loading: its font faces do not exist yet (A2-ENG-2, A3-ENG-2)
     if (stylesPending(doc)) return false;
     if (Array.from(s.querySelectorAll('img')).some((i) => !i.complete)) return false;
-    for (const l of Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))) {
+    for (const l of links) {
       if (l.media === 'not all' || failedSheets.has(l)) continue;
-      if (!l.sheet) return false;
+      if (!l.sheet) {
+        // a stylesheet that never answers (KaTeX's from a stalled CDN) is waited for once, at most FONT_WAIT_MS from
+        // when it was first seen loading — then it counts as failed; its late load event still refits (A4-ENG-3)
+        if (performance.now() - (sheetSeen.get(l) ?? 0) < FONT_WAIT_MS) return false;
+        failedSheets.add(l);
+      }
     }
     // a diagram the library is drawing (the library loaded, its SVG not yet in)
     const mm = (win as unknown as { mermaid?: { run?: unknown } }).mermaid;
@@ -534,7 +528,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     enhanced = false;
     shown();
     if (speaker.isOpen()) void buildCopies();
-    const done = (): void => { if (mine === generation && !destroyed) { enhanced = true; fitSoon(); } };
+    const done = (): void => { if (mine === generation && !destroyed) { enhanced = true; chartAspects(slidesEl); fitSoon(); } };
     void enhanceDocument(slidesEl, { scheme }).then(done, done);
     void fonts?.ready?.then(() => { if (mine === generation && !destroyed) fitSoon(); });
   }

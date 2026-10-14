@@ -237,13 +237,22 @@
 
 .reveal .orz-chrome { --sl-cover-chrome-ink: var(--text-secondary); } /* the status bar keeps its ink on a cover page (round A2) */
 
-/* the status bar is ONE row: footer, section, number side by side — footer and section each as long as their text, and
-   when both do not fit they give way in proportion (ellipsized): a short footer leaves its room to a long section title
-   (round A3, A3-TH-8: the section was capped at 40 % beside a mostly empty footer); they never overprint (round A2,
-   A2-TH-4: a course footer ran under the section) */
-.reveal .orz-chrome { display: flex; align-items: center; gap: 1.4em; box-sizing: border-box; padding: 0 calc(var(--sl-pad-x) - 0.2em) 0 calc(var(--sl-pad-x) + 0.2em); }
-.reveal .orz-chrome > :is(.orz-footer, .orz-chrome-sec, .orz-chrome-num) { position: static; left: auto; right: auto; bottom: auto; }
-.reveal .orz-chrome > .orz-footer { flex: 0 1 auto; min-width: 0; }
-.reveal .orz-chrome > .orz-chrome-sec { flex: 0 1 auto; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; margin-left: auto; }
-.reveal .orz-chrome > .orz-chrome-num { flex: 0 0 auto; }
+/* the status bar is ONE row: footer, section, number side by side — a grid whose footer and section tracks grow
+   from nothing toward their text in EQUAL steps (grid's track sizing), so the room is shared fairly: a short text is
+   always whole and the long one takes the rest; two long texts get half each (ellipsized). Round A4, A4-TH-1: as
+   flex items they shrank in proportion to their text, and a short footer ('CHEM 512') beside a long section title
+   read 'C…'; round A3, A3-TH-8: the section was capped at 40 % beside a mostly empty footer; they never overprint
+   (round A2, A2-TH-4) */
+.reveal .orz-chrome {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content) auto;
+  align-items: center;
+  column-gap: 0;
+  box-sizing: border-box;
+  padding: 0 calc(var(--sl-pad-x) - 0.2em) 0 calc(var(--sl-pad-x) + 0.2em);
+}
+.reveal .orz-chrome > :is(.orz-footer, .orz-chrome-sec, .orz-chrome-num) { position: static; left: auto; right: auto; bottom: auto; grid-row: 1; }
+.reveal .orz-chrome > .orz-footer { grid-column: 1; min-width: 0; margin-right: 1.4em; }
+.reveal .orz-chrome > .orz-chrome-sec { grid-column: 3; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; margin: 0 1.4em 0 0; }
+.reveal .orz-chrome > .orz-chrome-num { grid-column: 4; white-space: nowrap; }
 

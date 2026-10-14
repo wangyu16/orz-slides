@@ -88,6 +88,28 @@ describe('the theme contract (round A)', () => {
     expect(check('.reveal .orz-region .markdown-body p > img { display: block; }')).toHaveLength(1);
     expect(check('.reveal .markdown-body p.orz-pic { line-height: 0; } .reveal .markdown-body p.orz-pic > img { display: block; } .reveal .markdown-body p > img { border-radius: 4px; }')).toEqual([]);
   });
+
+  it('[T.13] A4-TH-5, A4-TH-3: the picture rule refuses every property but a cosmetic one (the font shorthand, flex, overflow, aspect-ratio, text-indent, letter-spacing), exempts only a rule whose own compound is p.orz-pic (not one that merely names it, as in :not(.orz-pic)), reads img in any case and [src], refuses an image made a block by the image alone; and a number pseudo (content: attr(data-sec)) on ::after needs its [data-sec=""] guard (deck.css guards ::before) — each passed --check at rebuild/1.0@ab85c1e', () => {
+    const deck = readFileSync('assets/themes/deck.css', 'utf8');
+    const built = readFileSync('assets/themes/orchard.css', 'utf8');
+    const layer = readFileSync('assets/themes/layers/orchard.css', 'utf8');
+    const check = (extra: string): string[] => contractProblems('orchard', { deck, built, layer: `${layer}\n${extra}\n` });
+    for (const bypass of [
+      '.reveal .markdown-body p:has(> img) { font: 0/0 serif; }',
+      '.reveal .markdown-body p:has(> img) { flex: 1 1 0; }',
+      '.reveal .markdown-body p:has(> img) { overflow: hidden; }',
+      '.reveal .markdown-body p:has(> img) { aspect-ratio: 1; }',
+      '.reveal .markdown-body p:has(> img) { text-indent: -999px; }',
+      '.reveal .markdown-body p:has(> img) { letter-spacing: -1em; }',
+      '.reveal .markdown-body p:has(> img):not(.orz-pic) { line-height: 0; }',
+      '.reveal .markdown-body p:has(> [src]) { line-height: 0; }',
+      '.reveal .markdown-body p:has(> IMG) { line-height: 0; }',
+      '.reveal .markdown-body img { display: block; }',
+      '.reveal .orz-section-main::after { content: attr(data-sec); background: red; }',
+    ]) expect(check(bypass), bypass).toHaveLength(1);
+    expect(check('.reveal .markdown-body p > img { border-radius: 4px; box-shadow: none; outline: 1px solid; filter: none; opacity: 1; background: none; }')).toEqual([]);
+    expect(check('.reveal .orz-section-main::after { content: attr(data-sec); } .reveal .orz-section-main[data-sec=""]::after { display: none; }')).toEqual([]);
+  });
 });
 
 describe('the header settings (Theme, Ratio and the Q3 keys)', () => {

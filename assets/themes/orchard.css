@@ -140,7 +140,7 @@
   height: auto;
 }
 
-.markdown-body p > img {
+.markdown-body :is(p, a, li, td, th) > img {
   display: inline;
   margin: 0;
 }

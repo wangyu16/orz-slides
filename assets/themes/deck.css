@@ -134,6 +134,18 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 }
 .reveal .orz-region > .markdown-body > p.orz-pic img { box-sizing: border-box; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
 .reveal .orz-region > .markdown-body > p.orz-pic > a { display: contents; }
+/* pictures side by side (p.orz-pics: two or more images and nothing else, marked by the engine; round A4, A4-TH-4)
+   are a row that takes the room left, each picture shrinking into it */
+.reveal .orz-region > .markdown-body > p.orz-pics {
+  flex: 1 1 0;
+  min-height: var(--sl-graphic-min);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.5em;
+}
+.reveal .orz-region > .markdown-body > p.orz-pics > a { display: contents; }
+.reveal .orz-region > .markdown-body > p.orz-pics img { box-sizing: border-box; flex: 0 1 auto; min-width: 0; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
 .reveal .orz-region > .markdown-body > div.mermaid > svg { max-height: 100%; max-width: 100% !important; height: auto; }
 /* a diagram is laid out as a block until it is drawn: Mermaid draws into a box inside it and measures that
    box's width (a gantt chart in a flex item fell back to 300 px and its axis labels overprinted: TK-2) */
@@ -154,6 +166,12 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 
 /* ---------- graphics never overflow their box ---------- */
 .reveal .markdown-body img { max-width: 100%; }
+/* any other picture (in a list, a quote, a callout, a table cell, beside text) is capped in em, so fit's scale reaches
+   it (round A4, A4-TH-4: sized in px it never shrank, the fit floored at 0.6 and a third of the photo was cut); a
+   picture paragraph's own rules above win; an author's explicit height wins */
+.reveal .orz-slide .markdown-body img:not([height]) { max-height: 12em; }
+/* … a picture paragraph inside a container too (a theme's p.orz-pic rule sizes it by its box: 100 % of an auto height) */
+.reveal .orz-slide .markdown-body :is(li, blockquote, td, th, div, details, dd) > p:is(.orz-pic, .orz-pics) img:not([height]) { max-height: 12em; }
 .reveal .markdown-body .mermaid svg { max-width: 100%; height: auto; }
 .reveal .markdown-body .qrcode svg { max-width: 100%; height: auto; }
 /* SMILES (orz-markdown 2.4.0 draws it at its CSS box's size): a box that follows the text size, so fit scales it too */
@@ -166,6 +184,35 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
    the engine sets on the canvas (round A3, A3-ENG-3: with the bitmap's rounded ratio, Chart.js and this rule
    resized the canvas 520 ↔ 521 px forever) */
 .reveal .markdown-body .orz-chart-frame > canvas { width: 100% !important; height: auto !important; }
+/* every chart canvas is at the chart's aspect from the start — the slides reveal displays beside the current one
+   included (round A4, A4-ENG-1: only the current slide's canvases had it, the neighbours resized 520 ↔ 521 px
+   forever); the engine sets the chart's own ratio (--orz-chart-r on the frame); a static copy's frozen chart (an
+   img) follows its frame the same way */
+.reveal .markdown-body .orz-chart-frame > :is(canvas, img.orz-chart) { aspect-ratio: var(--orz-chart-r, var(--chart-aspect, 1.6)); }
+.reveal .markdown-body .orz-chart-frame > img.orz-chart { display: block; width: 100% !important; height: auto !important; max-width: none !important; }
+/* a chart that is a block of its own in a region takes the room its box leaves (round A4, A4-ENG-2: em-sized, at the
+   fit floor it was still taller than a quad cell — cut on screen and on paper), like a picture or a video: the engine
+   puts it in a room (.orz-chart-room, decorate.ts) that grows into the room left (it shrinks before text is scaled)
+   and is the size container of the largest chart at its aspect that fits — the frame hugs the chart, so a theme's
+   panel is the chart's size (a theme with a padded frame says how much: --orz-chart-pad-x / -y, border included).
+   Inside a container (a callout, a column) a chart keeps its em size. */
+.reveal .orz-region > .markdown-body > .orz-chart-room {
+  flex: 1 1 0;
+  min-height: var(--sl-graphic-min);
+  container-type: size;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 0;
+}
+.reveal .orz-chart-room > .orz-chart-frame {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: min(100cqw, (100cqh - var(--orz-chart-pad-y, 0px)) * var(--orz-chart-r, var(--chart-aspect, 1.6)) + var(--orz-chart-pad-x, 0px)) !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+.reveal .orz-chart-room > canvas.orz-chart { display: block; width: min(100cqw, 100cqh * var(--chart-aspect, 1.6)) !important; height: auto !important; aspect-ratio: var(--chart-aspect, 1.6); }
 /* a video ({{youtube}}; round A3, A3-ENG-5) is sized like a picture: as a block of its own, the largest 16:9 player
    in the room its box leaves (it shrinks before text is scaled); inside a container (a callout, a column) it is
    em-sized, so fit scales it. A static copy (print, the speaker view) shows a still of the same size with the
@@ -179,8 +226,17 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   container-type: size;
   overflow: visible;
   margin: 0;
+  /* the room is no frame: a theme's wrapper decoration would span the box beside a narrower player (round A4,
+     A4-ENG-5: pillar-box bars); the player keeps its corners */
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
 }
 .reveal .orz-region > .markdown-body > :is(.youtube-embed, .orz-video-still) > :is(iframe, .orz-video-poster) {
+  border-radius: 0.3em;
   position: relative;
   inset: auto;
   display: block;
@@ -350,6 +406,11 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   overflow: hidden;
 }
 .reveal .orz-head-sec[data-sec=""]:empty { display: none; }
+
+/* section_numbers: none (an empty data-sec): the section page draws no number badge — ::before is every theme's
+   number (a disc, tag, ring or numeral; round A4, A4-TH-3: seven themes drew it empty); a theme whose number is
+   its ::after guards it itself (the build contract checks) */
+.reveal .orz-section-main[data-sec=""]::before { display: none !important; }
 
 /* ---------- the bottom slot: footer, section, number, progress ---------- */
 .reveal .orz-chrome {

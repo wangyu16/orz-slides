@@ -358,3 +358,127 @@ real('round A3: idle cost and late or stalled webfonts (real Chrome, online)', (
     await ctx.close();
   }, 120_000);
 });
+
+/*
+ * Closed-loop round A4 (notes/closed-loop.md): A3's chart fix reached the
+ * CURRENT slide only (A4-ENG-1: reveal also shows the two slides on each side,
+ * whose canvases still resized 520 ↔ 521 px forever); a chart in a quad cell
+ * could never fit — sized in em, at the 0.6 floor still taller than the cell,
+ * cut on screen and on paper (A4-ENG-2); `type: polarArea` drew nothing
+ * (A4-ENG-4, the kit lower-cased it); a stalled <link> stylesheet held every
+ * slide's settle to the 10 s limit (A4-ENG-3). Each failed on
+ * rebuild/1.0@ab85c1e (kit orz-markdown@dc301f7).
+ */
+const CHART_TYPES = ['bar', 'line', 'pie', 'doughnut', 'radar', 'polarArea', 'scatter', 'bubble'] as const;
+function chartSrc(type: string, k: number): string {
+  if (type === 'scatter') return `{{chart\ntype: scatter\nseries: S = 1, ${k + 2}, 3, 1, 4\n}}`;
+  if (type === 'bubble') return `{{chart\ntype: bubble\nlabels: a, b, c\nseries: S = 3, ${k + 2}, 5\n}}`;
+  if (type === 'pie' || type === 'doughnut' || type === 'polarArea') return `{{chart\ntype: ${type}\nlabels: Alpha, Beta, Gamma, Delta\ndata: 30, ${50 + k}, 20, 10\n}}`;
+  return `{{chart\ntype: ${type}\nlabels: a, b, c, d, e\nseries: S = 1, 2, 3, 4, ${5 + k}\nseries: T = 2, 1, 4, 3, 2\n}}`;
+}
+/** Every chart type as a block of its own: in a quad (three cells and a list), in 3col, in 2col beside text, alone under a line. */
+function chartsDeck(ratio: string, theme = 'orchard'): string {
+  let t = `{{nyml\nkind: document\ncarrier: slides\ntitle: Charts\ntheme: ${theme}\nratio: ${ratio}\n}}\n`;
+  for (const ty of CHART_TYPES) t += `\n<!-- slide quad -->\n## ${ty} in a quad\n<!-- @tl -->\n${chartSrc(ty, 1)}\n<!-- @tr -->\n${chartSrc(ty, 2)}\n<!-- @bl -->\n- a note\n- another note\n<!-- @br -->\n${chartSrc(ty, 3)}\n`;
+  for (let i = 0; i < CHART_TYPES.length; i += 3) {
+    const g = CHART_TYPES.slice(i, i + 3);
+    t += `\n<!-- slide 3col -->\n## ${g.join(', ')} in three columns\n${g.map((ty, k) => `<!-- @${['left', 'mid', 'right'][k]} -->\n${chartSrc(ty, k)}\n`).join('')}`;
+  }
+  for (const ty of ['bar', 'pie', 'radar', 'bubble']) t += `\n<!-- slide 2col -->\n## ${ty} beside text\n- one point\n- another point\n<!-- @right -->\n${chartSrc(ty, 0)}\n`;
+  for (const ty of CHART_TYPES) t += `\n<!-- slide -->\n## ${ty} alone\nOne line of text above the chart.\n\n${chartSrc(ty, 0)}\n`;
+  return t;
+}
+
+real('round A4: charts on every displayed slide and in every box (real Chrome, online)', () => {
+  it('[F.6] A4-ENG-1: idle on the slides BEFORE a chart slide (reveal displays its neighbours) — no canvas anywhere in the deck resizes over 3 s, and under 4 % of the main thread', async () => {
+    const sub = join(dir, 'idle-before');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    for (const theme of ['orchard', 'stationery']) {
+      const { page, ctx } = await openDeck(browser!, join(sub, `${theme}.slides.html`), assemble(withTheme(SAMPLE, theme)), { network: true });
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Performance.enable');
+      const task = async (): Promise<number> => ((await cdp.send('Performance.getMetrics')).metrics.find((m) => m.name === 'TaskDuration')?.value ?? 0);
+      for (const i of [5, 6]) {
+        await engine(page, 'go', i);
+        await settled(page);
+        await page.waitForTimeout(1500);
+        const t0 = await task();
+        const r = await page.evaluate(async () => {
+          let n = 0;
+          const mo = new MutationObserver((rs) => { n += rs.length; });
+          const all = Array.from(document.querySelectorAll('.reveal .slides > section canvas.orz-chart'));
+          for (const c of all) mo.observe(c, { attributes: true, attributeFilter: ['width', 'height'] });
+          await new Promise((ok) => setTimeout(ok, 3000));
+          mo.disconnect();
+          return { n, shown: all.filter((c) => getComputedStyle(c.closest('section')!).display !== 'none').length };
+        });
+        const busy = (await task()) - t0;
+        expect(r.shown, `${theme} slide ${i + 1}: a displayed neighbour holds the chart`).toBeGreaterThan(0);
+        expect(r.n, `${theme} slide ${i + 1}: canvas resizes while idle`).toBe(0);
+        expect(busy, `${theme} slide ${i + 1}: main-thread seconds over 3 s idle`).toBeLessThan(0.12);
+      }
+      await ctx.close();
+    }
+  }, 180_000);
+
+  it('[K.7][Q.4] A4-ENG-2, A4-ENG-4: a chart that is a block of its own takes the room its box leaves — every chart type (polarArea drawn) in a quad, 3col, 2col and alone, at 16:9 and 4:3 (and in the two themes with a padded chart panel): no box clipped, every canvas inside its box at the chart\'s aspect, and nothing cut on paper', async () => {
+    const sub = join(dir, 'charts');
+    mkdirSync(sub, { recursive: true });
+    // Orchard at both ratios; Architect and Notebook (a padded chart panel) at 16:9
+    for (const [theme, ratio] of [['orchard', '16:9'], ['orchard', '4:3'], ['architect', '16:9'], ['notebook', '16:9']]) {
+      const { page, ctx } = await openDeck(browser!, join(sub, `charts-${theme}-${ratio.replace(':', 'x')}.slides.html`), assemble(chartsDeck(ratio, theme)), { network: true, viewport: ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 } });
+      const n = (await engine(page, 'total')) as number;
+      const bad: string[] = [];
+      for (let i = 0; i < n; i++) {
+        await engine(page, 'go', i);
+        await settled(page);
+        const r = await page.evaluate((k) => {
+          const s = document.querySelectorAll<HTMLElement>('.reveal .slides > section')[k];
+          const out: string[] = [];
+          for (const box of Array.from(s.querySelectorAll<HTMLElement>('.orz-box'))) {
+            if (box.hasAttribute('data-clipped')) out.push(`clipped at ${box.getAttribute('data-scale')}`);
+            const b = box.getBoundingClientRect();
+            for (const c of Array.from(box.querySelectorAll<HTMLCanvasElement>('canvas.orz-chart'))) {
+              const r = c.getBoundingClientRect();
+              if (!(c as unknown as { __orzChart?: unknown }).__orzChart) out.push(`${c.getAttribute('data-chart')?.slice(0, 30)}: not drawn`);
+              if (r.top < b.top - 1 || r.bottom > b.bottom + 1 || r.left < b.left - 1 || r.right > b.right + 1) out.push(`canvas outside its box (${Math.round(r.width)}x${Math.round(r.height)} in ${Math.round(b.width)}x${Math.round(b.height)})`);
+              if (r.height < 40) out.push(`canvas tiny ${Math.round(r.height)}`);
+              if (Math.abs(r.width / r.height - 1.6) > 0.05) out.push(`aspect ${(r.width / r.height).toFixed(2)}`);
+            }
+          }
+          return out;
+        }, i);
+        for (const x of r) bad.push(`${theme} ${ratio} slide ${i + 1}: ${x}`);
+      }
+      const doc = (await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}))) as { cut: { slides: number[]; notes: number[] } };
+      expect(bad).toEqual([]);
+      expect(doc.cut, `${theme} ${ratio}: cut on paper`).toEqual({ slides: [], notes: [] });
+      await ctx.close();
+    }
+  }, 300_000);
+
+  it('[F.6] A4-ENG-3: a <link> stylesheet that NEVER answers (KaTeX\'s CSS) is waited for once — the first slide settles within 9 s and not by the limit, the next slides at once', async () => {
+    const sub = join(dir, 'stalled-link');
+    mkdirSync(sub, { recursive: true });
+    copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(sub, 'gpc-traces.svg'));
+    const t0 = Date.now();
+    const { page, ctx } = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(withTheme(SAMPLE, 'orchard')), { network: true, wait: 'fitted', hang: /katex(\.min)?\.css/ });
+    await settled(page);
+    expect(Date.now() - t0, 'the first settle (ms)').toBeLessThan(9000);
+    expect(await page.evaluate(() => document.querySelector('.reveal .slides > section.present')!.getAttribute('data-fit-settled'))).toBe('');
+    const next = await page.evaluate(async () => {
+      const e = (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine as unknown as { go(i: number): void; settled(): Promise<void>; slides(): HTMLElement[] };
+      const out: Array<[number, string | null]> = [];
+      for (const i of [3, 4]) {
+        const t = performance.now();
+        e.go(i);
+        await e.settled();
+        out.push([performance.now() - t, e.slides()[i].getAttribute('data-fit-settled')]);
+      }
+      return out;
+    });
+    for (const [ms, attr] of next) { expect(ms, 'a next slide settles (ms)').toBeLessThan(2500); expect(attr).toBe(''); }
+    await ctx.close();
+  }, 120_000);
+});

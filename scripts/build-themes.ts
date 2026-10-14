@@ -398,13 +398,30 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
   // round A3 (A3-TH-1): a rule that sets the metrics or layout of a paragraph BY the image it holds (`p:has(> img)`,
   // `p > img`) also reaches a sentence with an inline icon and a caption written above its picture — five themes set
   // their line height to 0; a picture is `p.orz-pic` (the engine marks it)
-  const byImage = (x: string): boolean => !/\.orz-pic\b/.test(x) && (/:has\([^)]*\bimg\b/.test(x) || /\bp\s*>\s*img\b|\bp\s+img\b/.test(x));
-  const METRIC = /^(line-height|font-size|display|position|float|transform|width|height|min-height|max-height|max-width|padding(-\w+)?|margin(-\w+)?)$/;
+  // round A4 (A4-TH-5): any property but a cosmetic one is refused (the font shorthand, flex, overflow, aspect-ratio,
+  // text-indent … sized it too); only a selector one of whose own compounds is p.orz-pic / p.orz-pics is exempt (not
+  // one that merely names it, `:not(.orz-pic)`); img in any case, and [src]
+  const own = (x: string): string => x.replace(/:not\((?:[^()]|\([^()]*\))*\)/gi, '');
+  const isPicture = (x: string): boolean => /\.orz-pics?\b/.test(own(x));
+  const IMG = /(\bimg\b|\[\s*src\b)/i;
+  const byImage = (x: string): boolean => !isPicture(x) && (new RegExp(`:has\\([^)]*${IMG.source}`, 'i').test(x) || /\bp\s*>\s*img\b|\bp\s+img\b/i.test(x));
+  const COSMETIC = /^(border(-[\w-]+)?|border-radius|box-shadow|outline(-[\w-]+)?|filter|opacity|background(-[\w-]+)?|--[\w-]+)$/;
+  // an image made a block by the image alone (`.markdown-body img { display: block }`, A4-TH-2) breaks a linked icon's sentence too
+  const GENERIC = /^(\.reveal|\.markdown-body|\.orz-(region|slide|box|content|float|frame)|p|a|li|td|th|ul|ol|blockquote|div|span)$/i;
+  const subjectImg = (x: string): boolean => { const c = compounds(own(x)); return c.length > 0 && /^img$/i.test(c[c.length - 1]) && c.slice(0, -1).every((k) => GENERIC.test(k)); };
   for (const [where, text] of [[id, css.layer], ['deck.css', css.deck]] as const) {
     for (const r of rulesOf(text)) {
-      if (splitTop(r.selector, ',').some(byImage) && r.decls.some((d) => METRIC.test(d.prop))) problems.push(`${where}: "${r.selector}" sizes a paragraph by the image it holds (a sentence with an icon too): use p.orz-pic`);
+      const sels = splitTop(r.selector, ',');
+      if (sels.some(byImage) && r.decls.some((d) => !COSMETIC.test(d.prop))) problems.push(`${where}: "${r.selector}" sizes a paragraph by the image it holds (a sentence with an icon too): use p.orz-pic`);
+      else if (sels.some(subjectImg) && r.decls.some((d) => d.prop === 'display' && /^(block|flex|grid|table)/.test(d.value))) problems.push(`${where}: "${r.selector}" makes every image a block (a linked icon breaks its sentence): use p.orz-pic`);
     }
   }
+  // round A4 (A4-TH-3): a section number drawn by ::after needs its own guard for section_numbers: none (deck.css
+  // hides an empty ::before for every theme)
+  const layerRules = rulesOf(css.layer);
+  const numberAfter = layerRules.some((r) => /\.orz-section-main\b[^,]*::after/.test(r.selector) && !/\[data-sec=""\]/.test(r.selector) && r.decls.some((d) => d.prop === 'content' && /attr\(\s*data-sec\s*\)/.test(d.value)));
+  const guarded = layerRules.some((r) => /\.orz-section-main\[data-sec=""\]::after/.test(r.selector) && r.decls.some((d) => d.prop === 'display' && d.value.startsWith('none')));
+  if (numberAfter && !guarded) problems.push(`${id}: the section number on .orz-section-main::after has no [data-sec=""] guard (section_numbers: none draws an empty badge)`);
   return problems;
 }
 

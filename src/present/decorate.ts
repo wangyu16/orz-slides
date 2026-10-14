@@ -10,7 +10,10 @@
  *   `.orz-qr-slot`, the template's last child, for the theme to place (its
  *   `data-md` breadcrumb travels with it); a paragraph left empty (or with
  *   only separators) goes;
- * - **pictures**: a paragraph that is one image is `p.orz-pic` (round A3);
+ * - **pictures**: a paragraph that is one image is `p.orz-pic` (round A3),
+ *   one of two or more images `p.orz-pics` (round A4);
+ * - **charts** that are a block of their own in a region sit in a room,
+ *   `.orz-chart-room`, sized by the space their box leaves (round A4);
  * - **media** never play off their slide, and a static copy shows a video
  *   as a still of the player's size with its address (round A3).
  */
@@ -121,11 +124,51 @@ export function markPictures(root: ParentNode): void {
       else if (tag !== 'br') other = true;
     }
     p.classList.toggle('orz-pic', pics === 1 && !other);
+    // two or more pictures and nothing else: a row (round A4, A4-TH-4)
+    p.classList.toggle('orz-pics', pics > 1 && !other);
+  }
+}
+
+/**
+ * A chart that is a block of its own in a region (round A4, A4-ENG-2) is
+ * put in a room, `div.orz-chart-room`: deck.css lets the room grow into the
+ * space its box leaves and sizes the chart (its frame, drawn later by the
+ * kit inside the room) as the largest one at its aspect in it — as a picture
+ * and a video are sized. Inside a container a chart keeps its em size.
+ */
+export function roomCharts(root: ParentNode): void {
+  for (const c of Array.from(root.querySelectorAll<HTMLElement>('.orz-region > .markdown-body > canvas.orz-chart'))) {
+    const room = c.ownerDocument.createElement('div');
+    room.className = 'orz-chart-room';
+    c.replaceWith(room);
+    room.appendChild(c);
+  }
+}
+
+/**
+ * A chart's canvas keeps the CHART's aspect ratio in CSS (round A3, A3-ENG-3): deck.css lets it follow its
+ * frame's width at once (`height: auto`, ENG-1), but with its height from the bitmap's integer size the
+ * frame's fractional width rounds differently each time Chart.js resizes it — 520 ↔ 521 px forever, a
+ * fifth of an idle main thread. With the ratio Chart.js draws at, the frame's size depends on its width
+ * alone, and Chart.js's resize finds nothing to change. Every chart under `root` (round A4, A4-ENG-1: the
+ * slides reveal displays beside the current one too); the ratio also on the frame (`--orz-chart-r`), which
+ * a chart in a room is sized by.
+ */
+export function chartAspects(root: ParentNode): void {
+  for (const c of Array.from(root.querySelectorAll<HTMLCanvasElement>('.orz-chart-frame > canvas'))) {
+    const chart = (c as HTMLCanvasElement & { __orzChart?: { aspectRatio?: number | null; options?: { aspectRatio?: number } } }).__orzChart;
+    const r = Number(chart?.options?.aspectRatio ?? chart?.aspectRatio);
+    if (!(r > 0) || !isFinite(r)) continue;
+    const want = String(Math.round(r * 1e4) / 1e4);
+    if (c.style.getPropertyValue('aspect-ratio') !== want) c.style.setProperty('aspect-ratio', want);
+    const f = c.parentElement!;
+    if (f.style.getPropertyValue('--orz-chart-r') !== want) f.style.setProperty('--orz-chart-r', want);
   }
 }
 
 /** Every DOM addition of a fresh render; `still`: a static copy (print, the speaker view). */
 export function decorate(root: ParentNode, o: { steps?: boolean; still?: boolean } = {}): void {
+  roomCharts(root);
   if (o.steps !== false) applySteps(root);
   liftClosingQr(root);
   markPictures(root);
