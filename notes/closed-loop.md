@@ -338,3 +338,182 @@ engine and themes) and passes now.
   regenerated; the variant sheets of Architect, Small Press and Nocturne,
   the gantt, pie and `bg=` slides looked at.
 
+
+---
+
+## Round A3 — 2026-10-14 (round A2's fixes attacked; rebuild/1.0@a9f4ab3)
+
+The same three areas, the auditor given round A2's list to break. Of A2's
+fixes, A2-ENG-2 (the theme-CHANGE path) and A2-TH-12 (v1, v2, v5) were NOT
+fixed; every other confirmed. Verified: 4 format (all rare or LOW), 5 engine
+(one HIGH: A3-ENG-1), 6 themes (one HIGH: A3-TH-1); 3 LOW.
+
+**The format area is CLOSED by this pass** (owner's stop rule: its findings
+were only rare combinations or LOW — a final pass, fixed with tests, no
+further round). Engine and themes had a HIGH each and go to the next round
+of the plan (round B after step 6).
+
+### Class-level mechanisms introduced
+
+- **Hidden markers by token nesting** (format): a container's closer is the
+  line after its token's map (the kit leaves it out) and its own marker
+  lines are those outside the code blocks nested in it; a type-1 HTML block
+  (`<pre>`, `<script>`, `<style>`, `<textarea>`) closed by ANOTHER raw-text
+  tag, or holding another raw-text opener after a slide marker, was closed
+  by mistake; a comment holding a marker line was always closed by a
+  marker (a multi-line one included).
+- **Quick fixes that commute** (format): a lint that only follows from an
+  earlier block closed by mistake or ambiguously (a block of its kind opened
+  after that block's closing line, before the next marker) and a type-6/7
+  HTML block's later marker lines carry no fix — so the fixes, applied in
+  any order, reach one deck. Property test: 600 random decks of every
+  construct × LF / CR LF / CR, first-first, last-first and random order.
+- **Upgrade leaves format 1 alone**: repairs and respellings run only on a
+  0.x text (no header, or a legacy meta header).
+- **A tighter upgrade oracle** (U.7): `marker-in-code` is accepted only for a
+  block that can show a marker (fence, indented code, plugin block, list,
+  blockquote) — never an HTML block, `$$` or a container, where "no lint"
+  is a gap in the lint.
+- **A resize watch that never stops** (engine): a resize refit the fit
+  decides the same (every box within 0.01, the same clipping: hysteresis)
+  leaves the slide as it was (settled stays settled); after two in a row the
+  next resize refit waits 250 ms — debounced, never dropped; a capture
+  `toggle` listener refits a `<details>` / `::: spoil` at once.
+- **One sizing contract for a chart** (engine): its canvas keeps the CHART's
+  aspect ratio in CSS (set by the engine from Chart.js), so the frame's size
+  depends on its width alone and Chart.js's resize finds nothing to change.
+- **Readiness read from the sheet, waits bounded once** (engine): a theme
+  `<style>` is loading while its own sheet has an `@import` whose
+  `styleSheet` is null (a failed one has a sheet); a theme change replaces
+  the element; a mark, or fonts that keep loading, are waited for at most
+  5 s per load — never per slide, print or copy — and the slide refits when
+  they arrive.
+- **Static copies hold no live media** (engine): a `{{youtube}}` player is a
+  still of the same size with its address in print and the speaker view.
+- **Pictures by a mark, not by a selector** (themes): `p.orz-pic` (one image,
+  or one linked image, and nothing else) is the one hook for picture
+  layout; the build contract refuses any rule that sets a paragraph's
+  metrics or layout by the image it holds (`p:has(> img)`, `p > img`).
+- **No placed block over content** (themes): Architect's title block in
+  flow on every title variant, its scale bar in a band of its own; the T.11
+  oracle gained an occlusion check (an opaque box above any text line,
+  `elementsFromPoint`) and compares two lines of one paragraph.
+- **Hide a section part only when it is empty** (themes): `section_numbers`
+  decides the number, never the title.
+- **The kit's extension colours for every reader** (orz-markdown M.39) and
+  **a gantt axis of continuous intervals** with label thinning (M.40).
+
+### Found and fixed
+
+Every probe failed on rebuild/1.0@a9f4ab3 (format probes against the
+round-start `src/`; engine and theme probes against the round-start engine
+and themes; kit probes against `orz-markdown@10b2bc6`) and passes now.
+
+| Id | Sev | Finding | Fix | Probe (claim) |
+|---|---|---|---|---|
+| A3-FMT-1 | MED (rare) | a closed container whose fenced example shows a marker was a false `unclosed-container`; its fix broke the example | the container's closer after its map; code nested in it is not its own | P.13 |
+| A3-FMT-2 | MED (rare) | `<pre>` left open, closed by a later `<style>`/`<pre>`/`<textarea>`: slides swallowed, notes on screen, no lint; the oracle accepted it | a type-1 block closed by another tag (or reopened) after a marker is closed by mistake; the oracle never accepts an HTML block | P.13, U.7 |
+| A3-FMT-3 | LOW | quick fixes did not commute: fixing the consequence first left an empty code or `$$` block | consequence lints carry no fix (also a type-6/7 block's later markers); order property | P.13 |
+| A3-FMT-4 | MED (rare) | an open comment closed by a multi-line marker's `-->`: the marker swallowed silently | a comment holding a marker line was closed by a marker | P.13, U.7 |
+| A3-FMT-5 | LOW (rare) | `upgradeText` repaired correct format-1 texts | repairs and respellings only for 0.x texts | U.4 |
+| A3-ENG-1 | HIGH | after two no-op refits the resize watch was muted: a spoiler opened later was cut, never refitted | the watch never stops (hysteresis, debounce); `toggle` refits | F.6 |
+| A2-ENG-2 (not fixed) / A3-ENG-2 | MED (rare) | on a theme CHANGE the replaced sheet's `load` ended the `@import` wait: print cut 3 slides | readiness from the sheet; the element replaced | F.6 |
+| A3-ENG-3 | MED | chart canvases resized 520 ↔ 521 px forever: 10–18 % of an idle main thread (75 % at 4×) | the chart's aspect ratio on the canvas | F.6 (idle: 0 resizes / 3 s, < 4 % CPU) |
+| A3-ENG-4 | MED (rare) | a stalled webfont request cost 10 s per slide, print and speaker copy | waits bounded once per load (5 s); refit on arrival | F.6 |
+| A3-ENG-5 | MED | `{{youtube}}` under a title clipped at the floor; in print a blank frame, a false cut, no address; players reloaded by every copy | sized like a picture (container units); a still with the address in static copies | Q.4 |
+| A3-TH-1 | HIGH | five themes set `line-height: 0` on any paragraph holding an image: an inline icon or a caption above its picture printed lines over each other | `p.orz-pic`; every picture rule retargeted (Architect, Chalk, Neon, Notebook, Paper, Sticker, Inscription, deck.css); contract rule | T.11, T.13 |
+| A2-TH-12 (not fixed) / A3-TH-5 | MED (rare) | Architect's PREPARED BY block covered a long subtitle on v1, v2, v5 at 4:3; the SCALE label under the meta | the title block in flow on every variant, clear of the scale bar | T.11 (occlusion oracle) |
+| A3-TH-2 | MED (UPSTREAM, ours) | the `auto` gantt axis restarted day steps each month and collapsed 24/60-month steps: overprinted full-width semester and 12-year charts; no year across New Year | kit M.40: continuous intervals, thinned labels, the year on crossing spans | M.40, T.6 |
+| A3-TH-3 | MED (UPSTREAM, ours) | the palette extension merged slices for colour-blind readers (ΔE 0.8 deutan) in five themes | kit M.39: candidates scored under protan, deutan, tritan | M.39, T.6 |
+| A3-TH-4 | MED | `section_numbers: none` hid the section title (Nocturne, Neon, Paper, Small Press; Copper the same) | hide only when `:empty`; drop just the number | C.1 |
+| A3-TH-6 | MED (rare) | `bg=` never showed on a cover page (the cover's inset shadow) | the author's background replaces the cover colour | T.14 |
+| A3-TH-7 | LOW (rare) | a gradient `bg=` drew nothing on screen | `data-background-gradient`; print and speaker copies too | E.2, T.14 |
+| A3-TH-8 | LOW | Nocturne capped the section at 40 % beside a short footer | footer and section sized by their text, shrinking in proportion | T.11 |
+
+### Class siblings found while fixing
+
+- **Every picture rule, not just line-height 0**: Architect's `p > img {
+  display: block }` and Sticker's sticker frame on `p > img` reached an
+  inline icon too, as did deck.css's own picture layout (`p:has(> img:only-
+  child)` matched a sentence whose only element was an icon) and Chalk's
+  region padding (`:has(> .markdown-body > p > img)`); Inscription's outline
+  on `p > img`. All on `p.orz-pic`; cosmetic `p > img` rules (radius,
+  shadow off) stay.
+- **Copper** hid the section title with `section_numbers: none` too (not in
+  the finding); fixed with the others. Neon's readout shows the title (with
+  its `SEC` label) when there is no number to show.
+- **A gradient `bg=` was also cut by A2's background-copy guard**: reveal
+  sets the gradient as an inline `background-image` on the background copy,
+  which the guard reset with `!important`; the reset now spares an inline
+  image.
+- **The speaker's live fallback** (when a static build fails) drew neither
+  a gradient nor an image background and loaded a video player: it uses the
+  same still and backgrounds as the static copies.
+- **The fit oracle measured a closed `<details>`'s text** (rectangles all
+  the same): it is skipped, and so in the new occlusion oracle.
+- **Round A's FMT-1 test expected a fix on every marker line of one HTML
+  block**; under the commute rule only the first carries one (the others
+  follow from it) — the test now applies fixes one at a time and reaches
+  the same deck.
+
+### Dismissed (with reasons)
+
+- **A3-FMT-2's "treat every `<pre>`/`<script>`/`<style>` holding a slide
+  marker as closed by mistake"**: a `<pre>` closed by its own `</pre>` that
+  holds a marker is the A2-FMT-1 case closed on purpose (round A2 decided it
+  is no error); only a closer of ANOTHER tag, or another raw-text opener
+  after a slide marker, is the mistake CommonMark makes possible. Both are
+  fixed; the same-tag case keeps A2's decision.
+- **A3-ENG-4's "remember the element as failed for the session"**: a slow
+  font that DOES arrive must still be fitted with; the bound is per load
+  (5 s from the mark, from the first time the fonts were seen loading), and
+  the arrival refits. A stalled request is therefore paid once, as asked.
+
+### Open by choice
+
+- Speaker copies' background build (A3 improvement): skip it during a
+  reveal transition and use idle time without the 500 ms timeout — a cost
+  measured only at 4× CPU on a 100-chart deck; step 5/6 (editing modes)
+  revisits the copies.
+- Greyscale print of the categorical palettes (A3 improvement): a print-only
+  fallback (dashes or patterns) is a kit option for a later release.
+- The kit's md/paged content themes do not yet set `--mm-gantt-axis-format:
+  auto` and `--mm-gantt-today: off` (A3 improvement): a kit default for
+  documents is the owner's call at the 2.4.0 release.
+- A `bg=` on a cover page keeps the cover ink: its contrast against an
+  author's image cannot be checked; the author chose both.
+
+### The oracles' own traps (fixed in the oracles, each checked against a screenshot)
+
+- Chrome gives an ellipsized nowrap line's range TWO rectangles (one cut
+  short): a text that cannot wrap is one line.
+- A tall font's boxes reach past a tight pitch (Notebook's handwriting: 92 px
+  boxes on a 66 px pitch): two lines of one element overprint only when one
+  stands on the other (tops closer than half a box — line-height 0).
+- Reveal's background fade: the probes measure with transitions off.
+
+### After round A3
+
+- orz-slides: the full suite once — 18 files, 236 tests (216 after round
+  A2; 20 new probes) — 222 green in the run; the 14 per-theme stress runs
+  (one file) failed on the oracle traps above and a probe that matched the
+  wrong "Thank you" slide, all green re-run alone after the oracle fixes;
+  conformance 45 passed + `C.update.from-previous` not applicable; tsc
+  clean; `build-themes --check` clean (with the A3-TH-1 contract rule).
+  Every new probe failed on the round-start code (format: `src/` of
+  a9f4ab3; engine: `src/present` and deck.css of a9f4ab3; themes:
+  `assets/themes`, `render-slide.ts`, `decorate.ts` and `build-themes.ts`
+  of a9f4ab3; kit: `orz-markdown@10b2bc6`).
+- Kit (orz-markdown 2.4.0, prepared, unpublished; `orz-markdown@dc301f7`):
+  M.39 (extension colours apart for colour-blind readers), M.40 (continuous
+  gantt intervals, label thinning, the year across New Year); its suite
+  2105/2105 (2 new probes). Downstream against the checkout (symlink, run,
+  restore; both git-clean after): orz-paged 372/374 — D.1 and P.1, the stale
+  committed examples and theme files of round A/A2; orz-mdhtml 152/154 —
+  E.1 (the same stale example) and X.1 (the example web app's page load
+  times out against ANY 2.4.0 checkout: it fails the same against the
+  round-start kit 10b2bc6 and passes on the installed 2.3.0).
+- The hub (`output/orz-test/slides/engine/`): the 14 decks, the sample, the
+  stress decks (with the A3 shapes) and every sheet and variant sheet
+  regenerated; Architect's variant sheet (the title block in flow beside
+  the scale bar) and Chalk's picture frame looked at.
