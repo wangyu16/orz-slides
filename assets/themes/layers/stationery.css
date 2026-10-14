@@ -41,6 +41,11 @@
   --mm-text: #181c1b;
   --mm-line: #62685f;
   --mm-surface: #f7f7f2;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #167a72;
+  --sl-accent-ink: #ffffff;
+  /* six distinct chart colours (round A, TK-5) */
+  --chart-5: #8a5bb0;
 }
 
 .reveal .orz-slide { font-family: var(--font-body); }

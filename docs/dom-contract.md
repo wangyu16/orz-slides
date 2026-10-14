@@ -164,7 +164,12 @@ Set by a theme on `:root` (defaults in deck.css):
 | `--chart-font-size`, `--mm-font-size` | 18 | chart and diagram text in logical px (a theme sets 18–22) |
 | `--chart-aspect`, `--chart-max-width` | 1.6, `min(100%, 20.8em)` | a chart's shape and width cap (≤ 13em tall: fit scales it) |
 | `--mm-labels` | `svg` (deck root) | Mermaid labels as SVG text (reveal scales with a transform) |
-| `--orz-grid` | — | on `.orz-region > .markdown-body`: the kit's baseline grid (Notebook); fit re-aligns it at each scale |
+| `--orz-grid` | — | on `.orz-region > .markdown-body`: the kit's baseline grid (Notebook); fit re-aligns it at each scale, and an unscaled body starts on one of the slide's lines (its top padded to the next multiple of the pitch from the slide's top) |
+| `--sl-accent`, `--sl-accent-ink` | — (required) | the theme's signature colour and the text that reads on it (≥ 4.5 : 1): the template variants draw with them (§7) |
+| `--sl-surface` | the accent at 12 % | a quiet tint (section v3's band, outline v2's cards) |
+| `--sl-band` | `--sl-accent` | title v4's band |
+| `--sl-cover`, `--sl-cover-ink` | `--sl-accent`, `--sl-accent-ink` | the cover pages (title v5, closing v2); a theme whose title page is already a coloured cover sets others (Notebook: its paper) |
+| `--mm-gantt-axis-format` | `'%b %-d'` (deck root) | a gantt chart's date axis (orz-markdown 2.4.0): compact at slide type size; the chart's own `axisFormat` wins |
 
 Read only: `--progress`, `--fit-scale`, `--sl-w`, `--sl-h`, `--sl-page-h` (print).
 
@@ -172,7 +177,10 @@ Read only: `--progress`, `--fit-scale`, `--sl-w`, `--sl-h`, `--sl-page-h` (print
 footer, section, number) is at least 20 px at the logical size — themes set
 `.orz-chrome { font-size: 20px }` (deck.css's default is 0.6em of the slide)
 and size the slot's parts from it. The footer's Markdown inherits the
-footer's font.
+footer's font. Every chrome text lies inside its slot and the slide, or is
+explicitly ellipsized: the footer is ONE line (deck.css: `white-space:
+nowrap; text-overflow: ellipsis` on its text; a theme never lets it wrap) —
+a long course line ends in an ellipsis, never past the slide's edge.
 
 ## 6. Header keys
 
@@ -187,8 +195,9 @@ running head and the QR placement are theme design, not keys (Q3).
 A derived theme (`assets/themes/<id>.css`, generated — never edited) is
 orz-markdown's `common.css` and its source theme adapted to a slide, then
 `layers/slide-scale.css`, then the theme's layer `layers/<id>.css` (the only
-hand-written part: chrome slots, title band, templates and variants,
-outline, fragments, floats). Notebook also keeps its source's screen
+hand-written part: chrome slots, title band, templates, outline,
+fragments, floats; the variants are deck.css's, drawn with the layer's
+tokens — below). Notebook also keeps its source's screen
 notebook (the `@media screen` rules, rescoped to `.reveal .orz-region >
 .markdown-body`): region text is written on the slide's ruled lines by the
 kit's grid pass, and a region fit shrank becomes a ruled sheet. The four
@@ -199,6 +208,28 @@ The engine carries deck.css and the 14 built themes inside its bundle
 id="orz-deck-css">` and `<style id="orz-slide-theme" data-theme
 data-theme-css>`. The review page of all 14 on the sample deck is
 `npx tsx scripts/theme-sheets.ts` (the family test hub).
+
+**Template variants** (`v=`; the set is 0.x's and `TEMPLATES` in
+src/deck/parse.ts): every variant has a look of its own in every theme
+(claim T.10). v1 is the theme's own page; the others are compositions
+deck.css draws with the theme's tokens (`--sl-accent`, `--sl-accent-ink`,
+`--sl-surface`, `--sl-band`, `--sl-cover`, `--sl-cover-ink`) over the
+theme's fonts and decoration, selected by the section's `data-template` and
+`data-v` (so they win over a theme's `[data-template]` rules; a theme may
+refine one with a more specific rule):
+
+| Template | v2 | v3 | v4 | v5 | v6 |
+|---|---|---|---|---|---|
+| title | left-set, an accent bar down the page's left | a kicker (the subtitle above, small capitals in the accent) between accent rules | split: an accent band (`--sl-band`) down the left third, the page beside it | cover: the slide in `--sl-cover`, the page low on the left in `--sl-cover-ink` | oversized: the title set large, low on the left, with the kicker |
+| section | centred, the title in the accent, larger | the title on a tinted band with an accent bar | the title in an outlined box, centred | — | — |
+| outline | each item a card with an accent edge | two balanced columns | — | — | — |
+| closing | cover sign-off (`--sl-cover`), centred | oversized, low on the left | — | — | — |
+
+A theme whose own page already uses a device (Notebook's title page is a
+coloured cover) sets the tokens on those slides so the variants still read
+apart (Notebook: the margin's pink for marks, its paper for the band and
+the inside cover). `scripts/build-themes.ts` refuses a theme that lacks a
+required token or a variant rule (claim T.13).
 
 Porting a concept layer (branch `concepts/themes`) to this contract:
 the footer now sits inside `.orz-chrome` (whose font size is 0.6em: scale

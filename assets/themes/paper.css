@@ -426,6 +426,11 @@
   --mm-text: #3e2723;
   --mm-line: #8d6e63;
   --mm-surface: #fbf7ef;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #6d4c41;
+  --sl-accent-ink: #fbf7ef;
+  /* six distinct chart colours (round A, TK-5) */
+  --chart-5: #8a4f7d; --chart-6: #4a5a8c;
 }
 
 /* ───────── the page ───────── */

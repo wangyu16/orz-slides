@@ -434,6 +434,11 @@
   --mm-text: #22313f;
   --mm-line: #2c3e50;
   --mm-surface: #f8fafb;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: var(--slate);
+  --sl-accent-ink: #f8fafb;
+  /* six distinct chart colours (round A, TK-5) */
+  --chart-5: #c08a2b; --chart-6: #3f7f5f;
 }
 
 /* ───────── the sheet: zone border on the margin, grid inside the frame line ───────── */

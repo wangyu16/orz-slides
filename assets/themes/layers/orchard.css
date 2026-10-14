@@ -32,6 +32,9 @@
   --chart-surface: #fbfbf8;
   --mm-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mm-font-size: 20;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #3f7a2c;
+  --sl-accent-ink: #fbfbf8;
 }
 
 .reveal .orz-slide { font-family: var(--font-body); }

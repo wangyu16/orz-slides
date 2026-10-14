@@ -48,6 +48,11 @@
      for them alone, above) before the source's CJK fallbacks */
   --heading-font: 'Chewy', 'Baloo 2', 'ZCOOL KuaiLe', 'HanziPen SC', 'Hannotate SC', cursive;
   --body-font: 'Patrick Hand', 'Baloo 2', 'ZCOOL KuaiLe', 'HanziPen SC', 'Hannotate SC', cursive;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #b8321c;
+  --sl-accent-ink: #ffffff;
+  /* six distinct chart colours (round A, TK-5) */
+  --chart-5: #7d4cc9; --chart-6: #4c9a2a;
 }
 
 .reveal .orz-slide { font-family: var(--body-font); }

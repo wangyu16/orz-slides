@@ -11,8 +11,12 @@
  * Needs a built engine (dist/orz-slides.browser.js: `npm run build`, or any
  * test run) and Chrome (playwright-core, channel 'chrome'). The decks are
  * inline files of tests/fixtures/sample/sample.slides.md with the header's
- * theme set; the sheets are taken online (webfonts and libraries load), each
- * slide at its logical size (1280 × 720), the `step` slide mid-reveal.
+ * theme set (and `sample.slides.html`, the sample in its own theme); the
+ * sheets are taken online (webfonts and libraries load), each slide at its
+ * logical size (1280 × 720) once its fit has settled, the `step` slide
+ * mid-reveal. Closed-loop round A added the STRESS deck
+ * (tests/fixtures/stress: `stress/<id>.slides.html`) and a sheet of every
+ * template variant per theme (`sheets/variants-<id>.png`).
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -22,6 +26,9 @@ import { THEMES, type SlideTheme } from '../src/themes.js';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, '../output/orz-test/slides/engine');
 const SAMPLE = join(ROOT, 'tests/fixtures/sample');
+const STRESS = join(ROOT, 'tests/fixtures/stress');
+/** The stress deck's template-variant slides (0-based): title v1–6, section v1–4, outline v1–3, closing v1–3. */
+const VARIANT_SLIDES = 16;
 const STEP_SLIDE = 3; // 0-based: the `step` slide, shown with three of its steps (the paragraph and two items)
 
 const args = process.argv.slice(2);
@@ -55,6 +62,14 @@ async function decks(list: readonly SlideTheme[]): Promise<void> {
     writeFileSync(join(OUT, `${t.id}.slides.html`), assemble(md));
     console.log('deck', t.id);
   }
+  // the sample in its own theme, and its text
+  writeFileSync(join(OUT, 'sample.slides.html'), assemble(text));
+  writeFileSync(join(OUT, 'sample.slides.md'), text);
+  // the stress deck (round A) in every theme
+  const stress = readFileSync(join(STRESS, 'stress.slides.md'), 'utf8');
+  mkdirSync(join(OUT, 'stress'), { recursive: true });
+  copyFileSync(join(STRESS, 'big.svg'), join(OUT, 'stress', 'big.svg'));
+  for (const t of list) writeFileSync(join(OUT, 'stress', `${t.id}.slides.html`), assemble(stress.replace(/^theme: .*$/m, `theme: ${t.id}`)));
 }
 
 async function sheets(list: readonly SlideTheme[]): Promise<void> {
@@ -63,52 +78,53 @@ async function sheets(list: readonly SlideTheme[]): Promise<void> {
   const shots = '/tmp/orz-slides-theme-sheets';
   mkdirSync(shots, { recursive: true });
   mkdirSync(join(OUT, 'sheets'), { recursive: true });
-  const one = async (t: SlideTheme): Promise<void> => {
+  const one = async (t: SlideTheme, variants = false): Promise<void> => {
     // 1334 × 750: reveal's 4 % margin leaves the 1280 × 720 slide at scale 1
     const ctx = await browser.newContext({ viewport: { width: 1334, height: 750 }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
-    await page.goto('file://' + join(OUT, `${t.id}.slides.html`), { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    await page.goto('file://' + (variants ? join(OUT, 'stress', `${t.id}.slides.html`) : join(OUT, `${t.id}.slides.html`)), { waitUntil: 'domcontentloaded', timeout: 90_000 });
     await page.waitForFunction(() => document.querySelector('.reveal.orz-deck.ready .slides > section.present[data-fitted]') !== null, null, { timeout: 60_000 });
     await page.addStyleTag({ content: 'body > :not(#orz-view) { visibility: hidden !important; } .reveal .slides > section { transition: none !important; }' });
     await page.evaluate(() => document.fonts.ready);
-    const n = await page.evaluate(() => document.querySelectorAll('.reveal .slides > section').length);
+    const n = variants ? VARIANT_SLIDES : await page.evaluate(() => document.querySelectorAll('.reveal .slides > section').length);
     const files: string[] = [];
     for (let i = 0; i < n; i++) {
       await page.evaluate(([i, steps]) => {
         const e = (globalThis as unknown as { OrzCarrier: { standalone: { view: { engine: { go(n: number): void; next(): void } } } } }).OrzCarrier.standalone.view.engine;
         e.go(i);
         for (let k = 0; k < steps; k++) e.next();
-      }, [i, i === STEP_SLIDE ? 3 : 0]);
-      await page.waitForTimeout(i === 0 ? 2500 : 1500);
-      await page.evaluate(() => document.fonts.ready);
+      }, [i, !variants && i === STEP_SLIDE ? 3 : 0]);
+      await page.evaluate(() => (globalThis as unknown as { OrzCarrier: { standalone: { view: { engine: { settled(): Promise<void> } } } } }).OrzCarrier.standalone.view.engine.settled());
+      await page.waitForTimeout(150);
       const box = await page.evaluate((k) => {
         const r = document.querySelectorAll('.reveal .slides > section')[k].getBoundingClientRect();
         return { x: r.left, y: r.top, width: r.width, height: r.height };
       }, i);
-      const file = join(shots, `${t.id}-${String(i + 1).padStart(2, '0')}.png`);
+      const file = join(shots, `${variants ? 'v-' : ''}${t.id}-${String(i + 1).padStart(2, '0')}.png`);
       await page.screenshot({ path: file, clip: box });
       files.push(file);
     }
     await ctx.close();
     const ctx2 = await browser.newContext({ viewport: { width: 1960, height: 400 }, deviceScaleFactor: 1 });
     const p2 = await ctx2.newPage();
-    const tiles = files.map((f, i) => `<figure><img src="data:image/png;base64,${readFileSync(f).toString('base64')}"><figcaption>${i + 1}</figcaption></figure>`).join('');
+    const VLABEL = ['title v1', 'title v2', 'title v3', 'title v4', 'title v5', 'title v6', 'section v1', 'section v2', 'section v3', 'section v4', 'outline v1', 'outline v2', 'outline v3', 'closing v1', 'closing v2', 'closing v3'];
+    const tiles = files.map((f, i) => `<figure><img src="data:image/png;base64,${readFileSync(f).toString('base64')}"><figcaption>${variants ? VLABEL[i] : i + 1}</figcaption></figure>`).join('');
     await p2.setContent(`<!doctype html><style>
       body{margin:0;background:#26272b;font:600 15px/1 system-ui,sans-serif;color:#c9cbd1}
       header{padding:18px 28px 6px;display:flex;gap:18px;align-items:baseline}
       header b{font-size:24px;color:#f2f2f4}
-      main{display:grid;grid-template-columns:repeat(3,620px);gap:22px 20px;padding:14px 28px 28px}
+      main{display:grid;grid-template-columns:repeat(${variants ? 4 : 3},${variants ? 460 : 620}px);gap:22px 20px;padding:14px 28px 28px}
       figure{margin:0;position:relative}
-      img{display:block;width:620px;height:349px;box-shadow:0 0 0 1px rgba(255,255,255,.14)}
+      img{display:block;width:${variants ? 460 : 620}px;height:${variants ? 259 : 349}px;box-shadow:0 0 0 1px rgba(255,255,255,.14)}
       figcaption{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;padding:3px 7px;border-radius:3px;font-size:13px}
-      </style><header><b>${t.name}</b><span>orz-slides 1.0 engine · ${t.derivedFrom ? `derived from orz-markdown ${t.derivedFrom}` : 'updated 0.x theme'}</span><span>· slide ${STEP_SLIDE + 1} shown mid-reveal</span></header><main>${tiles}</main>`);
+      </style><header><b>${t.name}</b><span>orz-slides 1.0 engine · ${t.derivedFrom ? `derived from orz-markdown ${t.derivedFrom}` : 'updated 0.x theme'}</span><span>${variants ? '· the template variants (stress deck)' : `· slide ${STEP_SLIDE + 1} shown mid-reveal`}</span></header><main>${tiles}</main>`);
     await p2.waitForTimeout(150);
-    await p2.screenshot({ path: join(OUT, 'sheets', `${t.id}.png`), fullPage: true });
+    await p2.screenshot({ path: join(OUT, 'sheets', `${variants ? 'variants-' : ''}${t.id}.png`), fullPage: true });
     await ctx2.close();
-    console.log('sheet', t.id);
+    console.log(variants ? 'variants' : 'sheet', t.id);
   };
-  const queue = [...list];
-  await Promise.all(Array.from({ length: 3 }, async () => { while (queue.length) await one(queue.shift()!); }));
+  const queue: Array<[SlideTheme, boolean]> = [...list.map((t) => [t, false] as [SlideTheme, boolean]), ...list.map((t) => [t, true] as [SlideTheme, boolean])];
+  await Promise.all(Array.from({ length: 3 }, async () => { while (queue.length) { const [t, v] = queue.shift()!; await one(t, v); } }));
   await browser.close();
 }
 
@@ -119,7 +135,7 @@ function index(): string {
       <div class="meta">
         <h3>${t.name}${t.derivedFrom ? ` <small>from ${t.derivedFrom}</small>` : ' <small>updated 0.x</small>'}</h3>
         <p>${DESC[t.id] ?? ''}</p>
-        <div class="actions"><a href="${t.id}.slides.html" target="_blank" rel="noopener">Open</a><a href="sheets/${t.id}.png" target="_blank" rel="noopener">Sheet</a></div>
+        <div class="actions"><a href="${t.id}.slides.html" target="_blank" rel="noopener">Open</a><a href="sheets/${t.id}.png" target="_blank" rel="noopener">Sheet</a><a href="sheets/variants-${t.id}.png" target="_blank" rel="noopener">Variants</a><a href="stress/${t.id}.slides.html" target="_blank" rel="noopener">Stress deck</a></div>
       </div>
     </article>`;
   return `<!doctype html>
@@ -147,7 +163,7 @@ function index(): string {
   .actions a:hover { text-decoration: underline; }
 </style></head><body><main>
   <h1>orz-slides 1.0 engine (rebuild/1.0) — the 14 themes</h1>
-  <p class="lead">The real engine now (REBUILD §3c step 4), not the concepts: the same 12-slide sample deck — title page with the long D-46 title, outline with the current item, section pages, a stepped slide (shown mid-reveal), math and a molecule, code with a table under a header row, a chart and a diagram, a quad, a picture with a float, a dense slide that fit scales down, and a closing page whose QR code sits in its own slot — in each slide theme, every theme carried inside the engine (inline and <code>--cdn</code> files style the same). <em>Open</em> is the live deck: arrows / <kbd>Space</kbd>, <kbd>O</kbd> overview, <kbd>S</kbd> speaker view, <kbd>T</kbd> timer, <kbd>F</kbd> present, <kbd>Cmd/Ctrl+P</kbd> print; the pencil's Theme setting switches theme. The approved concepts are in the <a href="../index.html">concept gallery</a>.</p>
+  <p class="lead">The real engine now (REBUILD §3c step 4), not the concepts: the same 12-slide sample deck — title page with the long D-46 title, outline with the current item, section pages, a stepped slide (shown mid-reveal), math and a molecule, code with a table under a header row, a chart and a diagram, a quad, a picture with a float, a dense slide that fit scales down, and a closing page whose QR code sits in its own slot — in each slide theme, every theme carried inside the engine (inline and <code>--cdn</code> files style the same). <em>Open</em> is the live deck: arrows / <kbd>Space</kbd>, <kbd>O</kbd> overview, <kbd>S</kbd> speaker view, <kbd>T</kbd> timer, <kbd>F</kbd> present, <kbd>Cmd/Ctrl+P</kbd> print; the pencil's Theme setting switches theme. The approved concepts are in the <a href="../index.html">concept gallery</a>. <em>Variants</em> shows every template variant (title v1–v6, section v1–v4, outline v1–v3, closing v1–v3: closed-loop round A) and <em>Stress deck</em> the deck the theme tests run on: a long footer, a long table, many bullets, wide code, callouts, gantt and sequence diagrams, a ten-slice pie, a three-row split.</p>
   <h2>Derived from the orz-markdown themes (10)</h2>
   <div class="grid">${THEMES.filter((t) => t.derivedFrom).map(tile).join('')}</div>
   <h2>Updated 0.x themes (4)</h2>

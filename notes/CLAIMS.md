@@ -26,7 +26,8 @@ slides kind), `spec/conformance.md`; the family plan `../docs/REBUILD.md` §3c
 
 Rebuild status: steps 1 (base), 2 (format-1 parser + isomorphic
 assembler), 3 (the engine: the read view, present, print) and 4 (the 14
-themes) on branch `rebuild/1.0`.
+themes) on branch `rebuild/1.0`; closed-loop round A (after step 4) applied
+— its record is notes/closed-loop.md.
 
 ## B — base (rebuild step 1)
 
@@ -156,12 +157,16 @@ themes) on branch `rebuild/1.0`.
 |---|---|---|
 | T.1 | The read view's theme is the engine's stylesheet (`#orz-slide-theme`, the header theme's own: all 14 are built); the shell's head links no theme; slides render at the logical size — 1280 × 720 for 16:9, 960 × 720 for 4:3 — and a Ratio or Theme setting re-presents the deck. | real |
 | T.2 | `assets/themes/<id>.css` is exactly what scripts/build-themes.ts makes from the installed orz-markdown for each of the 14 themes — a derived theme: orz-markdown common.css + its source theme adapted to a slide (Notebook also keeps the source's screen notebook, scoped to a region's body) + layers/slide-scale.css + its layer; an updated theme: layers/content.css + its layer; the engine bundle carries reveal.js's core CSS, deck.css and the 14 themes, so inline and cdn files style the same. | conformance |
-| T.3 | Every theme on the sample deck (online): no silent clipping (the fit oracle) and no box clipped at all — the dense slide is scaled, the title, section and closing pages fit unscaled decoration included. | real |
+| T.3 | Every theme on the sample deck (online): no silent clipping (the fit oracle) and no box clipped at all — the dense slide is scaled, the title, section and closing pages fit unscaled decoration included; and on the STRESS deck (round A: every variant, a long footer, a 16-row table, 18 bullets, wide code, h3–h6, callouts, a task list, sequence and gantt diagrams, a 10-slice pie, a three-row split, math in a title) at 16:9 and 4:3: no silent clipping. | real |
 | T.4 | Every text of the chrome slots (running head, footer, section, slide number) is at least 20 px at the logical 1280 × 720, in every theme. | real |
 | T.5 | Contrast, from what is drawn (the background sampled with the text hidden): body ink ≥ 4.5 : 1 and the title band and the title page's title ≥ 3 : 1, in every theme. | real |
-| T.6 | The chart and the diagram are drawn with the theme's tokens — tick colour `--chart-text`, first series `--chart-1`, font size `--chart-font-size` (≥ 18), node fill `--mm-node`; the dark themes (Inscription, Copper, Nocturne, Chalk, Neon) draw them dark-native (light ink and labels, dark nodes, no light panel), the light themes in dark ink. | real |
+| T.6 | (round A, TK-2, TK-5: and on the stress deck, six distinct chart colours — `--chart-1…6`, CIE76 ΔE ≥ 18 for every pair — and a gantt chart drawn at its region's width, its axis labels apart) The chart and the diagram are drawn with the theme's tokens — tick colour `--chart-text`, first series `--chart-1`, font size `--chart-font-size` (≥ 18), node fill `--mm-node`; the dark themes (Inscription, Copper, Nocturne, Chalk, Neon) draw them dark-native (light ink and labels, dark nodes, no light panel), the light themes in dark ink. | real |
 | T.7 | D-46: the long title stays inside the slide, fitted and not clipped, on the title pages (v2 and v1) of the corpus deck in every theme. | real |
 | T.8 | The Theme setting switches the theme: its own stylesheet, its section labels (Paper roman, the others 01), its colours and colour scheme, and the chart redrawn in its tokens. | real |
+| T.10 | Template variants (round A, TK-1): every variant of every template (title v1–v6, section v1–v4, outline v1–v3, closing v1–v3; docs/dom-contract.md §7) has a look of its own in every theme — each pair of a template's variants differs on ≥ 0.75 % of the slide's pixels with the same text — and the cover pages' ink reads on the cover (≥ 4.5 : 1). | real |
+| T.11 | The chrome-slot oracle (round A, TK-4): on the stress deck at 16:9 and 4:3, every text of the running head and the bottom slot lies inside its slot and the slide, or is explicitly ellipsized (one line, overflow hidden, `text-overflow: ellipsis`) — a long footer ends in an ellipsis in every theme. | real |
+| T.12 | A theme that writes on a ruled slide (Notebook, `--orz-grid`) starts every unscaled region on one of the slide's lines — the second and third rows of a row split included (round A, TK-3). | real |
+| T.13 | The theme contract checks itself (round A): `scripts/build-themes.ts` (build and `--check`) fails when a theme lacks the variant tokens, six chart colours or the diagram tokens, deck.css lacks a rule for a template variant or the one-line footer, or a layer lets the footer wrap or a box stop clipping; it would have caught TK-1, TK-4 and TK-5 in the round-start themes. | conformance |
 | T.9 | The header settings (the pencil's list and the editor's toolbar) are Theme (the 14), Ratio, Slide numbers, Progress bar and Section numbers, each reading its value from the header; Section numbers' "Theme default" removes the key (the theme decides) and names the theme's style. | unit |
 
 ## Q — print (rebuild step 3; Q8)

@@ -1432,6 +1432,9 @@
   --mm-text: #142230;
   --mm-line: #587085;
   --mm-surface: #f7f9fb;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #255d9d;
+  --sl-accent-ink: #ffffff;
 }
 
 .reveal .orz-slide { font-family: var(--font-body); }

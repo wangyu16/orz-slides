@@ -1419,6 +1419,9 @@
   --mm-text: #23211e;
   --mm-line: #24466e;
   --mm-surface: #fffefa;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: var(--nb-cover);
+  --sl-accent-ink: var(--nb-cover-ink);
 }
 
 /* ───────── the ruled page ───────── */
@@ -1551,6 +1554,12 @@
   padding: 40px 120px 56px;
 }
 .reveal .orz-slide:is([data-template="title"], [data-template="closing"]) .orz-frame { justify-content: center; align-items: center; }
+/* the cover is already the accent: the variants take the margin's pink for their marks, the book's paper for the
+   split band and the inside-cover page (title v5, closing v2) — so every variant reads apart (round A, TK-1) */
+.reveal .orz-slide:is([data-template="title"], [data-template="closing"]) {
+  --sl-accent: var(--accent); --sl-accent-ink: #ffffff;
+  --sl-band: var(--bg-color); --sl-cover: var(--bg-color); --sl-cover-ink: #1d3f6e;
+}
 .reveal .orz-template-title, .reveal .orz-template-closing {
   width: min(100%, 880px);
   background:

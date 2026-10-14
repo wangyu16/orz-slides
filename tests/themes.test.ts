@@ -6,7 +6,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { builtThemes, themeCss } from '../scripts/build-themes.js';
+import { allContractProblems, builtThemes, contractProblems, themeCss } from '../scripts/build-themes.js';
+import { execFileSync } from 'node:child_process';
 import { THEMES } from '../src/themes.js';
 import { buildBrowser } from '../build/bundle.js';
 import { assemble } from '../src/lib.js';
@@ -38,6 +39,29 @@ describe('the engine\'s themes', () => {
       expect(html).not.toMatch(/orz-markdown@[^/]+\/themes\//);
     }
   }, 120_000);
+});
+
+describe('the theme contract (round A)', () => {
+  const at = (rev: string, path: string): string => execFileSync('git', ['show', `${rev}:${path}`], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  it('[T.13] build-themes checks the contract — every theme sets the variant tokens, six chart colours and the diagram tokens; deck.css draws every template variant and a one-line footer; no layer lets the footer wrap or a box stop clipping — and it would have caught round A\'s TK-1, TK-4 and TK-5 in the round-start themes', () => {
+    expect(allContractProblems()).toEqual([]);
+    // the round-start themes (rebuild/1.0@817de2e): no variant rules, a footer that wrapped, four-colour palettes
+    const old = { deck: at('817de2e', 'assets/themes/deck.css') };
+    const arch = contractProblems('architect', { ...old, layer: at('817de2e', 'assets/themes/layers/architect.css'), built: at('817de2e', 'assets/themes/architect.css') });
+    expect(arch).toEqual(expect.arrayContaining([
+      'architect: the token --sl-accent is not set',
+      'architect: the token --chart-5 is not set',
+      'architect: the token --chart-6 is not set',
+      'deck.css: the title template\'s variant v=4 has no rule',
+      'deck.css: the outline template\'s variant v=3 has no rule',
+      'deck.css: the footer is not one ellipsized line',
+    ]));
+    // a layer that lets the footer wrap, or a box stop clipping
+    const deck = readFileSync('assets/themes/deck.css', 'utf8');
+    const built = readFileSync('assets/themes/orchard.css', 'utf8');
+    const bad = contractProblems('orchard', { deck, built, layer: `${readFileSync('assets/themes/layers/orchard.css', 'utf8')}\n.reveal .orz-footer p { white-space: normal; }\n.reveal .orz-region { overflow: visible; }\n` });
+    expect(bad).toEqual(['orchard: ".reveal .orz-footer p" lets the footer wrap', 'orchard: ".reveal .orz-region" sets overflow on a box (fit needs clip)']);
+  });
 });
 
 describe('the header settings (Theme, Ratio and the Q3 keys)', () => {

@@ -1310,6 +1310,9 @@
   --mm-text: #e4e8f0;
   --mm-line: #9aa3b8;
   --mm-surface: #13161f;
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #82a1f6;
+  --sl-accent-ink: #0d1018;
 }
 
 .reveal .orz-slide { font-family: 'Source Serif 4', Georgia, serif; font-optical-sizing: auto; }

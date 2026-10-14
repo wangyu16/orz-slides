@@ -4,6 +4,12 @@
  *   npx tsx scripts/build-themes.ts           write the generated files
  *   npx tsx scripts/build-themes.ts --check   exit 1 when a generated file is stale
  *
+ * Both exit 1 when a theme breaks the CONTRACT (closed-loop round A,
+ * {@link contractProblems}; docs/dom-contract.md §5, §7): a new or ported
+ * theme cannot silently drop what decks need — the variant tokens, six chart
+ * colours and the diagram tokens, a single-line footer, boxes that keep
+ * their clip.
+ *
  * A DERIVED theme (orz-markdown theme → slide theme; FC-05 structure and
  * decoration kept) is, in order:
  *
@@ -40,6 +46,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { THEMES } from '../src/themes.js';
+import { TEMPLATES } from '../src/deck/parse.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MD_THEMES = join(ROOT, 'node_modules/orz-markdown/themes');
@@ -288,6 +295,68 @@ export function builtThemes(): string[] {
   return THEMES.map((t) => t.id);
 }
 
+/* ───────────── the theme contract (closed-loop round A: TK-1, TK-4, TK-5) ───────────── */
+
+/** The custom properties a built theme must define (docs/dom-contract.md §5). */
+export const REQUIRED_TOKENS: readonly string[] = Object.freeze([
+  '--sl-accent', '--sl-accent-ink',
+  '--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5', '--chart-6', '--chart-text', '--chart-font-size',
+  '--mm-text', '--mm-line', '--mm-node', '--mm-border', '--mm-font-size',
+]);
+
+/** The rules of a stylesheet, flattened (an @media/@supports block's rules included): selector and declarations. */
+function rulesOf(css: string): Array<{ selector: string; decls: Decl[] }> {
+  const out: Array<{ selector: string; decls: Decl[] }> = [];
+  const walk = (nodes: Node[]): void => {
+    for (const n of nodes) {
+      if (n.kind === 'rule') out.push({ selector: n.selector, decls: parseDecls(n.body) });
+      else if ((n.name === 'media' || n.name === 'supports') && n.body !== null) walk(parseNodes(n.body));
+    }
+  };
+  walk(parseNodes(stripComments(css)));
+  return out;
+}
+
+/**
+ * What a theme breaks of the contract (empty: nothing). `deck` is deck.css
+ * (the engine's structure, shared by every theme), `layer` the theme's own
+ * layer, `built` its generated stylesheet:
+ * - the built theme defines every {@link REQUIRED_TOKENS} token (the template
+ *   variants' accent and its ink; six chart colours; the diagram tokens);
+ * - deck.css draws every variant of every template (`TEMPLATES`, v=2…n:
+ *   a rule naming the template and the variant);
+ * - the footer is one line: deck.css sets `white-space: nowrap` on the
+ *   footer's text and no layer sets another `white-space` / `text-wrap` there;
+ * - no layer gives a box (`.orz-region`, `.orz-template`) `overflow: visible`
+ *   or `hidden` (fit and the clip margin need `clip`).
+ */
+export function contractProblems(id: string, css: { deck: string; layer: string; built: string }): string[] {
+  const problems: string[] = [];
+  const defined = new Set<string>();
+  for (const r of rulesOf(css.built)) for (const d of r.decls) if (d.prop.startsWith('--')) defined.add(d.prop);
+  for (const t of REQUIRED_TOKENS) if (!defined.has(t)) problems.push(`${id}: the token ${t} is not set`);
+  const deckRules = rulesOf(css.deck);
+  for (const [template, n] of Object.entries(TEMPLATES)) {
+    for (let v = 2; v <= n; v++) {
+      const drawn = deckRules.some((r) => r.selector.includes(`[data-template="${template}"]`) && r.selector.includes(`[data-v="${v}"]`) && r.decls.length > 0);
+      if (!drawn) problems.push(`deck.css: the ${template} template's variant v=${v} has no rule`);
+    }
+  }
+  if (!deckRules.some((r) => /\.orz-footer\b/.test(r.selector) && r.decls.some((d) => d.prop === 'white-space' && d.value === 'nowrap') && r.decls.some((d) => d.prop === 'text-overflow' && d.value === 'ellipsis'))) problems.push('deck.css: the footer is not one ellipsized line');
+  for (const r of rulesOf(css.layer)) {
+    const sels = splitTop(r.selector, ',');
+    if (sels.some((x) => /\.orz-footer\b/.test(x)) && r.decls.some((d) => (d.prop === 'white-space' && d.value !== 'nowrap') || ((d.prop === 'text-wrap' || d.prop === 'text-wrap-mode') && !/nowrap/.test(d.value)))) problems.push(`${id}: "${r.selector}" lets the footer wrap`);
+    if (sels.some((x) => /\.orz-(region|template)\s*$/.test(x)) && r.decls.some((d) => /^overflow(-[xy])?$/.test(d.prop) && /^(visible|hidden)$/.test(d.value))) problems.push(`${id}: "${r.selector}" sets overflow on a box (fit needs clip)`);
+  }
+  return problems;
+}
+
+/** The contract problems of every built theme (as {@link themeCss} would write it). */
+export function allContractProblems(): string[] {
+  const deck = readFileSync(join(THEME_DIR, 'deck.css'), 'utf8');
+  return builtThemes().flatMap((id) => contractProblems(id, { deck, layer: readFileSync(join(LAYER_DIR, `${id}.css`), 'utf8'), built: themeCss(id) }));
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const check = process.argv.includes('--check');
   let stale = 0;
@@ -299,5 +368,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (!same) writeFileSync(file, css, 'utf8');
     console.log(`${same ? 'unchanged' : 'wrote'} assets/themes/${id}.css (${(css.length / 1024).toFixed(1)} KiB)`);
   }
-  if (stale) process.exit(1);
+  const broken = allContractProblems();
+  for (const p of broken) console.error(`contract: ${p}`);
+  if (stale || broken.length) process.exit(1);
 }

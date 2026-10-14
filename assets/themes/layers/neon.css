@@ -76,6 +76,11 @@
   --mm-surface: #0a0f10;
 
   --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 120' preserveAspectRatio='none'%3E%3Cpath d='M0 60 H180 C 200 60, 205 10, 225 10 S 250 110, 270 110 S 295 22, 315 22 S 340 96, 360 96 S 385 34, 405 34 S 430 86, 450 86 S 475 44, 495 44 S 520 77, 540 77 S 565 52, 585 52 S 610 70, 630 70 S 655 57, 675 57 S 700 65, 720 63 S 760 60, 800 60 H1280' stroke='%232ef2d0' stroke-width='2.5' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E");
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #2ef2d0;
+  --sl-accent-ink: #0a0f10;
+  /* six distinct chart colours (round A, TK-5) */
+  --chart-5: #c59bff; --chart-6: #b9f36b;
 }
 
 /* ───────── the panel: glass, graticule, scan lines ───────── */

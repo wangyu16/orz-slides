@@ -73,6 +73,11 @@
   /* the chalk-stroke underline (yellow) and chalk dust, as SVG */
   --chalk-stroke: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 24' preserveAspectRatio='none'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' seed='3'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='5'/%3E%3C/filter%3E%3Cpath d='M6 14 C 120 8, 240 17, 360 11 S 540 9, 594 12' stroke='%23ffd663' stroke-width='6' fill='none' stroke-linecap='round' opacity='.92' filter='url(%23r)'/%3E%3Cpath d='M30 17 C 160 13, 300 19, 440 14 S 560 15, 580 15' stroke='%23ffd663' stroke-width='2' fill='none' stroke-linecap='round' opacity='.45' filter='url(%23r)'/%3E%3C/svg%3E");
   --chalk-dust: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.16 0 0 0 -0.05'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* the template variants' tokens (docs/dom-contract.md §5, §7; closed-loop round A, TK-1) */
+  --sl-accent: #ffd663;
+  --sl-accent-ink: #1d2a25;
+  /* six distinct chart colours (round A, TK-5) */
+  --chart-5: #ffab6e; --chart-6: #c7b3f5;
 }
 
 /* ───────── the board ───────── */

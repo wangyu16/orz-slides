@@ -1,6 +1,7 @@
 /**
  * The fit oracle (claims F.1–F.4, T.3): independent of the engine's own
  * measure, every piece of content of a box (each text line's rectangle, each
+ * word — white space hanging past a line's end shows nothing — each
  * image, canvas and diagram) must lie inside the box and inside every
  * element between it and the box that clips its content — unless the box
  * says `data-clipped` (or scrolls, `fit=scroll`). That is "no silent
@@ -64,9 +65,17 @@ function boxesIn(n: number): BoxReport[] {
         }
         const t = node as Text;
         if (!t.textContent || !t.textContent.trim() || t.parentElement?.closest('.katex-mathml, svg')) continue;
+        // word by word: white space that hangs past a line's end (pre-wrap) shows nothing
         const range = document.createRange();
-        range.selectNodeContents(t);
-        for (const r of Array.from(range.getClientRects())) check(r, t, `text "${t.textContent.trim().slice(0, 24)}"`);
+        const words = /\S+/g;
+        let w: RegExpExecArray | null;
+        let found = false;
+        while (!found && (w = words.exec(t.textContent)) !== null) {
+          range.setStart(t, w.index);
+          range.setEnd(t, w.index + w[0].length);
+          const before = outside.length;
+          for (const r of Array.from(range.getClientRects())) { check(r, t, `text "${t.textContent.trim().slice(0, 24)}"`); if (outside.length > before) { found = true; break; } }
+        }
       }
       out.push({ slide: n, box: box.className, scale: box.getAttribute('data-scale'), clipped: box.hasAttribute('data-clipped'), scroll: box.hasAttribute('data-scroll'), outside });
     }
