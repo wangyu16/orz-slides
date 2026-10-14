@@ -1454,6 +1454,6 @@
    too past 40 % of the bar; they never overprint (round A2, A2-TH-4: a course footer ran under the section) */
 .reveal .orz-chrome { display: flex; align-items: center; gap: 1.4em; box-sizing: border-box; padding: 0 calc(var(--sl-pad-x) - 0.2em) 0 calc(var(--sl-pad-x) + 0.2em); }
 .reveal .orz-chrome > :is(.orz-footer, .orz-chrome-sec, .orz-chrome-num) { position: static; left: auto; right: auto; bottom: auto; }
-.reveal .orz-chrome > .orz-footer { flex: 1 1 auto; min-width: 0; }
+.reveal .orz-chrome > .orz-footer { flex: 1 1 0; min-width: 0; }
 .reveal .orz-chrome > .orz-chrome-sec { flex: 0 1 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; margin-left: auto; }
 .reveal .orz-chrome > .orz-chrome-num { flex: 0 0 auto; }
