@@ -65,7 +65,10 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 }
 /* a slide's bg= is drawn by reveal on its background layer: the slide's own page steps aside, whatever a theme
    paints there (round A2, A2-TH-1: Sky, Stationery, Chalk, Neon and Paper covered it) */
-.reveal .slides > section.orz-slide:is([data-background-color], [data-background-image]) { background: transparent !important; }
+.reveal .slides > section.orz-slide:is([data-background-color], [data-background-image], [data-background-gradient]) { background: transparent !important; }
+/* … and a cover page's cover (title v5, closing v2: an inset shadow over the page's own background) gives way to it — the
+   author's background replaces the cover colour, the cover ink stays (round A3, A3-TH-6: bg= never showed on a cover) */
+.reveal section.orz-slide:is([data-background-color], [data-background-image], [data-background-gradient]):is([data-template="title"][data-v="5"], [data-template="closing"][data-v="2"]) { box-shadow: none; }
 /* reveal COPIES a section's classes onto its background layer (.backgrounds > .slide-background): no slide rule
    may style that copy — deck.css's slide box laid the copies out in flow, one under the other, so every bg=
    after the first slide was off screen (A2-TH-1); a theme's ::before/::after page decoration drew there too.
@@ -73,8 +76,10 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .backgrounds > .slide-background.orz-slide {
   position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
   margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important;
-  background-image: none !important; filter: none !important; isolation: auto !important;
+  filter: none !important; isolation: auto !important;
 }
+/* … no theme image either — but the gradient reveal sets inline for a gradient bg= (round A3, A3-TH-7) */
+.reveal .backgrounds > .slide-background.orz-slide:not([style*="background-image"]) { background-image: none !important; }
 .reveal .backgrounds > .slide-background.orz-slide.orz-slide.orz-slide { background-color: transparent; }
 .reveal .backgrounds > .slide-background.orz-slide::before,
 .reveal .backgrounds > .slide-background.orz-slide::after { content: none !important; display: none !important; }
@@ -116,18 +121,19 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .orz-region > .markdown-body { margin: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .reveal .orz-region > .markdown-body > * { flex: 0 0 auto; }
 
-/* pictures and diagrams take the room left in their box (and shrink before text is scaled);
+/* pictures and diagrams take the room left in their box (and shrink before text is scaled); a picture is a paragraph
+   that holds one image and nothing else (p.orz-pic, marked by the engine: round A3, A3-TH-1 — never a sentence with
+   an inline icon, or a caption on the line above its picture);
    a molecule (SMILES) and a chart keep their size, which follows the text size (fit scales them) */
-.reveal .orz-region > .markdown-body > :is(p:has(> img:only-child), p:has(> a:only-child > img:only-child), div.mermaid) {
+.reveal .orz-region > .markdown-body > :is(p.orz-pic, div.mermaid) {
   flex: 1 1 0;
   min-height: var(--sl-graphic-min);
   display: flex;
   align-items: flex-start;
   justify-content: center;
 }
-.reveal .orz-region > .markdown-body > p:has(> img:only-child) > img,
-.reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) img { box-sizing: border-box; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
-.reveal .orz-region > .markdown-body > p:has(> a:only-child > img:only-child) > a { display: contents; }
+.reveal .orz-region > .markdown-body > p.orz-pic img { box-sizing: border-box; max-height: 100%; max-width: 100%; object-fit: contain; width: auto; height: auto; }
+.reveal .orz-region > .markdown-body > p.orz-pic > a { display: contents; }
 .reveal .orz-region > .markdown-body > div.mermaid > svg { max-height: 100%; max-width: 100% !important; height: auto; }
 /* a diagram is laid out as a block until it is drawn: Mermaid draws into a box inside it and measures that
    box's width (a gantt chart in a flex item fell back to 300 px and its axis labels overprinted: TK-2) */

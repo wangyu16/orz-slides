@@ -15,7 +15,7 @@
  * images and fitted in the speaker window. The page's stylesheets are synced
  * into the window on every update (a Theme switch shows there too).
  */
-import { quietMedia } from './decorate.js';
+import { quietMedia, stillVideos } from './decorate.js';
 import { fitSlide } from './fit.js';
 
 /** The elapsed-time clock both views show. */
@@ -241,8 +241,11 @@ export class SpeakerView {
     clone.style.removeProperty('top');
     clone.style.removeProperty('left');
     clone.style.removeProperty('transform');
-    const color = section.getAttribute('data-background-color');
+    stillVideos(clone); // nor loads a player (A3-ENG-5)
+    const color = section.getAttribute('data-background-color') ?? section.getAttribute('data-background-gradient');
     if (color) clone.style.background = color;
+    const image = section.getAttribute('data-background-image');
+    if (image) { clone.style.backgroundImage = `url(${JSON.stringify(image)})`; clone.style.backgroundSize = 'cover'; clone.style.backgroundPosition = 'center'; }
     el.appendChild(root);
     const k = (el as HTMLElement).clientWidth / width || 0.5;
     root.style.transform = `scale(${k})`;

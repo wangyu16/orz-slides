@@ -634,9 +634,10 @@
   color: var(--slate);
 }
 
-/* figures: each picture is a lettered view (VIEW A, B…) */
+/* figures: each picture is a lettered view (VIEW A, B…) — a paragraph that IS a picture (p.orz-pic: round A3, A3-TH-1;
+   p:has(> img) zeroed the line height of a sentence with an inline icon) */
 .reveal .orz-slide { counter-reset: view; }
-.reveal .orz-region .markdown-body p:has(> img) {
+.reveal .orz-region .markdown-body p.orz-pic {
   counter-increment: view;
   position: relative;
   margin: 0.9em 0 0;
@@ -647,13 +648,13 @@
   box-sizing: border-box;
   max-height: calc(100% - 0.9em);
 }
-.reveal .orz-region .markdown-body p:has(> img)::before {
+.reveal .orz-region .markdown-body p.orz-pic::before {
   content: 'VIEW\2002' counter(view, upper-alpha);
   position: absolute; left: -1.5px; top: -1.5em;
   padding: 0.14em 0.6em; font: 600 0.6em/1.3 var(--font-mono); letter-spacing: 0.14em;
   color: #f4f7f9; background: var(--slate);
 }
-.reveal .orz-region .markdown-body p > img { display: block; max-height: 100%; }
+.reveal .orz-region .markdown-body p.orz-pic > img { display: block; max-height: 100%; }
 
 /* mermaid: square nodes, slate lines */
 .reveal .markdown-body .mermaid svg .node :is(rect, polygon) { stroke-width: 1.5px !important; }
@@ -815,12 +816,15 @@
   text-transform: uppercase;
   color: var(--slate-2);
 }
-/* the meta paragraph becomes the cover's title block */
+/* the meta paragraph becomes the cover's title block, closing the page at the bottom right — IN FLOW on every variant
+   (round A3, A3-TH-5; A2-TH-12 found it on v4/v6 only: absolutely placed, PREPARED BY covered a long subtitle on v1,
+   v2 and v5 at 4:3) — and clear of the scale bar at the bottom left (its 450px), so nothing is placed over text */
 .reveal .orz-title-meta {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  max-width: 62%;
+  position: relative;
+  margin-top: auto !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  max-width: min(62%, 100% - 450px);
   padding: 1.55em 0.9em 0.6em;
   background: #fff;
   border: 1px solid var(--rule);
@@ -830,6 +834,8 @@
   color: var(--slate);
 }
 .reveal .orz-template-title { position: relative; }
+/* a page with no title block: the scale bar keeps its band at the bottom, clear of a long title */
+.reveal .orz-template-title:not(:has(> .orz-title-meta)) { padding-bottom: 44px; }
 .reveal .orz-title-meta::before {
   content: 'PREPARED BY';
   position: absolute;
@@ -988,7 +994,8 @@
    sitting over it at the bottom right (round A2, A2-TH-11/12: a long title or subtitle ran under PREPARED BY) */
 .reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-template-title::before,
 .reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-template-title::after { content: none; }   /* the scale bar gives the title block its corner */
-.reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-title-meta { position: relative; right: auto; bottom: auto; margin-top: 1.4em; margin-left: auto !important; margin-right: 0 !important; max-width: 100%; }
+.reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-title-meta { margin-top: 1.4em !important; max-width: 100%; }
+.reveal .orz-slide[data-template="title"]:is([data-v="4"], [data-v="6"]) .orz-template-title:not(:has(> .orz-title-meta)) { padding-bottom: 0; }
 
 /* the cover pages (title v5, closing v2): the drafting grid, frame and scale bar drawn in the cover's ink, faint —
    not the bright paper grid across the cover's text; title v5 sits low on the left as on every theme (round A2, A2-TH-5) */
@@ -997,6 +1004,7 @@
   --grid-minor: color-mix(in srgb, var(--sl-cover-ink) 7%, transparent);
   --slate-2: color-mix(in srgb, var(--sl-cover-ink) 55%, transparent);
 }
-.reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title { justify-content: flex-end; padding-top: 26px; padding-bottom: 120px; }
+.reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title { justify-content: flex-end; padding-top: 26px; }
+.reveal .orz-slide[data-template="title"][data-v="5"] .orz-title-meta { margin-top: 1.2em !important; }
 .reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title::after { border-color: var(--sl-cover-ink); background: repeating-linear-gradient(90deg, var(--sl-cover-ink) 0 50px, transparent 50px 100px); }
 .reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title::before { color: var(--sl-cover-ink); }

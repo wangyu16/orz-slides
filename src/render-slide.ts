@@ -131,10 +131,15 @@ function notesBlock(slide: Slide, md: Renderer, env: Record<string, unknown>): s
   return slide.notes ? `<aside class="notes">${block(md, slide.notes, env)}</aside>` : '';
 }
 
-/** A slide background: an image (a URL or a path to an image) or a colour. */
+/**
+ * A slide background: an image (a URL or a path to an image), a CSS gradient (reveal's `data-background-gradient`:
+ * as a colour it drew nothing on screen — round A3, A3-TH-7) or a colour.
+ */
 function background(bg: string): string {
   const image = /^(?:https?:|data:image\/|\.{0,2}\/)|\.(?:png|jpe?g|gif|webp|svg|avif)(?:[?#].*)?$/i.test(bg.trim());
-  return image ? `data-background-image="${esc(bg)}"` : `data-background-color="${esc(bg)}"`;
+  if (image) return `data-background-image="${esc(bg)}"`;
+  if (/^(?:repeating-)?(?:linear|radial|conic)-gradient\(/i.test(bg.trim())) return `data-background-gradient="${esc(bg)}"`;
+  return `data-background-color="${esc(bg)}"`;
 }
 
 function sectionAttrs(slide: Slide, plan: SlidePlan, kind: string, template?: string): string {

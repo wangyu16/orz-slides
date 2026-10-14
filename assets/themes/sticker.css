@@ -1172,7 +1172,7 @@
 }
 
 /* the figure: pasted in as a sticker */
-.reveal .orz-region .markdown-body p > img {
+.reveal .orz-region .markdown-body p.orz-pic > img {
   background: #fffefb;
   border: 3px solid var(--ink);
   border-radius: var(--cut-2);
@@ -1181,7 +1181,7 @@
   box-sizing: border-box;
   max-height: 100%;
 }
-.reveal .orz-region .markdown-body p:has(> img:only-child) { height: calc(100% - 10px); }
+.reveal .orz-region .markdown-body p.orz-pic { height: calc(100% - 10px); }
 
 /* mermaid: drawn in ink with hard sticker shadows on the nodes */
 .reveal .markdown-body .mermaid svg .node :is(rect, polygon, circle, path) { stroke-width: 3px !important; filter: drop-shadow(3px 3px 0 #222); }

@@ -116,7 +116,9 @@
   content: attr(data-sec); font-size: 1em; font-weight: 700; color: #1a0d06; background: var(--accent-2);
   border-radius: 999px; padding: 0.12em 0.6em;
 }
-.reveal .orz-chrome-sec[data-sec=""], .reveal .orz-slide[data-kind="template"] .orz-chrome-sec { display: none; }
+/* section_numbers: none takes the NUMBER away, never the section title: hidden only with no section (round A3, A3-TH-4) */
+.reveal .orz-chrome-sec[data-sec=""]:empty, .reveal .orz-slide[data-kind="template"] .orz-chrome-sec { display: none; }
+.reveal .orz-chrome-sec[data-sec=""]::before { content: none; }
 .reveal .orz-slide:has(.orz-footer) .orz-chrome-sec { display: none; }
 
 /* ───────── floats: a rounded copper-capped panel ───────── */

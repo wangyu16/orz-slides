@@ -395,6 +395,16 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
     // the title band clips across (overflow-x: clip) and grows down: a layer must not make it visible across
     if (sels.some((x) => /\.orz-title\s*$/.test(x)) && r.decls.some((d) => (d.prop === 'overflow' || d.prop === 'overflow-x') && /^visible/.test(d.value))) problems.push(`${id}: "${r.selector}" lets the title band overflow across (it clips on x)`);
   }
+  // round A3 (A3-TH-1): a rule that sets the metrics or layout of a paragraph BY the image it holds (`p:has(> img)`,
+  // `p > img`) also reaches a sentence with an inline icon and a caption written above its picture — five themes set
+  // their line height to 0; a picture is `p.orz-pic` (the engine marks it)
+  const byImage = (x: string): boolean => !/\.orz-pic\b/.test(x) && (/:has\([^)]*\bimg\b/.test(x) || /\bp\s*>\s*img\b|\bp\s+img\b/.test(x));
+  const METRIC = /^(line-height|font-size|display|position|float|transform|width|height|min-height|max-height|max-width|padding(-\w+)?|margin(-\w+)?)$/;
+  for (const [where, text] of [[id, css.layer], ['deck.css', css.deck]] as const) {
+    for (const r of rulesOf(text)) {
+      if (splitTop(r.selector, ',').some(byImage) && r.decls.some((d) => METRIC.test(d.prop))) problems.push(`${where}: "${r.selector}" sizes a paragraph by the image it holds (a sentence with an icon too): use p.orz-pic`);
+    }
+  }
   return problems;
 }
 

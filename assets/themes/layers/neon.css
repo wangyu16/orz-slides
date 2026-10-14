@@ -312,8 +312,8 @@
 
 /* graphics: drawn straight on the panel; figures sit in a bezel */
 .reveal .markdown-body .mermaid, .reveal .markdown-body .orz-chart-frame { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
-.reveal .markdown-body p:has(> img) { line-height: 0; width: fit-content; }
-.reveal .markdown-body p:has(> img) > img { display: block; padding: 6px; background: #0f1c1d; border: 1px solid #24403e; }
+.reveal .markdown-body p.orz-pic { line-height: 0; width: fit-content; }
+.reveal .markdown-body p.orz-pic > img { display: block; padding: 6px; background: #0f1c1d; border: 1px solid #24403e; }
 
 /* float: a cursor readout pinned on the trace */
 .reveal .orz-float {
@@ -375,7 +375,10 @@
 }
 .reveal .orz-chrome-sec { font-size: 0; }   /* (1.0) the readout shows the section number only: at 20px the title has no room */
 .reveal .orz-chrome-sec::before { content: 'SEC\2009' attr(data-sec); color: var(--phosphor); font-size: 20px; }
-.reveal .orz-chrome-sec[data-sec=""] { display: none; }
+/* section_numbers: none takes the NUMBER away, never the section title: hidden only with no section (round A3, A3-TH-4) — the readout shows the title when there is no number to show */
+.reveal .orz-chrome-sec[data-sec=""]:empty { display: none; }
+.reveal .orz-chrome-sec[data-sec=""] { font-size: 20px; }
+.reveal .orz-chrome-sec[data-sec=""]::before { content: 'SEC\2009'; }
 .reveal .orz-slide[data-kind="template"] .orz-chrome-sec { display: none; }
 /* progress: a segmented level meter */
 .reveal .orz-chrome::after {

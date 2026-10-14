@@ -272,8 +272,8 @@
 
 /* graphics: plates — a fine frame around figures */
 .reveal .markdown-body .mermaid, .reveal .markdown-body .orz-chart-frame { background: transparent; box-shadow: none; padding: 0; }
-.reveal .markdown-body p:has(> img) { line-height: 0; width: fit-content; }
-.reveal .markdown-body p:has(> img) > img { display: block; padding: 5px; border: 1px solid var(--hair); background: #fffdf8; }
+.reveal .markdown-body p.orz-pic { line-height: 0; width: fit-content; }
+.reveal .markdown-body p.orz-pic > img { display: block; padding: 5px; border: 1px solid var(--hair); background: #fffdf8; }
 
 /* float: a marginal note in a double-ruled frame */
 .reveal .orz-float {
@@ -355,7 +355,8 @@
   color: var(--muted);
 }
 .reveal .orz-chrome-sec::before { font-style: normal; font-variant-caps: all-small-caps; letter-spacing: 0.08em; color: var(--brown); margin-right: 0.35em; }
-.reveal .orz-chrome-sec[data-sec=""] { display: none; }
+/* section_numbers: none takes the NUMBER away, never the section title: hidden only with no section (round A3, A3-TH-4) */
+.reveal .orz-chrome-sec[data-sec=""]:empty { display: none; }
 /* chapter openings, the contents and the colophon: folio only */
 .reveal .orz-slide[data-kind="template"] .orz-footer,
 .reveal .orz-slide[data-kind="template"] .orz-chrome::before,
@@ -363,6 +364,7 @@
 .reveal .orz-slide[data-kind="template"] .orz-chrome-sec { display: none; }
 
 .reveal .orz-chrome-sec::before { content: 'Part ' attr(data-sec) ' \00B7'; }   /* data-sec is roman: Paper numbers sections I, II … */
+.reveal .orz-chrome-sec[data-sec=""]::before { content: none; }
 
 /* ───────── title page: a book's title page, the imprint at its foot ───────── */
 .reveal .orz-slide[data-template="title"] .orz-frame { justify-content: stretch; }

@@ -31,6 +31,7 @@ import { THEMES } from '../src/themes.js';
 import { TEMPLATES } from '../src/deck/parse.js';
 import { checkDeck } from './fit-oracle.js';
 import { goTo, launchChrome, openDeck } from './helpers.js';
+import { coveredTexts, redShare, textOverlaps } from './support/overprint.js';
 
 type Page = import('playwright-core').Page;
 
@@ -126,80 +127,6 @@ const contrast = (a: string, b: string): number => {
   return (x + 0.05) / (y + 0.05);
 };
 
-/**
- * Round A2 — the per-text visual oracle (A2-TH-2, -4, -11, -12 slipped past bounds-only checks): on the current
- * slide, no visible text overlaps another text, and no absolutely placed ::before/::after with text (a section
- * number, a label) overlaps a text — each rectangle cut to the elements that clip it (an ellipsized footer's
- * range runs on under its clip).
- */
-function textOverlaps(page: Page): Promise<string[]> {
-  return page.evaluate(`(() => {
-    const s = document.querySelector('.reveal .slides > section.present');
-    const k = s.getBoundingClientRect().width / s.offsetWidth;
-    const clipOf = (el) => {
-      let r = { l: -1e9, t: -1e9, r: 1e9, b: 1e9 };
-      for (let p = el; p && p !== s.parentElement; p = p.parentElement) {
-        const c = getComputedStyle(p);
-        const x = c.overflowX !== 'visible', y = c.overflowY !== 'visible';
-        if (!x && !y) continue;
-        const q = p.getBoundingClientRect();
-        if (x) { r.l = Math.max(r.l, q.left); r.r = Math.min(r.r, q.right); }
-        if (y) { r.t = Math.max(r.t, q.top); r.b = Math.min(r.b, q.bottom); }
-      }
-      return r;
-    };
-    const cut = (x, c) => ({ l: Math.max(x.left, c.l), t: Math.max(x.top, c.t), r: Math.min(x.right, c.r), b: Math.min(x.bottom, c.b) });
-    const shown = (el) => { const c = getComputedStyle(el); return c.visibility !== 'hidden' && Number(c.opacity) > 0.05 && c.display !== 'none'; };
-    // under a rotation a text's rectangle is its bounding box, larger than its ink
-    const rotated = (el) => { for (let p = el; p && p !== s; p = p.parentElement) { const m = /matrix\(([^)]*)\)/.exec(getComputedStyle(p).transform); if (m) { const v = m[1].split(',').map(Number); if (Math.abs(v[1]) > 0.01 || Math.abs(v[2]) > 0.01) return true; } } return false; };
-    const items = [];
-    const w = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
-    for (let n = w.nextNode(); n; n = w.nextNode()) {
-      const t = (n.textContent || '').trim();
-      const el = n.parentElement;
-      if (!t || el.closest('aside.notes, .katex, svg, canvas, .orz-qr-slot') || !shown(el)) continue;
-      let hidden = false;
-      for (let p = el; p && p !== s; p = p.parentElement) if (!shown(p)) { hidden = true; break; }
-      if (hidden) continue;
-      const c = clipOf(el);
-      const r = document.createRange();
-      r.selectNodeContents(n);
-      for (const x of Array.from(r.getClientRects())) { const q = cut(x, c); if (q.r - q.l > 1 && q.b - q.t > 1) items.push({ el, pseudo: '', text: t.slice(0, 40), q, rot: rotated(el) }); }
-    }
-    for (const el of Array.from(s.querySelectorAll('*'))) {
-      if (el.closest('aside.notes, svg')) continue;
-      for (const ps of ['::before', '::after']) {
-        const c = getComputedStyle(el, ps);
-        if (c.position !== 'absolute' || !/^["']/.test(c.content) || !/\\S/.test(c.content.slice(1, -1)) || c.visibility === 'hidden' || c.display === 'none') continue;
-        // placed against its own (positioned) element, where left and top are definite; one placed against an
-        // ancestor may be at its static position ('auto' resolves to it), which cannot be read back here
-        if (getComputedStyle(el).position === 'static') continue;
-        const b = el.getBoundingClientRect();
-        const ec = getComputedStyle(el);
-        const left = parseFloat(c.left), top = parseFloat(c.top), wd = parseFloat(c.width), ht = parseFloat(c.height);
-        if (!isFinite(left) || !isFinite(top) || !(wd > 0) || !(ht > 0)) continue;
-        // its own transform: a translation moves it (a rotation makes its box a bounding box)
-        const tm = /matrix\(([^)]*)\)/.exec(c.transform);
-        const tv = tm ? tm[1].split(',').map(Number) : [1, 0, 0, 1, 0, 0];
-        const x0 = b.left + (parseFloat(ec.borderLeftWidth) || 0) * k + (left + tv[4]) * k, y0 = b.top + (parseFloat(ec.borderTopWidth) || 0) * k + (top + tv[5]) * k;
-        const q = cut({ left: x0, top: y0, right: x0 + wd * k, bottom: y0 + ht * k }, clipOf(el));
-        if (q.r - q.l > 1 && q.b - q.t > 1) items.push({ el, pseudo: ps, text: el.className + ps + ' ' + c.content.slice(0, 20), q, rot: rotated(el) || Math.abs(tv[1]) > 0.01 });
-      }
-    }
-    const out = [];
-    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
-      const a = items[i], b = items[j];
-      if (a.el === b.el && !a.pseudo && !b.pseudo) continue;
-      if (!a.pseudo && !b.pseudo && (a.el.contains(b.el) || b.el.contains(a.el))) continue;
-      const ow = Math.min(a.q.r, b.q.r) - Math.max(a.q.l, b.q.l), oh = Math.min(a.q.b, b.q.b) - Math.max(a.q.t, b.q.t);
-      // a text's rectangle is its font's whole ascent and descent: tightly set big type touches the next line's; an
-      // overprint covers a good part of a line
-      if (ow > 3 * k && oh > Math.max(4 * k, (a.rot || b.rot ? 0.5 : 0.3) * Math.min(a.q.b - a.q.t, b.q.b - b.q.t))) { out.push('"' + a.text + '" x "' + b.text + '" (' + Math.round(ow / k) + 'x' + Math.round(oh / k) + ')'); if (out.length > 5) return out; }
-    }
-    return out;
-  })()`) as Promise<string[]>;
-}
-
 /** Round A2 (A2-TH-3): every chrome text on a cover page reads on what is behind it (its own surface, else the cover). */
 function coverChromeContrast(page: Page): Promise<Array<{ text: string; ink: string; bg: string }>> {
   return page.evaluate(`(() => {
@@ -240,7 +167,7 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
     it(`[T.3][T.11][T.10][T.6][T.12][T.14] ${t.id}: stress deck at 16:9 and 4:3 — no silent clipping, no template page clipped, chrome text inside its slot or ellipsized, no text over another; every variant its own look, covers and their chrome readable; six chart colours apart for every reader, a 10-slice pie of ten, gantt charts readable; ruled regions on the slide's lines; bg= on any slide`, async () => {
       for (const ratio of ['16:9', '4:3']) {
         const { page, ctx, errors } = await openDeck(browser!, fileFor(`${t.id}-${ratio.replace(':', 'x')}`), assemble(deckFor(t.id, ratio)), { network: true });
-        await page.addStyleTag({ content: '.reveal .slides > section { transition: none !important; }' });
+        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
         // T.3 on every slide; T.11 on every slide
         const boxes = await checkDeck(page, `${t.id} ${ratio}`);
         expect(boxes.length).toBeGreaterThan(40);
@@ -249,14 +176,26 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
         expect(boxes.filter((b) => /orz-template/.test(b.box) && b.clipped).map((b) => `slide ${b.slide + 1}`), `${t.id} ${ratio}: a template page clipped`).toEqual([]);
         const chrome: string[] = [];
         const overlaps: string[] = [];
+        const covered: string[] = [];
         for (let i = 0; i < total; i++) {
           await goTo(page, i);
           for (const x of await chromeOutside(page)) chrome.push(`slide ${i + 1}: ${x}`);
           for (const x of await textOverlaps(page)) overlaps.push(`slide ${i + 1}: ${x}`);
+          for (const x of await coveredTexts(page)) covered.push(`slide ${i + 1}: ${x}`);
         }
         expect(chrome, `${t.id} ${ratio}: chrome text cut or outside the slide`).toEqual([]);
-        // round A2 (A2-TH-2, -4, -11, -12): no text over another text, no placed number or label over a text
+        // round A2 (A2-TH-2, -4, -11, -12): no text over another text, no placed number or label over a text; round A3
+        // (A3-TH-1): no two lines of one paragraph over each other (an inline icon, a caption above its picture)
         expect(overlaps, `${t.id} ${ratio}: texts that overprint`).toEqual([]);
+        // round A3 (A3-TH-5, the A2-TH-12 class): no opaque box over a text (a long title page at 4:3 included)
+        expect(covered, `${t.id} ${ratio}: texts under a box`).toEqual([]);
+        // round A3 (A3-TH-6, A3-TH-7): bg= shows on a cover page (title v5, closing v2) and as a CSS gradient
+        for (const title of ['A cover with its own background', 'Thank you', 'A gradient background']) {
+          const i = STRESS.split(/^<!-- slide/m).slice(1).findIndex((x) => /^[^\n]*\bbg=/.test(x) && x.includes(`# ${title}`));
+          await goTo(page, i);
+          await page.waitForTimeout(250);
+          expect(await redShare(page), `${t.id} ${ratio}: "${title}": share of the slide in its bg= colour`).toBeGreaterThan(0.4);
+        }
         // A2-TH-9: the untitled three-row slide — every ruled region is unscaled on the slide's lines, or says it is scaled
         const rows2 = total - 1;
         await goTo(page, rows2);
@@ -325,16 +264,7 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
             return { top: r.top, height: r.height, vh: window.innerHeight, bg: getComputedStyle(b).backgroundColor };
           });
           expect(layer, `${t.id}: the bg= layer on screen`).toMatchObject({ top: 0, bg: 'rgb(216, 27, 27)' });
-          const shot = await page.screenshot({ clip: { x: 0, y: 0, width: 1280, height: 720 } });
-          const red = await page.evaluate(async (data) => {
-            const img = new Image(); img.src = `data:image/png;base64,${data}`; await img.decode();
-            const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-            const g = c.getContext('2d')!; g.drawImage(img, 0, 0);
-            const px = g.getImageData(0, 0, c.width, c.height).data;
-            let n = 0; for (let i = 0; i < px.length; i += 4) if (Math.abs(px[i] - 216) + Math.abs(px[i + 1] - 27) + Math.abs(px[i + 2] - 27) < 60) n++;
-            return n / (px.length / 4);
-          }, shot.toString('base64'));
-          expect(red, `${t.id}: share of the slide in its bg= colour`).toBeGreaterThan(0.4);
+          expect(await redShare(page), `${t.id}: share of the slide in its bg= colour`).toBeGreaterThan(0.4);
           // … and no slide rule styles reveal's copies of the sections' classes (the audit of every deck.css and theme selector)
           const copies = await page.evaluate(() => {
             const host = document.querySelector('.reveal .backgrounds')!;
@@ -346,7 +276,7 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
             const out: string[] = [];
             for (const b of Array.from(host.querySelectorAll<HTMLElement>(':scope > .slide-background.orz-slide'))) {
               const cs = getComputedStyle(b);
-              for (const p of props) if (cs.getPropertyValue(p) !== want.getPropertyValue(p)) out.push(`${p}: ${cs.getPropertyValue(p)} (reveal: ${want.getPropertyValue(p)})`);
+              for (const p of props) if (!(p === 'background-image' && b.style.backgroundImage) && cs.getPropertyValue(p) !== want.getPropertyValue(p)) out.push(`${p}: ${cs.getPropertyValue(p)} (reveal: ${want.getPropertyValue(p)})`);
               for (const ps of ['::before', '::after']) { const c = getComputedStyle(b, ps).content; if (c !== 'none' && c !== 'normal') out.push(`${ps} ${c}`); }
               if (!b.style.backgroundColor && !/rgba\(0, 0, 0, 0\)/.test(cs.backgroundColor)) out.push(`background-color ${cs.backgroundColor}`);
             }
@@ -381,6 +311,10 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
           const same2: string[] = [];
           for (let a = 0; a < 10; a++) for (let b = a + 1; b < 10; b++) if (deltaE(slices[a], slices[b]) < 10) same2.push(`${String.fromCharCode(65 + a)} ~ ${String.fromCharCode(65 + b)} (ΔE ${deltaE(slices[a], slices[b]).toFixed(1)})`);
           expect(same2, `${t.id}: pie slices alike`).toEqual([]);
+          // round A3 (A3-TH-3): … for colour-blind readers too (the kit's extension colours, orz-markdown M.39)
+          const cvd2: string[] = [];
+          for (const [k2, m] of Object.entries(M_CVD)) for (let a = 0; a < 10; a++) for (let b = a + 1; b < 10; b++) { const d = deltaE(simulate(slices[a], m), simulate(slices[b], m)); if (d < 10) cvd2.push(`${k2}: ${String.fromCharCode(65 + a)} ~ ${String.fromCharCode(65 + b)} (ΔE ${d.toFixed(1)})`); }
+          expect(cvd2, `${t.id}: pie slices a colour-blind reader cannot tell apart`).toEqual([]);
           // TK-2: the gantt chart takes its region's width, its axis labels apart
           await goTo(page, findSlide('Sequence and gantt'));
           await page.waitForFunction(() => document.querySelectorAll('.reveal .slides > section.present div.mermaid svg').length === 2, null, { timeout: 30_000 });
@@ -418,6 +352,22 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
             expect(x.tick, `${t.id}: gantt axis text (logical px) ${JSON.stringify(x)}`).toBeGreaterThanOrEqual(11);
           }
           expect(gs[1].labels.join(' '), `${t.id}: the grant's axis shows its years`).toMatch(/20(26|27|28)/);
+          // round A3 (A3-TH-2): a semester across the slide and twelve years in half a slide — labels apart, evenly spaced
+          for (const title of ['Gantt across the slide', 'A twelve-year programme']) {
+            await goTo(page, findSlide(title));
+            await page.waitForFunction(() => document.querySelectorAll('.reveal .slides > section.present div.mermaid svg').length === 1, null, { timeout: 30_000 });
+            const a = await page.evaluate(() => {
+              const svg = document.querySelector<SVGSVGElement>('.reveal .slides > section.present div.mermaid svg')!;
+              const r = Array.from(svg.querySelectorAll('.tick text')).filter((x) => getComputedStyle(x).display !== 'none').map((x) => ({ r: x.getBoundingClientRect(), t: x.textContent ?? '' })).filter((x) => x.r.width > 0).sort((p, q) => p.r.left - q.r.left);
+              let overlap = 0;
+              for (let i = 1; i < r.length; i++) if (r[i].r.left < r[i - 1].r.right - 1) overlap++;
+              const gaps = r.slice(1).map((x, i) => (x.r.left + x.r.right) / 2 - (r[i].r.left + r[i].r.right) / 2);
+              return { labels: r.map((x) => x.t), overlap, even: gaps.length < 2 ? 1 : Math.max(...gaps) / Math.min(...gaps) };
+            });
+            expect(a.overlap, `${t.id} ${title}: ${JSON.stringify(a)}`).toBe(0);
+            expect(a.labels.length, `${t.id} ${title}: ${JSON.stringify(a)}`).toBeGreaterThanOrEqual(2);
+            expect(a.even, `${t.id} ${title}: uneven ticks ${JSON.stringify(a)}`).toBeLessThan(1.2);
+          }
           // T.12: ruled themes — every unscaled region of the three-row slide starts on one of the slide's lines
           const rows = findSlide('Three rows');
           await goTo(page, rows);

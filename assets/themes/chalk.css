@@ -633,10 +633,10 @@
 .reveal .markdown-body .mermaid, .reveal .markdown-body .orz-chart-frame { background: transparent; box-shadow: none; padding: 0; }
 
 /* figures: a printed sheet taped to the board */
-.reveal .markdown-body p:has(> img) { position: relative; width: fit-content; margin: 0.45em auto 0.4em; line-height: 0; }
-.reveal .markdown-body p:has(> img) > img { display: block; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); }
-.reveal .markdown-body p:has(> img)::before,
-.reveal .markdown-body p:has(> img)::after {
+.reveal .markdown-body p.orz-pic { position: relative; width: fit-content; margin: 0.45em auto 0.4em; line-height: 0; }
+.reveal .markdown-body p.orz-pic > img { display: block; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); }
+.reveal .markdown-body p.orz-pic::before,
+.reveal .markdown-body p.orz-pic::after {
   content: '';
   position: absolute;
   top: -0.32em;
@@ -646,10 +646,10 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   z-index: 1;
 }
-.reveal .markdown-body p:has(> img)::before { left: -0.8em; transform: rotate(-28deg); }
-.reveal .markdown-body p:has(> img)::after { right: -0.8em; transform: rotate(26deg); }
+.reveal .markdown-body p.orz-pic::before { left: -0.8em; transform: rotate(-28deg); }
+.reveal .markdown-body p.orz-pic::after { right: -0.8em; transform: rotate(26deg); }
 /* the tape stands past the picture's corners: room for it inside the box (a box never shows overflow) */
-.reveal .orz-region:has(> .markdown-body > p > img) > .markdown-body { padding: 0.4em 0.9em 0.1em; }
+.reveal .orz-region:has(> .markdown-body > p.orz-pic) > .markdown-body { padding: 0.4em 0.9em 0.1em; }
 
 /* float: a yellow card held on by a magnet */
 .reveal .orz-float {

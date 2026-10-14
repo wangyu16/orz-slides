@@ -27,6 +27,7 @@ import { assemble } from '../src/lib.js';
 import { THEMES } from '../src/themes.js';
 import { checkDeck } from './fit-oracle.js';
 import { corpus, goTo, launchChrome, openDeck, type PageGlobal } from './helpers.js';
+import { coveredTexts, redShare, textOverlaps } from './support/overprint.js';
 
 type Page = import('playwright-core').Page;
 
@@ -57,7 +58,7 @@ async function settle(page: Page): Promise<void> {
   // everything the page loads (webfonts, KaTeX's stylesheet) has arrived and fit has run after it
   await page.waitForLoadState('load', { timeout: 90_000 });
   // no slide transition: a slide is measured and sampled where it rests
-  await page.addStyleTag({ content: '.reveal .slides > section { transition: none !important; }' });
+  await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
 }
@@ -295,4 +296,129 @@ real('the 14 slide themes on the sample deck (real Chrome, online)', () => {
     expect(errors).toEqual([]);
     await ctx.close();
   }, 180_000);
+});
+
+/*
+ * Closed-loop round A3 (notes/closed-loop.md): theme rules that reached more
+ * than they meant — a picture rule on any paragraph with an image (A3-TH-1),
+ * an absolutely placed title block over the text (A3-TH-5), a cover over the
+ * author's background (A3-TH-6), a gradient bg= drawn as a colour (A3-TH-7),
+ * a numbering setting that hid the section title (A3-TH-4), a status bar
+ * that capped the section beside an empty footer (A3-TH-8). Offline, every
+ * theme; each failed on rebuild/1.0@a9f4ab3.
+ */
+const chromeOnly = browser ? describe : describe.skip;
+const A3 = (id: string, ratio: string, body: string, keys = ''): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: Round A3\ntheme: ${id}\nratio: ${ratio}\n${keys}}}\n\n${body}`;
+const offline = async (name: string, text: string): Promise<{ page: Page; ctx: import('playwright-core').BrowserContext }> => {
+  const sub = join(dir, name);
+  mkdirSync(sub, { recursive: true });
+  copyFileSync('tests/fixtures/stress/big.svg', join(sub, 'big.svg'));
+  const o = await openDeck(browser!, join(sub, 'deck.slides.html'), assemble(text));
+  await o.page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+  return o;
+};
+
+chromeOnly('round A3: theme rules that reach only what they mean (real Chrome, offline, every theme)', () => {
+  it('[T.11] A3-TH-1: a sentence with an inline icon, and a caption written on the line above its picture, keep their line height — no two lines of a paragraph over each other; a paragraph that IS a picture is p.orz-pic', async () => {
+    const body = '<!-- slide -->\n## An icon in a sentence\nPress the <img src="big.svg" width="28" height="28" alt="gear"> button in the toolbar, then choose Settings and pick the export format you want from the list that opens below it.\n\n<!-- slide -->\n## A caption and its picture\nFigure 1. Conversion against time for the polymerization in flow at three temperatures, measured by NMR.\n<img src="big.svg" width="220" alt="plot">\n\n<!-- slide -->\n## A picture\n![plot](big.svg)\n';
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const { page, ctx } = await offline(`icon-${t.id}`, A3(t.id, '16:9', body));
+      for (const i of [0, 1]) {
+        await goTo(page, i);
+        const lh = await page.evaluate(() => getComputedStyle(document.querySelector('.reveal .slides > section.present .orz-region .markdown-body p')!).lineHeight);
+        if (lh === '0px') bad.push(`${t.id} slide ${i + 1}: line-height 0`);
+        for (const x of await textOverlaps(page)) bad.push(`${t.id} slide ${i + 1}: ${x}`);
+      }
+      await goTo(page, 2);
+      if (!(await page.evaluate(() => !!document.querySelector('.reveal .slides > section.present p.orz-pic > img')))) bad.push(`${t.id}: the picture paragraph is not p.orz-pic`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[T.11] A3-TH-5 (the A2-TH-12 class): no absolutely placed block covers a text — a long title, a two-line subtitle and a three-line meta on title v1, v2 and v5 at 4:3 and 16:9, in every theme', async () => {
+    const META = '**Yu Wang**, Jane Doe-Smithson · Department of Chemistry · University of Louisiana at Lafayette · Fall 2026';
+    const page1 = (v: number): string => `<!-- slide template=title v=${v} -->\n# Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow reactors\n## Mechanism, kinetics, molecular weight control and the design of block copolymers for biomedical use\n${META}\n\n`;
+    const body = [1, 2, 5].map(page1).join('');
+    const bad: string[] = [];
+    for (const t of THEMES) for (const ratio of ['4:3', '16:9']) {
+      const { page, ctx } = await offline(`cover-${t.id}-${ratio.replace(':', 'x')}`, A3(t.id, ratio, body));
+      for (const i of [0, 1, 2]) {
+        await goTo(page, i);
+        for (const x of await coveredTexts(page)) bad.push(`${t.id} ${ratio} v${[1, 2, 5][i]}: ${x}`);
+        for (const x of await textOverlaps(page)) bad.push(`${t.id} ${ratio} v${[1, 2, 5][i]}: ${x}`);
+      }
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[T.14] A3-TH-6, A3-TH-7: bg= shows on a cover page (title v5, closing v2: the author\'s background replaces the cover colour) and as a CSS gradient — on screen and on paper (the speaker\'s copies are the print pipeline\'s), in every theme', async () => {
+    const body = '<!-- slide -->\n## First\n\n<!-- slide template=title v=5 bg=#d81b1b -->\n# A cover with its own background\nYu Wang\n\n<!-- slide template=closing v=2 bg=#d81b1b -->\n## Thank you\n\n<!-- slide bg="linear-gradient(#d81b1b, #d81b1b)" -->\n## A gradient background\n';
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const { page, ctx } = await offline(`bg-${t.id}`, A3(t.id, '16:9', body));
+      for (const i of [1, 2, 3]) {
+        await goTo(page, i);
+        await page.waitForTimeout(150);
+        const r = await redShare(page);
+        if (r < 0.4) bad.push(`${t.id} screen slide ${i + 1}: ${(r * 100).toFixed(0)} % red`);
+      }
+      const doc = await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({}) as Promise<{ html: string }>);
+      const pr = await browser!.newContext({ viewport: { width: 1280, height: 720 } });
+      await pr.route('**/*', (r) => (r.request().url().startsWith('file:') || r.request().url().startsWith('data:') ? r.continue() : r.abort()));
+      const p = await pr.newPage();
+      await p.setContent(doc.html);
+      for (const i of [1, 2, 3]) {
+        await p.evaluate((n) => { document.querySelectorAll('.orz-page')[n].scrollIntoView(); }, i);
+        const r = await redShare(p);
+        if (r < 0.4) bad.push(`${t.id} print slide ${i + 1}: ${(r * 100).toFixed(0)} % red`);
+      }
+      await pr.close();
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[C.1] A3-TH-4: section_numbers: none takes the number away, never the section title — the running chrome that shows the section with numbers shows its title without them, in every theme', async () => {
+    const body = '<!-- slide template=section -->\n# Kinetics\n\n<!-- slide -->\n## A normal slide\ntext\n';
+    const shown = async (page: Page): Promise<string[]> => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.reveal .slides > section.present :is(.orz-chrome-sec, .orz-head-sec)')).filter((e) => {
+      const r = e.getBoundingClientRect();
+      return getComputedStyle(e).display !== 'none' && r.width > 4 && r.height > 4 && parseFloat(getComputedStyle(e).fontSize) > 0;
+    }).map((e) => e.className));
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const a = await offline(`sec01-${t.id}`, A3(t.id, '16:9', body, 'section_numbers: 01\n'));
+      await goTo(a.page, 1);
+      const withNumbers = await shown(a.page);
+      await a.ctx.close();
+      const b = await offline(`secnone-${t.id}`, A3(t.id, '16:9', body, 'section_numbers: none\n'));
+      await goTo(b.page, 1);
+      const without = await shown(b.page);
+      const text = await b.page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.reveal .slides > section.present :is(.orz-chrome-sec, .orz-head-sec)')).map((e) => e.textContent ?? '').join(' '));
+      await b.ctx.close();
+      for (const c of withNumbers) if (!without.includes(c)) bad.push(`${t.id}: ${c} hidden with section_numbers: none`);
+      if (without.length > 0 && !/Kinetics/.test(text)) bad.push(`${t.id}: the section title is not in the chrome`);
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[T.11] A3-TH-8: Nocturne\'s one-row status bar gives a short footer\'s room to a long section title (at 4:3 and 16:9) — the section was capped at 40 % beside an empty footer', async () => {
+    const body = '<!-- slide template=section -->\n# Reversible addition–fragmentation chain transfer in continuous flow\n\n<!-- slide -->\n## A normal slide\ntext\n';
+    for (const ratio of ['4:3', '16:9']) {
+      const { page, ctx } = await offline(`noc-${ratio.replace(':', 'x')}`, A3('nocturne', ratio, body, 'footer: CHEM 512\n'));
+      await goTo(page, 1);
+      const r = await page.evaluate(() => {
+        const s = document.querySelector('.reveal .slides > section.present')!;
+        const sec = s.querySelector<HTMLElement>('.orz-chrome-sec')!;
+        const foot = s.querySelector<HTMLElement>('.orz-footer')!;
+        return { sec: sec.clientWidth, secFull: sec.scrollWidth, foot: foot.clientWidth, footFull: foot.scrollWidth };
+      });
+      expect(r.footFull, `${ratio}: the short footer is whole ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.foot + 1);
+      expect(r.foot, `${ratio}: the footer takes only its text's room ${JSON.stringify(r)}`).toBeLessThan(r.sec);
+      if (ratio === '16:9') expect(r.secFull, `${ratio}: the long section title shows whole ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.sec + 1);
+      await ctx.close();
+    }
+  }, 120_000);
 });

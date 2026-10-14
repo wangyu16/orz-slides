@@ -10,6 +10,7 @@
  *   `.orz-qr-slot`, the template's last child, for the theme to place (its
  *   `data-md` breadcrumb travels with it); a paragraph left empty (or with
  *   only separators) goes;
+ * - **pictures**: a paragraph that is one image is `p.orz-pic` (round A3);
  * - **media** never play off their slide, and a static copy shows a video
  *   as a still of the player's size with its address (round A3).
  */
@@ -98,10 +99,36 @@ export function stillVideos(root: ParentNode): void {
   }
 }
 
+/**
+ * A paragraph that is a picture (round A3, A3-TH-1): it holds one image
+ * (or one linked image) and nothing else but white space — `p.orz-pic`, the
+ * one hook deck.css and the themes frame and size pictures by. A
+ * `p:has(> img)` rule also matched a sentence with an inline icon, or a
+ * caption written on the line above its picture (one paragraph): five
+ * themes set its line-height to 0 and printed its lines over each other.
+ */
+export function markPictures(root: ParentNode): void {
+  for (const p of Array.from(root.querySelectorAll<HTMLElement>('.markdown-body p'))) {
+    let pics = 0;
+    let other = false;
+    for (const n of Array.from(p.childNodes)) {
+      if (n.nodeType === 3) { if ((n.textContent ?? '').trim() !== '') other = true; continue; }
+      if (n.nodeType !== 1) continue;
+      const el = n as Element;
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'img') pics++;
+      else if (tag === 'a' && el.children.length === 1 && el.firstElementChild!.tagName.toLowerCase() === 'img' && (el.textContent ?? '').trim() === '') pics++;
+      else if (tag !== 'br') other = true;
+    }
+    p.classList.toggle('orz-pic', pics === 1 && !other);
+  }
+}
+
 /** Every DOM addition of a fresh render; `still`: a static copy (print, the speaker view). */
 export function decorate(root: ParentNode, o: { steps?: boolean; still?: boolean } = {}): void {
   if (o.steps !== false) applySteps(root);
   liftClosingQr(root);
+  markPictures(root);
   quietMedia(root, o.still === true);
   if (o.still === true) stillVideos(root);
 }

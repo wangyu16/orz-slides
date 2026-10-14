@@ -37,7 +37,7 @@ needs may come from it.
 <section class="orz-slide [class option]"
          data-kind="normal|template" [data-template="title|section|outline|closing"] [data-v="2"]
          data-fit="fit|scroll|off" data-n="4" data-sec="01"
-         [id] [data-transition] [data-step="1"] [data-background-color|data-background-image]
+         [id] [data-transition] [data-step="1"] [data-background-color|data-background-image|data-background-gradient]
          style="--progress:0.2727">
 
   <!-- TOP SLOT: the running head (hidden by default: display none; a theme shows it) -->
@@ -93,6 +93,8 @@ current item `li.orz-here[aria-current=step]`.
 | `li.orz-here` | outline | the next section's item (automatic), or `here=N`; none for `here=0` |
 | `.fragment` | step units | `step` slides: each top-level list item and every other top-level block of a region |
 | `.orz-qr-slot` | closing template | a lone `{{qr}}` lifted out of the text |
+| `p.orz-pic` | a region's paragraph | the paragraph IS a picture: one image (or one linked image) and nothing else (round A3). deck.css sizes it to the room its box leaves; a theme frames pictures through it, never through `p:has(> img)` / `p > img`, which also reach a sentence with an inline icon and a caption written above its picture (the build contract refuses such a rule) |
+| `.orz-video-still` | static copies (print, the speaker view) | a `{{youtube}}` player replaced by a still of the same size showing the video's address (`.orz-video-poster` > `.orz-video-mark`, `a.orz-video-url`); its `data-md` and `data-url` kept (round A3) |
 | `--fit-scale` | `.orz-box` | the box's font scale (absent = 1) |
 | `data-scale` | `.orz-box` | `1` or the scale (two decimals; `1` when it rounds to 1) — always set once fitted |
 | `data-clipped` | `.orz-box`, `.orz-footer` | content is cut (at the floor, or `fit=off`); on the footer: its one line is ellipsized (its `title` holds the full text) |
@@ -203,14 +205,32 @@ background layer (`.backgrounds > .slide-background`), so a `.orz-slide`
 rule also matches that copy. deck.css takes reveal's geometry and paint back
 for it (`!important`) and removes its `::before`/`::after`, and a slide with
 `bg=` has its own page transparent (`!important`), so `bg=` shows on every
-slide in every theme. A theme never styles `.slide-background` (claim T.14).
+slide in every theme — a cover page (title v5, closing v2) included: the
+author's background replaces the cover colour, the cover ink stays (round
+A3). A CSS gradient is `data-background-gradient` (reveal's; a colour, an
+image or a gradient — the print document and the speaker's copies draw all
+three). A theme never styles `.slide-background` (claim T.14).
+
+**Nothing placed covers content** (round A3): an absolutely placed block a
+theme draws (a title block, a label, a badge) never lies over a text — put
+it in flow, or keep the content out of its room (Architect's title block is
+in flow on every title variant, its scale bar keeps its own band). The
+stress oracle T.11 checks it (an opaque box over any text line, and placed
+`::before`/`::after` text over a text).
+
+**A video** (`{{youtube}}`) is sized like a picture: as a block of its own,
+the largest 16:9 player in the room its box leaves (container units); in a
+container (a callout, a column) em-sized, so fit scales it.
 
 ## 6. Header keys
 
 `slide_numbers` (yes/no) and `progress` (yes/no) decide whether
 `.orz-chrome-num` and `.orz-chrome-bar` exist at all; `section_numbers`
 (`plain`/`roman`/`01`/`none`) decides `data-sec`, defaulting to the theme's
-style (`src/themes.ts` `sectionNumbers`: Paper roman, the others 01). The
+style (`src/themes.ts` `sectionNumbers`: Paper roman, the others 01) — the
+number only: with `none` a theme still shows the section title wherever it
+shows it with a number (hide a section part only when it is `:empty`; round
+A3). The
 running head and the QR placement are theme design, not keys (Q3).
 
 ## 7. A theme

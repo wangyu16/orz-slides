@@ -285,6 +285,71 @@ gantt
   Aim 3 :2026-06-01, 600d
 }}
 
+<!-- slide -->
+## Icons and captions
+Press the <img src="big.svg" width="28" height="28" alt="gear"> button in the toolbar, then choose Settings and pick the export format you want from the list that opens below it, and confirm.
+
+Figure 1. Conversion against time for the polymerization in flow at three temperatures, measured by NMR.
+<img src="big.svg" width="220" alt="plot">
+
+<!-- slide template=title v=1 -->
+# Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow reactors
+## Mechanism, kinetics, molecular weight control and the design of block copolymers for biomedical use
+**Yu Wang**, Jane Doe-Smithson · Department of Chemistry · University of Louisiana at Lafayette · Fall 2026
+
+<!-- slide template=title v=2 -->
+# Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow reactors
+## Mechanism, kinetics, molecular weight control and the design of block copolymers for biomedical use
+**Yu Wang**, Jane Doe-Smithson · Department of Chemistry · University of Louisiana at Lafayette · Fall 2026
+
+<!-- slide template=title v=5 -->
+# Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow reactors
+## Mechanism, kinetics, molecular weight control and the design of block copolymers for biomedical use
+**Yu Wang**, Jane Doe-Smithson · Department of Chemistry · University of Louisiana at Lafayette · Fall 2026
+
+<!-- slide template=title v=5 bg=#d81b1b -->
+# A cover with its own background
+## The author's background replaces the cover colour
+Yu Wang
+
+<!-- slide template=closing v=2 bg=#d81b1b -->
+## Thank you
+Questions welcome
+
+<!-- slide bg="linear-gradient(#d81b1b, #d81b1b)" -->
+## A gradient background
+
+The slide's background is a CSS gradient (round A3).
+
+<!-- slide -->
+## Gantt across the slide
+{{mermaid
+gantt
+  title Fall 2026
+  dateFormat YYYY-MM-DD
+  section Lectures
+  Part 1 :p1, 2026-08-24, 35d
+  Part 2 :p2, after p1, 40d
+  section Labs
+  Lab A :2026-09-01, 30d
+  Lab B :2026-10-05, 45d
+}}
+
+<!-- slide 2col -->
+## A twelve-year programme
+<!-- @left -->
+{{mermaid
+gantt
+  title Programme
+  dateFormat YYYY-MM-DD
+  section Phases
+  Phase 1 :q1, 2026-01-01, 1500d
+  Phase 2 :q2, after q1, 1500d
+  Phase 3 :after q2, 1380d
+}}
+<!-- @right -->
+Twelve years in half a slide: the years thinned, never overprinted.
+
 <!-- slide row 1/1/1 { top; middle; bottom } -->
 <!-- @top -->
 The first row: a paragraph of two or three lines that fills its share of the slide, written on the ruled lines.

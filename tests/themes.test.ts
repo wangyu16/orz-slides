@@ -78,6 +78,16 @@ describe('the theme contract (round A)', () => {
     expect(check({ deck: noOutline3 })).toEqual(['deck.css: the outline template\'s variant v=3 has no rule']);
     expect(check({ layer: `${layer}\n.reveal .orz-title { overflow: visible; }\n` })).toEqual(['orchard: ".reveal .orz-title" lets the title band overflow across (it clips on x)']);
   });
+
+  it('[T.13] A3-TH-1: the contract rejects a rule that sets a paragraph\'s metrics or layout by the image it holds (p:has(> img), p > img — a sentence with an inline icon too) and accepts the picture paragraph p.orz-pic; every built theme passes', () => {
+    const deck = readFileSync('assets/themes/deck.css', 'utf8');
+    const built = readFileSync('assets/themes/orchard.css', 'utf8');
+    const layer = readFileSync('assets/themes/layers/orchard.css', 'utf8');
+    const check = (extra: string): string[] => contractProblems('orchard', { deck, built, layer: `${layer}\n${extra}\n` });
+    expect(check('.reveal .markdown-body p:has(> img) { line-height: 0; width: fit-content; }')).toEqual(['orchard: ".reveal .markdown-body p:has(> img)" sizes a paragraph by the image it holds (a sentence with an icon too): use p.orz-pic']);
+    expect(check('.reveal .orz-region .markdown-body p > img { display: block; }')).toHaveLength(1);
+    expect(check('.reveal .markdown-body p.orz-pic { line-height: 0; } .reveal .markdown-body p.orz-pic > img { display: block; } .reveal .markdown-body p > img { border-radius: 4px; }')).toEqual([]);
+  });
 });
 
 describe('the header settings (Theme, Ratio and the Q3 keys)', () => {

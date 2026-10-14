@@ -85,10 +85,12 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 
 /** Move reveal's slide backgrounds (data attributes) onto the slides themselves. */
 function inlineBackgrounds(root: ParentNode): void {
-  for (const s of Array.from(root.querySelectorAll<HTMLElement>('section[data-background-color], section[data-background-image]'))) {
+  for (const s of Array.from(root.querySelectorAll<HTMLElement>('section[data-background-color], section[data-background-image], section[data-background-gradient]'))) {
     const color = s.getAttribute('data-background-color');
     const image = s.getAttribute('data-background-image');
+    const gradient = s.getAttribute('data-background-gradient');
     if (color) s.style.background = color;
+    if (gradient) s.style.background = gradient;
     if (image) {
       s.style.backgroundImage = `url(${JSON.stringify(image)})`;
       s.style.backgroundSize = 'cover';

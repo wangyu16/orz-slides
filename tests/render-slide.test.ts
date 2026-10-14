@@ -89,6 +89,14 @@ describe('[E.2] render-slide: a parsed slide → its reveal <section> in the 1.0
     expect(b).toContain('data-background-image="https://example.org/p.jpg"');
     expect(c).toContain('data-background-image="pics/bg.png"');
   });
+
+  it('[E.2] A3-TH-7: a bg that is a CSS gradient is reveal\'s data-background-gradient (as a colour it drew nothing on screen)', () => {
+    const deck = parseDeck('<!-- slide bg="linear-gradient(#d81b1b, #fff)" -->\n## A\n\n<!-- slide bg="radial-gradient(circle, red, blue)" -->\n## B\n');
+    const [a, b] = sections(renderDeck(deck, renderer));
+    expect(a).toContain('data-background-gradient="linear-gradient(#d81b1b, #fff)"');
+    expect(a).not.toContain('data-background-color');
+    expect(b).toContain('data-background-gradient="radial-gradient(circle, red, blue)"');
+  });
 });
 
 describe('the deck plan (src/deck/plan.ts)', () => {

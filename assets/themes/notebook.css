@@ -1455,7 +1455,7 @@
 .reveal .orz-region > .markdown-body > :is(p, ul, ol, dl) { margin-bottom: 0; }
 
 /* slips stuck on top: diagrams, charts, molecules, pictures */
-.reveal .orz-region .markdown-body > :is(.mermaid, .smiles-render, p:has(> img), p:has(> .orz-chart-frame)),
+.reveal .orz-region .markdown-body > :is(.mermaid, .smiles-render, p.orz-pic, p:has(> .orz-chart-frame)),
 .reveal .orz-region .markdown-body > .orz-chart-frame {
   background: var(--paper-slip);
   border: 1px solid var(--border-color);
@@ -1464,8 +1464,8 @@
   padding: 0.35em;
   line-height: 0;
 }
-.reveal .orz-region .markdown-body > p:has(> img) { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
-.reveal .orz-region .markdown-body > p:has(> img)::after,
+.reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
+.reveal .orz-region .markdown-body > p.orz-pic::after,
 .reveal .orz-region .markdown-body > .smiles-render::after {
   content: ''; position: absolute; top: -11px; left: 50%; width: 76px; height: 22px; transform: translateX(-50%) rotate(-3deg);
   background: rgba(240, 230, 205, 0.82); box-shadow: 0 1px 2px rgba(80, 60, 30, 0.14);

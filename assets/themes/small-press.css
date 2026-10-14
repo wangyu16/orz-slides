@@ -1223,7 +1223,9 @@
   content: attr(data-sec); display: inline-block; margin-right: 0.55em; padding: 0.12em 0.45em 0; border-radius: 999px;
   background: var(--green); color: var(--surface-light); font-weight: 700;
 }
-.reveal .orz-head-sec[data-sec=""], .reveal .orz-slide[data-kind="template"] .orz-head { display: none; }
+/* section_numbers: none takes the NUMBER away, never the section title: hidden only with no section (round A3, A3-TH-4) */
+.reveal .orz-head-sec[data-sec=""]:empty, .reveal .orz-slide[data-kind="template"] .orz-head { display: none; }
+.reveal .orz-head-sec[data-sec=""]::before { content: none; }
 
 /* ───────── content on the slide ───────── */
 /* the cut-out badges sit over the callout's top-left corner: give them room */
