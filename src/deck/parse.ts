@@ -511,7 +511,7 @@ function parseDeckNow(text: string, tokens: readonly Token[]): Deck {
       lint.push({ level: 'error', code: 'deck-block', message: 'a <!-- deck … --> block is the 0.x deck config: in text format 1 the header is the deck config and this block renders nothing (run upgrade to move its keys into the header)', next: 'upgrade', ...at(spanOf(L, m.start, m.end)) });
     }
   }
-  lint.push(...hiddenMarkers(text, L, ix, bodyLine));
+  lint.push(...hiddenMarkers(text, L, tokens, ix, bodyLine));
 
   const slideMarkers = markers.filter((m) => m.type === 'slide');
   const firstSlideLine = slideMarkers.length > 0 ? slideMarkers[0].start : L.starts.length;
@@ -588,6 +588,12 @@ interface Terminated {
   closes(line: string): boolean;
   /** Whether a line opens another block of the same kind (one it cannot hold: after a slide marker, it was closed by mistake). */
   reopens(line: string): boolean;
+  /** Whether its closing line closes it with ANOTHER construct's terminator (a `<pre>` ended by `</style>`: closed by mistake; round A3, A3-FMT-2). */
+  foreign?(line: string): boolean;
+  /** A comment: it ends at the first `-->`, so it can never hold a marker line on purpose (A3-FMT-4). */
+  comment?: boolean;
+  /** Its closing line is the line AFTER its token's map (the kit's containers leave their closer out of the map; A3-FMT-1). */
+  closerAfterMap?: boolean;
 }
 
 /** CommonMark's HTML blocks of types 1–5 (they end at their terminator, not at a blank line); types 6 and 7 are null. */
@@ -611,13 +617,23 @@ function terminatorOf(t: Token, first: string): Terminated | 'blank' | null {
   }
   if (/^container_.*_open$/.test(t.type)) {
     const colons = /^ {0,3}(:{3,})(.*)$/;
-    return { code: 'unclosed-container', what: `${t.markup} container`, closer: t.markup, closes: run(colons, t.markup.length, ':', false), reopens: run(colons, t.markup.length, ':', true) };
+    return { code: 'unclosed-container', what: `${t.markup} container`, closer: t.markup, closes: run(colons, t.markup.length, ':', false), reopens: run(colons, t.markup.length, ':', true), closerAfterMap: true };
   }
   if (t.type === 'math_block') return { code: 'unclosed-math', what: '$$ math block', closer: '$$', closes: (line) => line.trim().endsWith('$$'), reopens: () => false };
   if (t.type === 'html_block') {
     for (const h of HTML_RUN_ON) {
       const m = h.open.exec(first);
-      if (m) return { code: 'unclosed-html', what: `${h.what} (${first.trim().slice(0, 12)}…)`, closer: h.closer(m), closes: (line) => h.closes.test(line), reopens: (line) => h !== HTML_RUN_ON[1] && h.open.test(line) && h.open.exec(line)![1]?.toLowerCase() === m[1]?.toLowerCase() };
+      if (!m) continue;
+      const own = m[1]?.toLowerCase();
+      // type 1 (`<pre>`, `<script>`, `<style>`, `<textarea>`): CommonMark ends it at ANY of the four closers, so another
+      // type-1 opener after a slide marker, or a closer of another tag, means it was closed by mistake (A3-FMT-2)
+      const type1 = h === HTML_RUN_ON[0];
+      return {
+        code: 'unclosed-html', what: `${h.what} (${first.trim().slice(0, 12)}…)`, closer: h.closer(m), closes: (line) => h.closes.test(line),
+        reopens: (line) => h !== HTML_RUN_ON[1] && h.open.test(line) && (type1 || h.open.exec(line)![1]?.toLowerCase() === own),
+        ...(type1 ? { foreign: (line: string) => { const c = /<\/(script|pre|style|textarea)>/i.exec(line); return !!c && c[1].toLowerCase() !== own; } } : {}),
+        ...(h === HTML_RUN_ON[1] ? { comment: true } : {}),
+      };
     }
     return 'blank';
   }
@@ -658,42 +674,67 @@ function eolBefore(text: string, L: Lines, line: number): string {
  * Every quick fix keeps the text's line ending, and applying it removes its
  * lint and turns at least one marker line into a marker (tests: P.13).
  */
-function hiddenMarkers(text: string, L: Lines, ix: TokenIndex, bodyLine: number): SlideLint[] {
+function hiddenMarkers(text: string, L: Lines, tokens: readonly Token[], ix: TokenIndex, bodyLine: number): SlideLint[] {
   const out: SlideLint[] = [];
-  for (const { token: t } of ix.blocks) {
+  /** A lint about a block that was closed by mistake or ambiguously, and the line that closed it (A3-FMT-3). */
+  const roots: Array<{ code: string; open: number; closedAt: number }> = [];
+  /** Lints with a fix, by their block's opening line (for the consequence pass). */
+  const fixable: Array<{ lint: SlideLint; code: string; open: number }> = [];
+  const markerLines: number[] = [];
+  for (const { token: t, index } of ix.blocks) {
     const [a, b] = t.map!;
     if (a < bodyLine) continue;
     const lines = linesIn(text, L, a, b);
     if (t.type === 'html_block') {
       const c = t.content.replace(/\n$/, '');
-      if (SLIDE_MARKER.test(c) || REGION_MARKER.test(c) || DECK_BLOCK.test(c)) continue;
+      if (SLIDE_MARKER.test(c) || REGION_MARKER.test(c)) { markerLines.push(a); continue; }
+      if (DECK_BLOCK.test(c)) continue;
       if (COMMENT_BLOCK.test(c)) {
         const look = lookalike(c);
         if (look) { const s = spanOf(L, a, b); out.push({ level: 'warning', code: 'marker-lookalike', message: `this comment looks like a marker but is not one: it is not read, and the text after it stays where it is (write ${look})`, ...{ line: s.line, from: s.from, to: s.to } }); }
       }
     }
-    const hidden: number[] = [];
-    for (let k = 1; k < lines.length; k++) if (MARKER_LINE.test(lines[k])) hidden.push(k);
-    if (hidden.length === 0) continue;
     const end = terminatorOf(t, lines[0]);
-    if (end === null) continue;
+    // a container's own marker lines are those not inside a code-like block nested in it (a fenced example that
+    // SHOWS a marker is no marker the container swallowed: A3-FMT-1)
+    const shown = new Set<number>();
+    if (end !== null && end !== 'blank' && end.closerAfterMap) {
+      for (let j = index + 1; j < tokens.length && !(tokens[j].level === 0 && tokens[j].nesting === -1); j++) {
+        const n = tokens[j];
+        if (n.map && /^(?:fence|code_block|math_block)$/.test(n.type)) for (let k = n.map[0]; k < n.map[1]; k++) shown.add(k - a);
+      }
+    }
+    const hidden: number[] = [];
+    for (let k = 1; k < lines.length; k++) if (!shown.has(k) && MARKER_LINE.test(lines[k])) hidden.push(k);
+    if (hidden.length === 0 || end === null) continue;
     if (end === 'blank') {
+      // only the first marker line's blank line ends the block; what follows it is read anew, so the later
+      // lines' fixes follow from it (A3-FMT-3: blank lines added first in the wrong places otherwise)
       for (const k of hidden) {
         const line = a + k;
         const s = spanOf(L, line, line + 1);
-        out.push({ level: 'error', code: 'marker-in-html', message: `the marker on line ${line + 1} is inside a raw HTML block (the HTML that starts on line ${a + 1} runs on until a blank line), so it is not read: add a blank line before it`, line: s.line, from: s.from, to: s.to, fix: { from: s.from, to: s.from, insert: eolBefore(text, L, line), label: 'Add a blank line before the marker' } });
+        const root = k === hidden[0];
+        out.push({ level: 'error', code: 'marker-in-html', message: `the marker on line ${line + 1} is inside a raw HTML block (the HTML that starts on line ${a + 1} runs on until a blank line), so it is not read: add a blank line before it${root ? '' : ` (this may follow from line ${a + hidden[0] + 1}: fix that first)`}`, line: s.line, from: s.from, to: s.to,
+          ...(root ? { fix: { from: s.from, to: s.from, insert: eolBefore(text, L, line), label: 'Add a blank line before the marker' } } : {}) });
       }
       continue;
     }
-    // how it ended: never (it runs to the end of the text), on a marker line (a comment's `-->`), or on purpose
-    const last = lines[lines.length - 1];
-    const closed = t.type === 'html_block' ? end.closes(last) && !(lines.length === 1) : lines.length > 1 && end.closes(last) && b <= L.starts.length;
-    const byMarker = closed && MARKER_LINE.test(last);
-    let byMistake = false;
-    if (closed && !byMarker) {
+    // how it ended: never (it runs to the end of the text), on a marker line (a comment's `-->`), or on purpose;
+    // the closing line is the map's last line, or (a container) the line after the map
+    const closeLine = end.closerAfterMap ? b : a + lines.length - 1;
+    const last = end.closerAfterMap ? (b < L.starts.length ? text.slice(L.starts[b], L.ends[b]) : '') : lines[lines.length - 1];
+    const closed = t.type === 'html_block' ? end.closes(last) && !(lines.length === 1)
+      : end.closerAfterMap ? b < L.starts.length && end.closes(last)
+      : lines.length > 1 && end.closes(last) && b <= L.starts.length;
+    // a comment ends at the first `-->`: one that holds a marker line was closed by a marker (a multi-line marker's
+    // `-->` is on a later line than the one that starts it: A3-FMT-4)
+    const byMarker = closed && (MARKER_LINE.test(last) || !!end.comment);
+    let byMistake = closed && !byMarker && !!end.foreign?.(last);
+    const slideAt = (k: number): boolean => hidden.includes(k) && SLIDE_LINE.test(lines[k]);
+    if (closed && !byMarker && !byMistake) {
       let slide = false;
       for (let k = 1; k < lines.length && !byMistake; k++) {
-        if (SLIDE_LINE.test(lines[k])) slide = true;
+        if (slideAt(k)) slide = true;
         else if (slide && end.reopens(lines[k])) byMistake = true;
       }
     }
@@ -703,7 +744,7 @@ function hiddenMarkers(text: string, L: Lines, ix: TokenIndex, bodyLine: number)
       // a container or a $$ block cannot (a marker line in it is an invisible comment, or LaTeX), so a slide
       // marker in one was closed by mistake; a fence with no info string that holds a slide marker is
       // ambiguous (two fences left open pair up: ``` … <!-- slide --> … ```) — a warning, with the same fix
-      if (!lines.slice(1).some((x) => SLIDE_LINE.test(x))) continue;
+      if (!hidden.some(slideAt)) continue;
       if (/^container_|^math_block$/.test(t.type)) byMistake = true;
       else if (t.type === 'fence' && t.info.trim() === '') ambiguous = true;
       else continue;
@@ -711,12 +752,26 @@ function hiddenMarkers(text: string, L: Lines, ix: TokenIndex, bodyLine: number)
     const s = spanOf(L, a, a + 1);
     const first = a + hidden[0];
     const n = hidden.length;
-    const how = !closed ? 'is never closed' : byMarker ? `is closed only by the marker's own "${end.closer}" on line ${a + lines.length}` : byMistake ? `is closed only on line ${a + lines.length}, after a slide marker` : `is closed only on line ${a + lines.length}`;
+    const how = !closed ? 'is never closed' : byMarker ? `is closed only by the marker's own "${end.closer}" on line ${closeLine + 1}` : byMistake ? `is closed only on line ${closeLine + 1}, by mistake` : `is closed only on line ${closeLine + 1}`;
     const message = ambiguous
       ? `the code fence opened on line ${a + 1} has no info string and holds ${n} marker line${n === 1 ? '' : 's'}, a slide marker among them: if it was left open (two open fences pair up), close it with ${end.closer} before line ${first + 1}; to show markers on purpose, give it an info string (${end.closer}markdown)`
       : `the ${end.what} opened on line ${a + 1} ${how}, so ${n} marker line${n === 1 ? ' is' : 's are'} inside it and not read: close it with ${end.closer} before line ${first + 1}`;
-    out.push({ level: ambiguous ? 'warning' : 'error', code: end.code, message, line: s.line, from: s.from, to: s.to,
-      fix: { from: L.starts[first], to: L.starts[first], insert: `${end.closer}${eolBefore(text, L, first)}`, label: `Close it before the marker on line ${first + 1}` } });
+    const lint: SlideLint = { level: ambiguous ? 'warning' : 'error', code: end.code, message, line: s.line, from: s.from, to: s.to,
+      fix: { from: L.starts[first], to: L.starts[first], insert: `${end.closer}${eolBefore(text, L, first)}`, label: `Close it before the marker on line ${first + 1}` } };
+    out.push(lint);
+    fixable.push({ lint, code: end.code, open: a });
+    if (byMistake || ambiguous) roots.push({ code: end.code, open: a, closedAt: closeLine });
+  }
+  // A3-FMT-3: a block of the same kind that opens after the line that closed a block by mistake (and before the
+  // next marker) is most likely that block's own closer, left over: its lint follows from the first and carries
+  // no fix of its own, so the fixes commute (fixing the consequence first left an empty code or math block)
+  for (const r of roots) {
+    const next = markerLines[lowerBound(markerLines, r.closedAt + 1)] ?? Infinity;
+    for (const f of fixable) {
+      if (f.code !== r.code || f.open <= r.closedAt || f.open >= next || !f.lint.fix) continue;
+      delete f.lint.fix;
+      f.lint.message += ` (this may follow from line ${r.open + 1}: fix that first)`;
+    }
   }
   return out;
 }

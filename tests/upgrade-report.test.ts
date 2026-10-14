@@ -86,6 +86,40 @@ describe('the upgrade report (real 0.x decks)', () => {
     }
   });
 
+  /*
+   * Round A3 (final format pass): the shapes A3 found — a raw-text block
+   * closed by a DIFFERENT tag, an open comment closed by a multi-line marker
+   * — run through the oracle, and the oracle no longer reads "no lint" as
+   * "on purpose" for blocks that can never show a marker (an HTML block, a
+   * $$ block, a container). Each failed on rebuild/1.0@a9f4ab3.
+   */
+  it('[U.7] A3: the synthetic 0.x corpus gains a <pre> closed by a later <style>, a <script> closed by a later <pre>, an open comment closed by a multi-line marker, and a callout showing a marker — each upgrades to what 0.8.5 showed', () => {
+    const corpus: Record<string, string> = {
+      crossTag: '<!-- slide -->\n## A\n<pre>\nascii art\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n<style>\n.c{color:red}\n</style>\n',
+      scriptPre: '<!-- slide -->\n## A\n<script>\nlet a\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n<pre>\nx\n</pre>\n',
+      multiLine: '<!-- slide -->\n## A\n<!-- TODO rework\n\n<!-- slide\n  bg=#223 -->\n## B\n<!-- @notes -->\nPRIVATE\n',
+    };
+    for (const [name, src] of Object.entries(corpus)) {
+      const up = upgradeText(src, { uid: 'doc-0000000000' });
+      const r = upgradeReport(src, up.text, '');
+      expect(r.unexplained, name).toEqual([]);
+      expect(r.accepted, name).toEqual([]);
+      expect(readDocument(up.text).lint.filter((l) => l.level === 'error').map((l) => `${l.code}@${l.line}`), name).toEqual([]);
+    }
+  });
+
+  it('[U.7] A3: the oracle never accepts marker-in-code for a marker inside an HTML block, a $$ block or a container (no hygiene lint there is a gap in the lint, not a choice)', () => {
+    const head = '{{nyml\nkind: document\ntheme: paper\n}}\n\n';
+    for (const src of [
+      '<!-- slide -->\n## A\n<pre>\nascii art\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n<style>\n.c{color:red}\n</style>\n',
+      '<!-- slide -->\n## A\n<!-- TODO rework\n\n<!-- slide\n  bg=#223 -->\n## B\n<!-- @notes -->\nPRIVATE\n',
+    ]) {
+      // the text as it was (not repaired): every difference unexplained
+      expect(upgradeReport(src, head + src, '').accepted.filter((a) => a.startsWith('marker-in-code')), src).toEqual([]);
+      expect(upgradeReport(src, head + src, '').unexplained.length, src).toBeGreaterThan(0);
+    }
+  });
+
   it('[U.7] A2: the oracle accepts marker-in-code only for the slide that holds the code — an unrepaired fence closed by a later slide\'s fence is unexplained, a deliberate one is accepted', () => {
     const later = '<!-- slide -->\n## A\n```python\nprint(1)\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n```js\nlet x = 1\n```\n\n<!-- slide -->\n## D\ntext\n';
     const head = '{{nyml\nkind: document\ntheme: paper\n}}\n\n';

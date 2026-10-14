@@ -100,7 +100,11 @@ export function upgradeReport(legacyText: string, upgradedText: string, shownThe
     const line = lineAt(at);
     const lineText = text.slice(text.lastIndexOf('\n', at - 1) + 1, at);
     if (/`/.test(lineText)) return true; // a code span
-    return tokens.some((t) => t.map && t.level === 0 && t.nesting !== -1 && t.map[0] <= line && line < t.map[1] && !(t.type === 'html_block' && t.map[0] === line));
+    // round A3: only a block that can SHOW a marker on purpose holds one by choice — a fence, indented code, a
+    // plugin block, a list or a blockquote; never an HTML block, a $$ block or a container (no lint there is a
+    // gap in the lint, not a choice: A3-FMT-2, A3-FMT-4)
+    return tokens.some((t) => t.map && t.level === 0 && t.nesting !== -1 && t.map[0] <= line && line < t.map[1]
+      && !/^(?:html_block|math_block|container_.*)$/.test(t.type));
   };
   const affected = new Set<number>(); // 1.0 slides that hold a split 1.0 does not make
   const paired = new Set(partner.filter((j) => j >= 0));

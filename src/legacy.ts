@@ -245,8 +245,9 @@ function repairHidden(source: string, notes: string[], lines: LineMap): string {
 /**
  * Upgrade a 0.x deck text (or any slides text that still holds a
  * `<!-- deck -->` block) to text format 1 — see the module comment. A text
- * that is already format 1 without a deck block comes back with only
- * `carrier` and `uid` added when missing.
+ * that is already format 1 comes back with only `carrier` and `uid` added
+ * when missing (and a stray deck block's keys moved into its header): its
+ * body is never repaired or respelled (round A3, A3-FMT-5).
  *
  * Besides the header, what 0.x read and format 1 does not is rewritten so
  * the deck shows what 0.x showed (closed-loop round A): every deck block is
@@ -291,10 +292,11 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
   }
 
   // 2. markers a block swallowed (0.x split at every marker line), then the marker spellings 0.x read — in that
-  //    order, so a marker a repair reveals is normalised too (A2-FMT-8: upgrade is idempotent)
-  text = repairHidden(text, notes, lines);
+  //    order, so a marker a repair reveals is normalised too (A2-FMT-8: upgrade is idempotent). Only for a 0.x
+  //    text: a format-1 author never relied on 0.x's reading (a fence that SHOWS a marker stays; A3-FMT-5)
+  if (deckWins) text = repairHidden(text, notes, lines);
   const rewrites: Array<{ from: number; to: number; insert: string }> = [];
-  for (const m of scanMarkers(text)) {
+  for (const m of deckWins ? scanMarkers(text) : []) {
     if (m.type === 'deck') continue;
     const n = normalizeMarker(m.content);
     if (!n) continue;

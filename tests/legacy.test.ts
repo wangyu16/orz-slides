@@ -144,6 +144,18 @@ describe('round A: upgrade keeps what 0.x showed (FMT-1 … FMT-7, FMT-11)', () 
     expect(up.moved).toEqual({});
   });
 
+  it('[U.4] A3-FMT-5: upgradeText leaves a format-1 text\'s body alone — no hygiene repair (0.x split at every marker; a format-1 author did not rely on it): a bare fence or a callout that SHOWS a marker stays as written, with or without a stray deck block', () => {
+    const body = '<!-- slide -->\n## How\n```\n<!-- slide -->\n## Shown\n```\n\n<!-- slide -->\n## Tip\n::: tip\n```markdown\n<!-- @notes -->\nhi\n```\n:::\n\n<!-- slide -->\n## Notes\n<!-- @notes: -->\nN\n';
+    const f1 = `{{nyml\nkind: document\ncarrier: slides\nuid: ${UID}\n}}\n\n${body}`;
+    const up = upgradeText(f1);
+    expect(up.text).toBe(f1);
+    expect(up.notes).toEqual([]);
+    const stray = upgradeText(`{{nyml\nkind: document\ncarrier: slides\nuid: ${UID}\n}}\n\n<!-- deck\nfooter: F\n-->\n\n${body}`);
+    expect(stray.text.endsWith(body)).toBe(true);
+    // a 0.x text is still repaired (0.x split there)
+    expect(parseDeck(upgradeText(body, { uid: UID }).text).slides).toHaveLength(4);
+  });
+
   it('[U.6] FMT-4: every deck block is consumed — one pasted between slides, two before slide 1 — so the deck-block advice never loops', () => {
     const between = upgradeText(`{{nyml\nkind: document\ncarrier: slides\nuid: ${UID}\n}}\n\n<!-- slide -->\n## A\n\n<!-- deck\ntheme: neon\nfooter: F\n-->\n\n<!-- slide -->\n## B\n`);
     expect(parseDeck(between.text).lint).toEqual([]);
