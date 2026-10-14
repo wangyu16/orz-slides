@@ -689,3 +689,12 @@ entry):
   `section_numbers: none` (Sticker, Architect, Sky, Small Press), a quad
   of charts (Nocturne, Notebook, Paper; polarArea drawn), and pictures
   side by side, in a callout and as icons (Orchard, Sticker).
+
+### After round A: step 5 took two open-by-choice items
+
+- The editor lints for a slide cut on paper and a cut footer
+  (`cut-on-paper`, `footer-cut`): from the live view's fit reports in the
+  whole-deck editor (claims W.4, W.5).
+- A notice when print goes ahead after the 5 s bounded wait for webfonts
+  and stylesheets: `printHtml().cut.fontsLate` and the reader's line
+  (claim Q.5; a font that FAILED, offline, is no late one).

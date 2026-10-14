@@ -25,6 +25,7 @@ window. The engine sets `--sl-w` / `--sl-h` on the deck root.
 | Read view (the page) | `#orz-view.orz-slides > .reveal.orz-deck[data-orz-theme]` | `.slides > section.orz-slide` (reveal.js positions them) |
 | Print document | `.reveal.orz-deck.orz-print[.orz-with-notes]` | `.orz-page > section.orz-slide` (+ `.orz-print-notes`) |
 | Speaker view stages | `.reveal.orz-deck.orz-print[data-orz-theme]` (scaled) | `.orz-page > section.orz-slide` — static copies from the print pipeline (canvases frozen to images, fitted) |
+| Editor live view (rebuild step 5) | `#orz-live .reveal.orz-deck.orz-print.orz-live-deck[data-orz-theme]` (scaled to its card) in the editor preview frame | `.orz-page > section.orz-slide` — the caret's slide as on the print stage (every fragment shown, a `fit=scroll` slide fitted, live drawings), fitted; the frame also holds the flattened flow (`#orz-doc.markdown-body.orz-flat`), styled by the same theme's reading styles |
 
 A theme selects with the `.reveal` prefix (`.reveal .orz-slide …`), so the
 same rules style the read view, the print document and the speaker view.

@@ -21,7 +21,7 @@ their owned files, interfaces, and the build order.
 > **Status: published (v0.8.5); rebuild 1.0 in progress on branch
 > `rebuild/1.0`** (family plan `../docs/REBUILD.md` §3c — owner decisions
 > 1–6 and the approved plan are binding; mirrors orz-mdhtml 1.0 and orz-paged
-> 1.0). Steps 1–4 done: orz-markdown `^2.3.0` (linked to the prepared,
+> 1.0). Steps 1–5 done: orz-markdown `^2.3.0` (linked to the prepared,
 > unpublished 2.4.0 checkout during step 3: `node_modules/orz-markdown` is a
 > symlink to `../../orz-markdown`, as orz-paged did), reveal.js pinned, no
 > shims; the 0.x shell is deleted — the bundle boots the kit's `carrier/app`
@@ -36,7 +36,12 @@ their owned files, interfaces, and the build order.
 > `assets/themes/<id>.css`: a derived theme is orz-markdown's source theme +
 > `layers/slide-scale.css` + `layers/<id>.css`; an updated one
 > `layers/content.css` + `layers/<id>.css`; review page:
-> `npx tsx scripts/theme-sheets.ts`). Claims
+> `npx tsx scripts/theme-sheets.ts`); step 5 built editing mode (a), whole
+> deck (`src/browser/slides/`: `flat.ts` the flattened preview, `frame.ts`
+> the preview frame document, `live-frame.ts` the live view's runtime in
+> the frame — built into `__ORZ_SLIDES_LIVE__` by build/bundle.ts —,
+> `editor.ts` the live view, lints, quick fixes, the slide kept across
+> read and edit, and `per-slide.ts` the step-6 seam). Claims
 > in `notes/CLAIMS.md` (bound by `tests/claims.test.ts`); the kit's
 > conformance harness runs from
 > day one (`tests/conformance.test.ts`). There is no CLI until step 7. The
