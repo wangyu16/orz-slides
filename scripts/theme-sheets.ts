@@ -74,6 +74,8 @@ async function decks(list: readonly SlideTheme[]): Promise<void> {
 
 async function sheets(list: readonly SlideTheme[]): Promise<void> {
   const { chromium } = await import('playwright-core');
+  // deliberately ONLINE (STATUS D-63): the sheets show the decks as a reader sees them, webfonts and the pinned CDN
+  // libraries (charts, diagrams, math) loaded — no host-resolver rules here
   const browser = await chromium.launch({ channel: 'chrome' });
   const shots = '/tmp/orz-slides-theme-sheets';
   mkdirSync(shots, { recursive: true });

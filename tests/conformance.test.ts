@@ -34,6 +34,7 @@ import { CHECK_IDS, registerConformance, type CarrierTarget } from 'orz-markdown
 import { parseManifest } from 'orz-markdown/carrier/shell';
 import { buildBrowser, BUNDLE_FILE } from '../build/bundle.js';
 import { assemble, engineFiles, newDocument, VERSION } from '../src/lib.js';
+import { OFFLINE_ARGS } from './helpers.js';
 
 type Browser = import('playwright-core').Browser;
 
@@ -99,7 +100,8 @@ async function launch(): Promise<Browser | null> {
   try {
     const { chromium } = await import('playwright-core');
     // --allow-file-access-from-files: the origin-private file system on file: pages (real handles, C.save.copy-elsewhere)
-    return await chromium.launch({ channel: 'chrome', args: ['--allow-file-access-from-files'] });
+    // offline: no host resolves in any frame (STATUS D-63)
+    return await chromium.launch({ channel: 'chrome', args: ['--allow-file-access-from-files', ...OFFLINE_ARGS] });
   } catch {
     return null;
   }

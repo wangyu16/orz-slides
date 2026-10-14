@@ -17,7 +17,7 @@ import { corpus, goTo, launchChrome, openDeck, type PageGlobal } from './helpers
 
 type Page = import('playwright-core').Page;
 
-const browser = await launchChrome();
+const browser = await launchChrome({ online: true }); // deliberately online: its K.7/F.5/T.3 decks load the pinned CDN libraries (D-63)
 const dir = mkdtempSync(join(tmpdir(), 'orz-slides-engine-'));
 afterAll(async () => { await browser?.close(); rmSync(dir, { recursive: true, force: true }); });
 const chrome = browser ? describe : describe.skip;

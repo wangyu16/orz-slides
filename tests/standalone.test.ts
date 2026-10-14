@@ -11,7 +11,7 @@ import { assemble } from '../src/lib.js';
 import { VERSION } from '../src/version.js';
 import { corpus, launchChrome } from './helpers.js';
 
-const browser = await launchChrome();
+const browser = await launchChrome(); // offline: no host resolves (D-63)
 const dir = mkdtempSync(join(tmpdir(), 'orz-slides-standalone-'));
 afterAll(async () => { await browser?.close(); rmSync(dir, { recursive: true, force: true }); });
 const chrome = browser ? describe : describe.skip;

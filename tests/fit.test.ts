@@ -17,7 +17,7 @@ import { assemble } from '../src/lib.js';
 import { corpus, goTo, launchChrome, openDeck } from './helpers.js';
 import { checkDeck } from './fit-oracle.js';
 
-const browser = await launchChrome();
+const browser = await launchChrome(); // offline: no host resolves (D-63)
 const dir = mkdtempSync(join(tmpdir(), 'orz-slides-fit-'));
 afterAll(async () => { await browser?.close(); rmSync(dir, { recursive: true, force: true }); });
 const chrome = browser ? describe : describe.skip;

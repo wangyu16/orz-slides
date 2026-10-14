@@ -62,11 +62,21 @@ export const read = (path: string): string => readFileSync(path, 'utf8');
 
 type Browser = import('playwright-core').Browser;
 
-/** Real Chrome through playwright-core, or null when Chrome is not installed (the test then skips). */
-export async function launchChrome(): Promise<Browser | null> {
+/**
+ * Chrome's resolver answers no host but the loopback (STATUS D-63): an offline test is offline in every frame. Playwright's
+ * `ctx.route()` misses the requests of `srcdoc` frames (the kit's preview and print frames), which reached the real network.
+ */
+export const OFFLINE_ARGS: readonly string[] = ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'];
+
+/**
+ * Real Chrome through playwright-core, or null when Chrome is not installed (the test then skips). OFFLINE by default
+ * (D-63: no host resolves); `online: true` only for a file whose decks load the pinned CDN libraries and webfonts on
+ * purpose (`openDeck(…, { network: true })`) — its offline decks are still cut off by `ctx.route()`.
+ */
+export async function launchChrome(o: { online?: boolean } = {}): Promise<Browser | null> {
   try {
     const { chromium } = await import('playwright-core');
-    return await chromium.launch({ channel: 'chrome' });
+    return await chromium.launch({ channel: 'chrome', args: o.online ? [] : [...OFFLINE_ARGS] });
   } catch {
     return null;
   }

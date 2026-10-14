@@ -16,7 +16,7 @@ import { corpus, launchChrome, openDeck, type PageGlobal } from './helpers.js';
 
 type Page = import('playwright-core').Page;
 
-const browser = await launchChrome();
+const browser = await launchChrome(); // offline: no host resolves (D-63)
 const dir = mkdtempSync(join(tmpdir(), 'orz-slides-print-'));
 afterAll(async () => { await browser?.close(); rmSync(dir, { recursive: true, force: true }); });
 const chrome = browser ? describe : describe.skip;
