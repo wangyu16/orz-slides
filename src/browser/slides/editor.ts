@@ -40,12 +40,13 @@ import { installCss, WIDGET_CSS, button } from 'orz-markdown/carrier/app';
 import { includeRecordEnv, rewriteAssetUrls, type EditorShell } from 'orz-markdown/carrier/editor';
 import { createPreferenceStore, showToast, type PreferenceSpec, type PreferenceStore } from 'orz-markdown/carrier/shell';
 import { readDocument } from '../../assemble.js';
-import { parseDeck } from '../../deck/parse.js';
+import { parseDeck, TEMPLATES } from '../../deck/parse.js';
 import { planDeck } from '../../deck/plan.js';
 import { presentationOf, slideSize } from '../../presentation.js';
 import { renderSlide, type Renderer } from '../../render-slide.js';
 import type { Deck, Slide, SlideLint } from '../../types.js';
-import type { SlideLayoutGui, StageGeometry, StageHost } from './per-slide.js';
+import type { SlideLayoutGui, StageGeometry, StageHost, StageParts, StagePreview } from './per-slide.js';
+import type { Rect, StageInsets } from './stage-geometry.js';
 
 /** The pause in typing after which the live view and the lints follow the text (ms). */
 export const LIVE_PAUSE_MS = 450;
@@ -63,8 +64,10 @@ export interface SlidesToolsOptions {
   startSlide?: number;
   /** Leaving: the caret's slide (0-based), for the read view. */
   onLeave?(slide: number): void;
-  /** Step 6: the layout GUI the per-slide mode attaches to its stage (none in step 5). */
+  /** Step 6: the layout GUI the per-slide mode attaches to its stage. */
   layoutGui?: SlideLayoutGui | null;
+  /** The per-slide mode turned on or off (the carrier skips the hidden flattened preview's render meanwhile). */
+  onPerSlide?(on: boolean): void;
 }
 
 /** A fit report of the live view (data from the frame; validated). */
@@ -72,6 +75,32 @@ export interface FitReport {
   boxes: Array<{ kind: string; name: string; scale: number; clipped: boolean; x: number; y: number; w: number; h: number }>;
   footerCut: boolean;
   scrolls: boolean;
+  /** The parts the per-slide overlay places itself over (step 6). */
+  parts: StageParts | null;
+}
+
+/** A frame-reported rectangle, validated: finite numbers, clamped to a sane range (data, never trusted). */
+function rectOf(v: unknown): Rect | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const n = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) ? Math.max(-4000, Math.min(4000, x)) : 0);
+  return { x: n(o.x), y: n(o.y), w: Math.max(0, n(o.w)), h: Math.max(0, n(o.h)) };
+}
+
+/** The frame's parts report, validated (bounded lists, rectangles, names as short strings). */
+function partsOf(v: unknown): StageParts | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const list = (x: unknown): unknown[] => (Array.isArray(x) ? x.slice(0, 64) : []);
+  return {
+    regions: list(o.regions).map((r) => ({ ...rectOf(r)!, name: String((r as { name?: unknown })?.name ?? '').slice(0, 64), empty: (r as { empty?: unknown })?.empty === true })).filter((r) => r.x !== undefined),
+    splits: list(o.splits).map((r) => ({ ...rectOf(r)!, dir: (r as { dir?: unknown })?.dir === 'row' ? 'row' as const : 'col' as const, kids: list((r as { kids?: unknown })?.kids).map((k) => rectOf(k) ?? { x: 0, y: 0, w: 0, h: 0 }) })).filter((r) => r.x !== undefined),
+    title: rectOf(o.title),
+    content: rectOf(o.content),
+    template: rectOf(o.template),
+    footer: rectOf(o.footer),
+    floats: list(o.floats).map((r) => rectOf(r) ?? { x: 0, y: 0, w: 0, h: 0 }),
+  };
 }
 
 export interface SlidesTools {
@@ -91,6 +120,8 @@ export interface SlidesTools {
   setPerSlide(on: boolean): void;
   /** The live view's last fit report for the caret's slide (null before one). */
   lastFit(): (FitReport & { index: number }) | null;
+  /** The attached layout GUI's test handle (per-slide mode on, the default GUI), else null. */
+  layoutGui(): unknown;
   /** Post the caret's slide now (tests). */
   syncLive(): Promise<void>;
   destroy(): void;
@@ -195,7 +226,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   let posted: { key: string; index: number; fitKey: string } | null = null;
   const postedFitKeys = new Map<string, { fitKey: string; index: number }>();
   const fits = new Map<string, FitReport>();
-  let last: (FitReport & { index: number }) | null = null;
+  let last: (FitReport & { index: number; fitKey: string }) | null = null;
   let sourceCache: { text: string; source: Promise<string> } | null = null;
   const env = (): Record<string, unknown> => ({ ...includeRecordEnv(o.includes ?? {}), orzTwinLinks: true });
 
@@ -214,7 +245,10 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   };
 
   let postTries = 0;
-  const message = (slide: unknown): Record<string, unknown> => ({ type: 'orz-slides-live', show: live, stage: perSlide, ...(slide ? { slide } : {}) });
+  /** The stage the GUI asked for (insets; a template's variant thumbnails). */
+  let stageAsk: { insets: StageInsets; variants: boolean } = { insets: { top: 0, right: 0, bottom: 0, left: 0 }, variants: false };
+  let variantHtml: Array<{ v: number; html: string }> = [];
+  const message = (slide: unknown): Record<string, unknown> => ({ type: 'orz-slides-live', show: live, stage: perSlide, ...(perSlide ? { layout: { insets: stageAsk.insets, variants: stageAsk.variants ? variantHtml : [] } } : {}), ...(slide ? { slide } : {}) });
   const post = (m: Record<string, unknown>): void => {
     if (destroyed) return;
     if (shell.preview.post(m)) { postTries = 0; return; }
@@ -239,12 +273,29 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     const p = presentationOf(text);
     const size = slideSize(p.ratio);
     const plans = planDeck(d, p.theme.sectionNumbers);
-    let html = renderSlide(slide, plans[slide.index], md as unknown as Renderer, d.config, { env: env(), themeNumbers: p.theme.sectionNumbers });
-    if (o.resolveAsset) { const ra = o.resolveAsset; html = rewriteAssetUrls(html, (path) => ra(path)); }
+    const renderOne = (sl: Slide): string => {
+      let h = renderSlide(sl, plans[slide.index], md as unknown as Renderer, d.config, { env: env(), themeNumbers: p.theme.sectionNumbers });
+      if (o.resolveAsset) { const ra = o.resolveAsset; h = rewriteAssetUrls(h, (path) => ra(path)); }
+      return h;
+    };
+    const html = renderOne(slide);
+    // a template on the stage: its looks, for the variant picker's thumbnails (the same slide with each v=)
+    variantHtml = perSlide && stageAsk.variants && slide.kind === 'template' && slide.template
+      ? Array.from({ length: TEMPLATES[slide.template] }, (_, k) => ({ v: k + 1, html: renderOne({ ...slide, templateVariant: k + 1 === 1 ? undefined : k + 1 } as Slide) }))
+      : [];
     const key = `${p.theme.id}|${p.ratio}|${hash(html)}`;
     const fitKey = fitKeyOf(text, deck.slides[i] ?? slide);
     postedFitKeys.set(key, { fitKey, index: i });
-    if (!force && posted && posted.key === key && posted.index === i) { post(message(null)); return; }
+    if (!force && posted && posted.key === key && posted.index === i) {
+      // the same picture for a changed text (an empty notes block, a comment): its fit report holds for it too
+      if (posted.fitKey !== fitKey) {
+        const r = fits.get(posted.fitKey);
+        posted.fitKey = fitKey;
+        if (r) { fits.set(fitKey, r); last = { ...r, index: i, fitKey }; layout?.refresh(); }
+      }
+      post(message(null));
+      return;
+    }
     posted = { key, index: i, fitKey };
     post(message({ key, html, theme: p.theme.id, scheme: p.theme.scheme, width: size.width, height: size.height, index: i, total: deck.slides.length }));
   }
@@ -265,9 +316,9 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       kind: String(b?.kind ?? '').slice(0, 16), name: String(b?.name ?? '').slice(0, 64), scale: Math.max(0, Math.min(1, num(b?.scale) || 1)), clipped: b?.clipped === true,
       x: num(b?.x), y: num(b?.y), w: num(b?.w), h: num(b?.h),
     }));
-    const r: FitReport = { boxes, footerCut: d.footerCut === true, scrolls: d.scrolls === true };
+    const r: FitReport = { boxes, footerCut: d.footerCut === true, scrolls: d.scrolls === true, parts: partsOf((d as { parts?: unknown }).parts) };
     fits.set(at.fitKey, r);
-    last = { ...r, index: at.index };
+    last = { ...r, index: at.index, fitKey: at.fitKey };
     layout?.refresh();
     scheduleLints(150);
   }));
@@ -458,6 +509,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   // ── the per-slide mode (step 6 seam) ──
   let focused: { index: number; from: number; to: number } | null = null;
   let layout: { refresh(): void; destroy(): void } | null = null;
+  let layoutApi: unknown = null;
   function focusSlide(deck: Deck, i: number): void {
     const s = i >= 0 ? deck.slides[i] : undefined;
     if (!s) { if (focused) { shell.setFocusRange(null); focused = null; } return; }
@@ -465,20 +517,72 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     focused = { index: i, from: s.span.from, to: s.span.to };
     shell.setFocusRange(s.span.from, s.span.to, { mode: 'dim' });
   }
+  /** The frame element and its pane (the kit's preview: `iframe.orz-editor__frame` in the shell's root). KIT GAP: no accessor for the preview pane. */
+  const frameEl = (): HTMLIFrameElement | null => (root?.querySelector?.('iframe.orz-editor__frame') as HTMLIFrameElement | null) ?? null;
+  /** Fit keys of the slides of one text (the filmstrip asks for many). */
+  let fitKeysOf: { text: string; keys: string[] } | null = null;
   const stageHost: StageHost = {
     shell,
     slide: () => { const d = parseDeck(shell.getText()); const i = slideIndexAt(d, caret); return i >= 0 ? { index: i, slide: d.slides[i] } : null; },
-    geometry: (): StageGeometry | null => (last ? { index: last.index, boxes: last.boxes.map((b) => ({ ...b })) } : null),
+    geometry: (): StageGeometry | null => {
+      if (!last) return null;
+      const text = shell.getText();
+      const d = parseDeck(text);
+      const i = slideIndexAt(d, caret);
+      const current = i === last.index && !!d.slides[i] && fitKeyOf(text, d.slides[i]) === last.fitKey;
+      return { index: last.index, boxes: last.boxes.map((b) => ({ ...b })), parts: last.parts, current };
+    },
+    pane: () => frameEl()?.parentElement ?? null,
+    frame: frameEl,
+    setStage(a) {
+      const n = (v: number): number => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+      const next = { insets: { top: n(a.insets.top), right: n(a.insets.right), bottom: n(a.insets.bottom), left: n(a.insets.left) }, variants: a.variants === true };
+      const same = JSON.stringify(next) === JSON.stringify(stageAsk);
+      stageAsk = next;
+      if (same || destroyed) return;
+      if (perSlide) { posted = null; void syncLive(true); }
+    },
+    slideSize: () => slideSize(presentationOf(shell.getText()).ratio),
+    preview(pv: StagePreview) {
+      if (!posted || destroyed) return;
+      shell.preview.post({ type: 'orz-slides-preview', key: posted.key, ...pv });
+    },
+    syncNow: () => { cancel(liveTimer); void syncLive(); },
+    goTo(i) {
+      const d = parseDeck(shell.getText());
+      const s = d.slides[Math.max(0, Math.min(d.slides.length - 1, i))];
+      if (!s) return;
+      const at = caretOf(s);
+      caret = at;
+      shell.select(at, at, { scroll: true });
+      cancel(liveTimer);
+      void syncLive();
+    },
+    fitOf(i) {
+      const text = shell.getText();
+      if (fitKeysOf?.text !== text) {
+        const d = parseDeck(text);
+        fitKeysOf = { text, keys: d.slides.map((s) => fitKeyOf(text, s)) };
+      }
+      const k = fitKeysOf.keys[i];
+      const r = k ? fits.get(k) : undefined;
+      if (!r) return null;
+      return { scale: r.boxes.reduce((m, b) => Math.min(m, b.scale), 1), clipped: r.boxes.some((b) => b.clipped) };
+    },
   };
   function setPerSlide(on: boolean): void {
     if (destroyed || on === perSlide) return;
     perSlide = on;
     syncToggles();
+    try { o.onPerSlide?.(perSlide); } catch { /* the carrier's */ }
     if (perSlide) {
       layout = o.layoutGui ? o.layoutGui.attach(stageHost) : null;
+      layoutApi = (layout as { api?: unknown } | null)?.api ?? null;
     } else {
       layout?.destroy();
       layout = null;
+      layoutApi = null;
+      stageAsk = { insets: { top: 0, right: 0, bottom: 0, left: 0 }, variants: false };
       focused = null;
       shell.setFocusRange(null);
     }
@@ -492,10 +596,13 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     // during typing the live view waits for the pause; a caret move alone follows at once
     scheduleLive(Date.now() - lastTyping < LIVE_PAUSE_MS ? LIVE_PAUSE_MS : CARET_PAUSE_MS);
   }));
-  offs.push(shell.on('change', () => {
-    lastTyping = Date.now();
-    scheduleLive(LIVE_PAUSE_MS);
+  offs.push(shell.on('change', (e) => {
+    // a layout op (an applyEdits with a label, from the per-slide GUI) shows at once; typing waits for the pause
+    const op = perSlide && typeof e?.label === 'string';
+    if (!op) lastTyping = Date.now();
+    scheduleLive(op ? 0 : LIVE_PAUSE_MS);
     scheduleLints(LIVE_PAUSE_MS + 150);
+    layout?.refresh();
   }));
   scheduleLive(0);
   scheduleLints(300);
@@ -510,6 +617,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     isPerSlide: () => perSlide,
     setPerSlide,
     lastFit: () => (last ? { ...last, boxes: last.boxes.map((b) => ({ ...b })) } : null),
+    layoutGui: () => layoutApi,
     syncLive: () => syncLive(true),
     destroy() {
       if (destroyed) return;

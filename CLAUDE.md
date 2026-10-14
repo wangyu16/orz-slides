@@ -21,7 +21,7 @@ their owned files, interfaces, and the build order.
 > **Status: published (v0.8.5); rebuild 1.0 in progress on branch
 > `rebuild/1.0`** (family plan `../docs/REBUILD.md` §3c — owner decisions
 > 1–6 and the approved plan are binding; mirrors orz-mdhtml 1.0 and orz-paged
-> 1.0). Steps 1–5 done: orz-markdown `^2.3.0` (linked to the prepared,
+> 1.0). Steps 1–6 done: orz-markdown `^2.3.0` (linked to the prepared,
 > unpublished 2.4.0 checkout during step 3: `node_modules/orz-markdown` is a
 > symlink to `../../orz-markdown`, as orz-paged did), reveal.js pinned, no
 > shims; the 0.x shell is deleted — the bundle boots the kit's `carrier/app`
@@ -41,7 +41,15 @@ their owned files, interfaces, and the build order.
 > the preview frame document, `live-frame.ts` the live view's runtime in
 > the frame — built into `__ORZ_SLIDES_LIVE__` by build/bundle.ts —,
 > `editor.ts` the live view, lints, quick fixes, the slide kept across
-> read and edit, and `per-slide.ts` the step-6 seam). Claims
+> read and edit, and `per-slide.ts` the step-6 seam); step 6 built editing
+> mode (b), per slide: `src/layout-ops.ts` (pure: one layout op → minimal
+> text edits on marker lines; `applyOp`, `slideMap`; exported for apps and
+> agents in step 7) and `src/browser/slides/layout-gui.ts` (the TRUSTED
+> overlay over the sandboxed frame: toolbar, filmstrip, boxes, dividers,
+> floats, badges; every op through `shell.applyEdits`, one undo step, its
+> lines flashed by the kit's `flash`; only `isTrusted` input acts; the
+> stage's place is `stage-geometry.ts`, computed by both sides; keys listed
+> in `LAYOUT_KEYS`). Claims
 > in `notes/CLAIMS.md` (bound by `tests/claims.test.ts`); the kit's
 > conformance harness runs from
 > day one (`tests/conformance.test.ts`). There is no CLI until step 7. The

@@ -22,6 +22,7 @@ import { assemble as assembleSync, cdnBundleUrl, FORMATS, readDocument as slides
 import { presentationOf, shellHead } from '../presentation.js';
 import { VERSION } from '../version.js';
 import { attachSlidesTools, type SlidesTools } from './slides/editor.js';
+import { createLayoutGui } from './slides/layout-gui.js';
 import { renderFlat } from './slides/flat.js';
 import { slidesFrameDocument, slidesPreviewPresentation, type FrameTheme } from './slides/frame.js';
 import type { SlideLayoutGui } from './slides/per-slide.js';
@@ -165,7 +166,10 @@ export interface EditorOptions {
  */
 export type Editor = EditorShell & { readonly slides: SlidesTools };
 
-/** Carrier-internal mount options (not FC-19): the step-6 layout GUI. */
+/** What the flattened preview holds while the per-slide mode shows the stage (it is hidden then). */
+const STAGE_FLAT = '<p data-src-line="0"></p>';
+
+/** Carrier-internal mount options (not FC-19): the per-slide mode's layout GUI (default: src/browser/slides/layout-gui.ts; `null`: none). */
 export interface SlidesMountExtras {
   layoutGui?: SlideLayoutGui | null;
 }
@@ -201,9 +205,12 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
   const view = ctx ? activeReadView() : null;
   const startSlide = view ? view.engine.index() : undefined;
 
+  let perSlideNow = false;
   const shell = createEditorShell(element as never, {
     text: options.text,
-    render: (text, rc) => renderFlat(text, rc),
+    // the per-slide mode hides the flattened flow (the stage fills the pane): it is not rendered then, so an op
+    // on a long deck costs no full re-render (rebuild step 6); leaving the mode renders it again
+    render: (text, rc) => (perSlideNow ? STAGE_FLAT : renderFlat(text, rc)),
     kind: 'slides',
     formats: [...FORMATS],
     ...(options.mode ? { mode: options.mode } : {}),
@@ -251,7 +258,8 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
     iconOnly,
     ...(startSlide !== undefined ? { startSlide } : {}),
     ...(view ? { onLeave: (i: number) => view.goTo(i) } : {}),
-    ...(extras.layoutGui ? { layoutGui: extras.layoutGui } : {}),
+    layoutGui: extras.layoutGui === undefined ? createLayoutGui() : extras.layoutGui,
+    onPerSlide: (on: boolean) => { perSlideNow = on; void shell.refreshPreview(); },
   });
 
   const destroy = shell.destroy.bind(shell);

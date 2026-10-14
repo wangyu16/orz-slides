@@ -84,8 +84,15 @@ html[data-scheme="dark"] .orz-live-badge[data-state="warn"] { color: #fbbf24; }
 html[data-scheme="dark"] .orz-live-badge[data-state="cut"] { color: #f87171; }
 .orz-live-port { position: relative; overflow: hidden; }
 .orz-live-port > .orz-live-deck { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: 0; }
+body.orz-stage { overflow: hidden; }
 body.orz-stage #orz-doc { display: none; }
-body.orz-stage .orz-live { position: static; width: auto; margin: 0 0 1rem; box-shadow: none; }
+/* the per-slide stage (rebuild step 6): placed by stage-geometry.ts, where the trusted page's overlay is */
+body.orz-stage .orz-live { position: fixed; right: auto; bottom: auto; border-radius: 2px; border-color: var(--orz-live-line); box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 8px 26px rgba(0,0,0,.10); }
+body.orz-stage .orz-live-head { display: none; }
+.orz-live-variants { position: fixed; inset: 0; pointer-events: none; }
+body:not(.orz-stage) .orz-live-variants { display: none; }
+.orz-live-variant { position: absolute; overflow: hidden; border-radius: 3px; box-shadow: 0 0 0 1px var(--orz-live-line); background: var(--orz-live-chrome); }
+.orz-live-variant > .reveal { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: 0; }
 `;
 
 /** The theme the next frame document is written for (the presentation sets it; FC-19 §8.4 `frameDocument` gets no text). */
