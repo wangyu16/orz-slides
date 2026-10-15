@@ -184,7 +184,9 @@ Set by a theme on `:root` (defaults in deck.css):
 | `--sl-head` | `--sl-pad-t` | top slot height |
 | `--sl-gap` | 40px | gap between regions |
 | `--sl-title-gap`, `--sl-title-size` | 28px, 1.62em | title band |
-| `--sl-bg`, `--sl-ink`, `--sl-viewport`, `--sl-mono` | — | slide background, text colour, the page around the slide, code font |
+| `--sl-bg`, `--sl-ink`, `--sl-viewport`, `--sl-mono` | — | slide background, text colour, the page around the slide (a light theme's, from its layer; a dark theme's is generated — below), code font |
+| `--sl-tone` | `--sl-bg` | the slide's base colour, when `--sl-bg` is not one colour (a gradient, a pattern): a dark theme's surround is made from it |
+| `--sl-surround` | unset | GENERATED for a dark theme only (never set by hand): its soft-dark surround (= its `--sl-viewport`) |
 | `--sl-graphic-min` | 4em | the smallest height a picture or diagram keeps |
 | `--sl-qr` | 4.6em | the QR code's size in its slot |
 | `--chart-*`, `--mm-*` | the orz-markdown theme's | Chart.js and Mermaid colours and fonts (orz-markdown 2.4.0, read where drawn); a dark theme sets light ink on its dark (dark-native: no light panel) |
@@ -214,6 +216,28 @@ chrome text overprints another (Nocturne lays its status bar out as one flex
 row). The chart palette (`--chart-1…6`) reads apart for every reader: ΔE ≥
 18 pairwise and ≥ 10 under protan, deutan and tritan simulation (claims T.6,
 T.13).
+
+**The surround** (owner revision 2026-10-15): the page around the slide.
+A theme whose scheme is dark (`src/themes.ts`: Inscription, Copper,
+Nocturne, Chalk, Neon) gets a SOFT dark surround made from its slide colour
+by `scripts/build-themes.ts` (`surroundRule`, appended to the built theme as
+`--sl-viewport` and `--sl-surround`; a dark layer never sets either): in
+OKLCH, the slide's hue, its chroma capped at 0.03, and one step of
+lightness toward the soft-dark band's middle — a near-black slide
+(L < 0.245) gets a LIGHTER surround, L + 0.07 inside [0.24, 0.30], a lighter
+dark slide a DARKER one, L − 0.06, at least 0.22. The build contract checks
+it: the surround in the band L ∈ [0.18, 0.32] with chroma ≤ 0.04, the
+slide's edge visible (CIE76 ΔE ≥ 3), the scheme agreeing with the slide
+colour's lightness. It shows wherever the slide stands on a page: the read
+view (`#orz-view`, and reveal's viewport, which reveal.css paints white:
+deck.css gives it `var(--sl-surround, #fff)`) — so the letterbox at any
+window ratio, Present (full screen) and overview —, the speaker view's
+slide panes (`var(--sl-surround, #000)`), and in the editor the single-slide
+stage (the frame's page in `body.orz-stage`) and the live card's chrome and
+a template's look thumbnails (`--orz-live-chrome`). The flattened preview
+keeps the slide's background. A light theme is unchanged by the revision:
+its letterbox stays reveal's white, its stage the slide's background, its
+speaker panes black (claim T.15).
 
 **reveal's background copies:** reveal copies a section's classes onto its
 background layer (`.backgrounds > .slide-background`), so a `.orz-slide`

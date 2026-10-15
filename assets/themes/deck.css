@@ -19,6 +19,9 @@
      --sl-title-gap   space under the title band       28px
      --sl-title-size  title band h2 size               1.62em
      --sl-bg / --sl-ink / --sl-viewport / --sl-mono    colours and code font
+     --sl-tone        the slide's base colour (a dark theme's surround is made from it)  var(--sl-bg)
+   Generated for a dark theme only (scripts/build-themes.ts; never set by hand):
+     --sl-surround    the soft-dark page around the slide (= its --sl-viewport); a light theme leaves it unset
      --sl-graphic-min smallest height a graphic keeps  4em
      --chart-aspect, --chart-max-width                 a chart's shape and width cap  1.6, min(100%, 20.8em)
      --chart-font-size, --mm-font-size                 chart and diagram text, logical px  18
@@ -43,6 +46,10 @@ html.orz-slides-page, html.orz-slides-page body { margin: 0; height: 100%; overf
 html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f6f6f4)); }
 #orz-view.orz-slides { position: fixed; inset: 0; background-color: var(--sl-viewport, var(--sl-bg, #f6f6f4)); }
 #orz-view.orz-slides > .reveal { width: 100%; height: 100%; }
+/* the surround (owner revision 2026-10-15): reveal.css paints its viewport white, over #orz-view — the letterbox, Present
+   and overview showed white around every slide. A dark theme's soft-dark surround (--sl-surround, generated) shows
+   there; a light theme keeps reveal's white (unchanged by the revision) */
+.reveal.orz-deck.reveal-viewport { background-color: var(--sl-surround, #fff); }
 #orz-view.orz-slides:fullscreen { width: 100vw; height: 100vh; }
 .reveal.orz-deck { font-size: var(--sl-size); }
 .reveal .slides { text-align: left; }

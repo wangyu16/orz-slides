@@ -1227,7 +1227,6 @@
   --sl-size: 30px;
   --sl-lh: 1.5;
   --sl-bg: var(--bg-color);
-  --sl-viewport: #1d1e21;
   --sl-ink: var(--text-color);
   --sl-mono: var(--font-code);
   --sl-title-size: 1.5em;
@@ -1470,3 +1469,10 @@
 .reveal .orz-chrome > .orz-footer { grid-column: 1; min-width: 0; margin-right: 1.4em; }
 .reveal .orz-chrome > .orz-chrome-sec { grid-column: 3; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; margin: 0 1.4em 0 0; }
 .reveal .orz-chrome > .orz-chrome-num { grid-column: 4; white-space: nowrap; }
+
+/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
+   dark of the slide's own hue: the slide #2a2b2f at OKLCH L 0.290 → #1c1d20 at L 0.231; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-viewport: #1c1d20;
+  --sl-surround: #1c1d20;
+}

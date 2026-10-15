@@ -1282,7 +1282,6 @@
   --sl-size: 30px;
   --sl-lh: 1.52;
   --sl-bg: var(--bg-surface);
-  --sl-viewport: var(--bg);
   --sl-ink: var(--text-primary);
   --sl-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --sl-title-size: 1.42em;
@@ -1529,3 +1528,10 @@
 
 /* math keeps its case inside upper-cased labels */
 .reveal :is(th, .orz-title-main, .orz-section-main, .orz-outline h2, .orz-footer) .katex { text-transform: none; }
+
+/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
+   dark of the slide's own hue: the slide #13161f at OKLCH L 0.201 → #232630 at L 0.270; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-viewport: #232630;
+  --sl-surround: #232630;
+}

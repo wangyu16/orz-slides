@@ -287,11 +287,53 @@ export function updatedTheme(id: string): string {
   ].join('\n\n') + '\n';
 }
 
-/** The stylesheet of any theme. */
+/** The stylesheet of any theme: its parts, then — for a dark theme — its generated surround ({@link surroundOf}). */
 export function themeCss(id: string): string {
   const t = THEMES.find((x) => x.id === id);
   if (!t) throw new Error(`build-themes: unknown theme ${id}`);
-  return t.derivedFrom ? derivedTheme(id) : updatedTheme(id);
+  const css = t.derivedFrom ? derivedTheme(id) : updatedTheme(id);
+  if (t.scheme !== 'dark') return css;
+  const s = surroundOf(css);
+  if (!s) return css; // the contract reports it (no readable slide colour)
+  return css + '\n' + [
+    `/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT`,
+    `   dark of the slide's own hue: the slide ${s.tone} at OKLCH L ${s.toneL.toFixed(3)} → ${s.hex} at L ${s.L.toFixed(3)}; docs/dom-contract.md §5) ===== */`,
+    `:root {`,
+    `  --sl-viewport: ${s.hex};`,
+    `  --sl-surround: ${s.hex};`,
+    `}`,
+  ].join('\n') + '\n';
+}
+
+/* ───────────── the surround (owner revision 2026-10-15) ───────────── */
+
+/**
+ * THE RULE: a dark theme's surround — the page around the slide in the read
+ * view, Present, overview, the letterbox, the speaker view's panes and the
+ * editor's stage and live card — is a SOFT dark derived from the slide's
+ * colour (`--sl-tone`, else `--sl-bg`) in OKLCH: the slide's hue, its chroma
+ * capped at 0.03, and one step of lightness toward the soft-dark band's
+ * middle — a near-black slide (L < 0.245) gets a LIGHTER surround,
+ * L + 0.07 inside [0.24, 0.30]; a lighter dark slide a DARKER one, L − 0.06,
+ * at least 0.22. So the surround is never near black, never light, and the
+ * slide's edge shows (the contract checks the band and ΔE ≥ 3).
+ */
+export function surroundRule(tone: number[]): number[] {
+  const [l, c, h] = oklchOf(tone);
+  const L = l < 0.245 ? Math.min(0.30, Math.max(0.24, l + 0.07)) : Math.max(0.22, l - 0.06);
+  return rgbOfOklch([L, Math.min(c, 0.03), h]);
+}
+
+const hexOf = (rgb: number[]): string => `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+
+/** A theme's slide colour (`--sl-tone`, else `--sl-bg`, resolved) and the surround {@link surroundRule} makes of it; null when the slide colour is not a readable colour. */
+export function surroundOf(css: string): { tone: string; toneL: number; hex: string; L: number } | null {
+  const value = tokenValues(rulesOf(css));
+  const v = value('--sl-tone') ?? value('--sl-bg');
+  const c = v === undefined ? null : colourOf(v);
+  if (!Array.isArray(c)) return null;
+  const out = surroundRule(c);
+  return { tone: hexOf(c), toneL: oklchOf(c)[0], hex: hexOf(out), L: oklchOf(out)[0] };
 }
 
 /** The themes built: every theme of src/themes.ts (a missing layer is an error). */
@@ -426,6 +468,36 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
   const framesSingle = rulesOf(css.layer).some((r) => splitTop(r.selector, ',').some((x) => /p\.orz-pic\b(?!s)/.test(own(x)) && !/::(before|after)/.test(x)) && r.decls.some((d) => FRAME.test(d.prop) && !/^(none|0|transparent)$/.test(d.value.trim())));
   const framesRow = rulesOf(css.layer).some((r) => splitTop(r.selector, ',').some((x) => /p\.orz-pics\b/.test(own(x)) && /\bimg\b/.test(x)) && r.decls.some((d) => /^(border(-[\w-]+)?|box-shadow|outline(-[\w-]+)?)$/.test(d.prop) && !/^(none|0)$/.test(d.value.trim())));
   if (framesSingle && !framesRow) problems.push(`${id}: a picture (p.orz-pic) is framed but the pictures of a row (p.orz-pics img) are not`);
+  // the surround (owner revision 2026-10-15): a dark theme's is generated from its slide colour, in the soft-dark band, its
+  // edge visible; a light one's is its layer's; the scheme of src/themes.ts agrees with the slide colour where it can be read
+  const scheme = THEMES.find((x) => x.id === id)?.scheme;
+  const layerSets = (name: string): boolean => rulesOf(css.layer).some((r) => r.decls.some((d) => d.prop === name));
+  const toneV = value('--sl-tone') ?? value('--sl-bg');
+  const tone = toneV === undefined ? null : colourOf(toneV);
+  if (Array.isArray(tone)) {
+    const L = oklchOf(tone)[0];
+    if (scheme === 'dark' && L >= 0.5) problems.push(`${id}: the scheme is dark but the slide colour ${hexOf(tone)} is light (OKLCH L ${L.toFixed(3)})`);
+    if (scheme === 'light' && L < 0.5) problems.push(`${id}: the scheme is light but the slide colour ${hexOf(tone)} is dark (OKLCH L ${L.toFixed(3)})`);
+  }
+  if (scheme === 'dark') {
+    for (const n of ['--sl-viewport', '--sl-surround']) if (layerSets(n)) problems.push(`${id}: the layer sets ${n} (a dark theme's surround is generated from its slide colour)`);
+    if (!Array.isArray(tone)) problems.push(`${id}: a dark theme needs a readable slide colour for its surround (set --sl-tone to the slide's base colour)`);
+    else {
+      const sv = value('--sl-surround');
+      const vv = value('--sl-viewport');
+      const s = sv === undefined ? null : colourOf(sv);
+      if (!Array.isArray(s)) problems.push(`${id}: no generated surround (--sl-surround)`);
+      else {
+        const [L, C] = oklchOf(s);
+        if (L < SURROUND_BAND[0] || L > SURROUND_BAND[1]) problems.push(`${id}: the surround ${hexOf(s)} is outside the soft-dark band (OKLCH L ${L.toFixed(3)}, not in [${SURROUND_BAND.join(', ')}])`);
+        if (C > 0.04) problems.push(`${id}: the surround ${hexOf(s)} is not a low-chroma dark (C ${C.toFixed(3)} > 0.04)`);
+        const d = deltaE(s, tone);
+        if (d < 3) problems.push(`${id}: the slide's edge does not show on the surround (ΔE ${d.toFixed(1)} < 3 between ${hexOf(tone)} and ${hexOf(s)})`);
+        if (hexOf(s) !== hexOf(surroundRule(tone))) problems.push(`${id}: the surround ${hexOf(s)} is not the rule's ${hexOf(surroundRule(tone))}`);
+        if (vv !== sv) problems.push(`${id}: --sl-viewport (${vv}) is not the surround (${sv})`);
+      }
+    }
+  } else if (layerSets('--sl-surround') || value('--sl-surround') !== undefined) problems.push(`${id}: a light theme sets --sl-surround (it marks a dark theme's soft-dark surround)`);
   // round A4 (A4-TH-3): a section number drawn by ::after needs its own guard for section_numbers: none (deck.css
   // hides an empty ::before for every theme)
   const layerRules = rulesOf(css.layer);
@@ -473,6 +545,29 @@ function labOf(rgb: number[]): number[] {
 }
 /** CIE76 ΔE of two sRGB colours. */
 export function deltaE(a: number[], b: number[]): number { const p = labOf(a), q = labOf(b); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); }
+/** sRGB (0–255) → OKLCH [L 0–1, C, h°] (Björn Ottosson's OKLab). */
+export function oklchOf(rgb: number[]): [number, number, number] {
+  const [r, g, b] = rgb.map(lin);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+  const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+  return [L, Math.hypot(A, B), ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360];
+}
+/** OKLCH → sRGB (0–255, rounded; clipped to the gamut — the surround's low chroma is always inside it). */
+export function rgbOfOklch([L, C, H]: number[]): number[] {
+  const A = C * Math.cos((H * Math.PI) / 180);
+  const B = C * Math.sin((H * Math.PI) / 180);
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+  const s = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3;
+  return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s]
+    .map((v) => Math.round(Math.min(255, Math.max(0, gam(Math.max(0, v))))));
+}
+/** The soft-dark band a dark theme's surround must lie in (OKLCH L; owner revision 2026-10-15). */
+export const SURROUND_BAND: readonly [number, number] = Object.freeze([0.18, 0.32]) as unknown as readonly [number, number];
 /** Colour-vision deficiency simulation (Machado, Oliveira & Fernandes 2009, severity 1), in linear RGB. */
 export const CVD: Readonly<Record<'protan' | 'deutan' | 'tritan', number[][]>> = Object.freeze({
   protan: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],

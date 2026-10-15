@@ -1362,7 +1362,6 @@
   --sl-size: 31px;
   --sl-lh: 1.5;
   --sl-bg: var(--bg);
-  --sl-viewport: #050c12;
   --sl-ink: var(--text);
   --sl-mono: var(--font-code);
   --sl-title-size: 1.45em;
@@ -1575,3 +1574,10 @@
 /* math keeps its case inside upper-cased labels */
 .reveal :is(th, .orz-title-main, .orz-section-main, .orz-outline h2, .orz-footer) .katex { text-transform: none; }
 .reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: calc(5em + 90px); min-height: calc(5em + 60px); }
+
+/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
+   dark of the slide's own hue: the slide #071018 at OKLCH L 0.168 → #172029 at L 0.239; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-viewport: #172029;
+  --sl-surround: #172029;
+}

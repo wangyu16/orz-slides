@@ -76,7 +76,7 @@ const SPEAKER_CSS = [
   '.sv-main{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;padding:14px;height:calc(100% - 49px)}',
   '.sv-current{min-height:0;display:flex;flex-direction:column}.sv-side{display:grid;grid-template-rows:auto 1fr;gap:14px;min-height:0}',
   '.sv-label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;opacity:.5;margin:0 0 5px}',
-  '.sv-stage{position:relative;overflow:hidden;background:#000;border:1px solid #2a2a30;border-radius:7px}',
+  '.sv-stage{position:relative;overflow:hidden;background:var(--sl-surround,#000);border:1px solid #2a2a30;border-radius:7px}',
   '.sv-stage>.reveal.orz-print{position:absolute;left:0;top:0;transform-origin:0 0}',
   '.sv-notes{background:#fbfbfa;color:#16161a;border-radius:7px;padding:16px 18px;overflow:auto;min-height:0;font-size:18px;line-height:1.5;flex:1 1 auto}',
   '.sv-notes>:first-child{margin-top:0}.sv-notes .sv-nonotes{color:#888}',

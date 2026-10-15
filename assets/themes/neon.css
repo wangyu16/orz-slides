@@ -406,7 +406,6 @@
   --sl-title-gap: 26px;
   --sl-title-size: 1.6em;
   --sl-bg: #0a0f10;
-  --sl-viewport: #060909;
   --sl-ink: #e4efed;
   --sl-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   --sl-controls: #2ef2d0;
@@ -939,4 +938,11 @@
   font-size: 13px;
   letter-spacing: 0.14em;
   color: var(--phosphor);
+}
+
+/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
+   dark of the slide's own hue: the slide #0a0f10 at OKLCH L 0.163 → #1b2021 at L 0.239; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-viewport: #1b2021;
+  --sl-surround: #1b2021;
 }

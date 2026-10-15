@@ -401,7 +401,6 @@
   --sl-title-gap: 24px;
   --sl-title-size: 1.92em;
   --sl-bg: #1d2a25;
-  --sl-viewport: #121a17;
   --sl-ink: #f1ece0;
   --sl-mono: 'Fira Mono', ui-monospace, Menlo, monospace;
   --sl-controls: #ffd663;
@@ -877,3 +876,10 @@
 }
 .reveal .orz-template-closing > .orz-qr-slot::before { left: -18px; transform: rotate(-30deg); }
 .reveal .orz-template-closing > .orz-qr-slot::after { right: -18px; transform: rotate(30deg); }
+
+/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
+   dark of the slide's own hue: the slide #1d2a25 at OKLCH L 0.271 → #111e19 at L 0.221; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-viewport: #111e19;
+  --sl-surround: #111e19;
+}

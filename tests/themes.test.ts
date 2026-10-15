@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { allContractProblems, builtThemes, contractProblems, themeCss } from '../scripts/build-themes.js';
+import { allContractProblems, builtThemes, contractProblems, oklchOf, surroundOf, surroundRule, SURROUND_BAND, themeCss } from '../scripts/build-themes.js';
 import { execFileSync } from 'node:child_process';
 import { THEMES } from '../src/themes.js';
 import { buildBrowser } from '../build/bundle.js';
@@ -79,6 +79,40 @@ describe('the theme contract (round A)', () => {
     const noOutline3 = deck.split('\n').filter((l) => !/data-template="outline"\]\[data-v="3"\]/.test(l)).join('\n') + '\n.reveal [data-template="outline"] .x, .reveal [data-template="title"][data-v="3"] .y { color: red; }\n';
     expect(check({ deck: noOutline3 })).toEqual(['deck.css: the outline template\'s variant v=3 has no rule']);
     expect(check({ layer: `${layer}\n.reveal .orz-title { overflow: visible; }\n` })).toEqual(['orchard: ".reveal .orz-title" lets the title band overflow across (it clips on x)']);
+  });
+
+  it('[T.15] the surround: every dark theme carries the generated soft-dark surround of its slide colour (in the band, its edge visible) and no light theme does; the contract refuses a dark layer that sets its own surround, a surround off the rule, out of the band or without its edge, a light theme with --sl-surround and a scheme that disagrees with the slide colour', () => {
+    const deck = readFileSync('assets/themes/deck.css', 'utf8');
+    for (const t of THEMES) {
+      const built = readFileSync(`assets/themes/${t.id}.css`, 'utf8');
+      if (t.scheme === 'light') { expect(built, t.id).not.toMatch(/--sl-surround:/); continue; }
+      const s = surroundOf(built.slice(0, built.indexOf('/* ===== the surround')))!;
+      expect(s, t.id).not.toBeNull();
+      expect(built, t.id).toContain(`  --sl-viewport: ${s.hex};\n  --sl-surround: ${s.hex};`);
+      expect(s.L, t.id).toBeGreaterThanOrEqual(SURROUND_BAND[0]);
+      expect(s.L, t.id).toBeLessThanOrEqual(SURROUND_BAND[1]);
+    }
+    const layer = readFileSync('assets/themes/layers/copper.css', 'utf8');
+    const built = readFileSync('assets/themes/copper.css', 'utf8');
+    const check = (o: { layer?: string; built?: string }, id = 'copper'): string[] => contractProblems(id, { deck, layer: o.layer ?? layer, built: o.built ?? built });
+    expect(check({})).toEqual([]);
+    expect(check({ layer: `${layer}\n:root { --sl-viewport: #050c12; }\n` })).toEqual(['copper: the layer sets --sl-viewport (a dark theme\'s surround is generated from its slide colour)']);
+    const nearBlack = check({ built: `${built}\n:root { --sl-viewport: #050c12; --sl-surround: #050c12; }\n` }).join('\n');
+    expect(nearBlack).toMatch(/the surround #050c12 is outside the soft-dark band/);
+    expect(nearBlack).toMatch(/the surround #050c12 is not the rule's #172029/);
+    expect(check({ built: `${built}\n:root { --sl-viewport: #0a131b; --sl-surround: #0a131b; }\n` }).join('\n')).toMatch(/the slide's edge does not show/);
+    expect(check({ built: `${built}\n:root { --sl-viewport: #3a1020; --sl-surround: #3a1020; }\n` }).join('\n')).toMatch(/not a low-chroma dark/);
+    expect(check({ built: `${built}\n:root { --sl-viewport: #e9e1d2; }\n` }).join('\n')).toMatch(/--sl-viewport \(#e9e1d2\) is not the surround/);
+    expect(check({ built: `${built}\n:root { --sl-bg: #f4f4f4; }\n` }).join('\n')).toMatch(/the scheme is dark but the slide colour #f4f4f4 is light/);
+    const light = { deck, layer: readFileSync('assets/themes/layers/paper.css', 'utf8'), built: readFileSync('assets/themes/paper.css', 'utf8') };
+    expect(contractProblems('paper', light)).toEqual([]);
+    expect(contractProblems('paper', { ...light, built: `${light.built}\n:root { --sl-surround: #232630; }\n` })).toEqual(['paper: a light theme sets --sl-surround (it marks a dark theme\'s soft-dark surround)']);
+    expect(contractProblems('paper', { ...light, built: `${light.built}\n:root { --sl-bg: #13161f; }\n` }).join('\n')).toMatch(/the scheme is light but the slide colour #13161f is dark/);
+    // the rule itself: a near-black slide gets a lighter surround, a lighter dark slide a darker one, both in the band
+    const [lo] = oklchOf(surroundRule([7, 16, 24]));
+    const [hi] = oklchOf(surroundRule([42, 43, 47]));
+    expect(lo).toBeGreaterThan(oklchOf([7, 16, 24])[0]);
+    expect(hi).toBeLessThan(oklchOf([42, 43, 47])[0]);
   });
 
   it('[T.13] A3-TH-1: the contract rejects a rule that sets a paragraph\'s metrics or layout by the image it holds (p:has(> img), p > img — a sentence with an inline icon too) and accepts the picture paragraph p.orz-pic; every built theme passes', () => {
