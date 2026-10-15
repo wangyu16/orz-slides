@@ -853,3 +853,206 @@ and passes now.
 
 Round B ends here; the next round (the final loop, step 10) starts from
 this entry.
+
+---
+
+## Round B2 — 2026-10-15 (round B's fixes attacked; rebuild/1.0@e92ab0c, the closing pass on @15c9719)
+
+The confirming round: the four areas again (ops, the whole-deck editor,
+the GUI, isolation), each of round B's 31 items checked by reproduction and
+the new mechanisms attacked (the derived deck, the flush of key runs, the
+live card, the surround). **All 31 round-B items confirmed fixed** (OPS-1…10,
+B-ED-1…5, GUI-1…13, ISO-B1…B3). New: 5 verified findings, **no HIGH**
+(B2-OPS-1, B2-OPS-2, B2-ED-1, GUI2-1 MEDIUM; GUI2-2 re-rated LOW by its
+verifier), 13 LOW, 12 improvements. Under the owner's stop rule round B
+closes with this pass: no further review round for B.
+
+### Found and fixed (closing pass)
+
+Every probe below failed on rebuild/1.0@15c9719 (the pure probes in place;
+the Chrome probes in a 15c9719 worktree with the new tests) and passes now.
+
+| Id | Sev | Finding | Fix | Probe (claim) |
+|---|---|---|---|---|
+| B2-OPS-1 | MED | the derived deck differed from a fresh parse when a kit `{{name` block's closing `}}` lay outside the re-read slides (the kit's block dispatcher looks AHEAD past slide markers for the next line holding `}}`): typing `{{mermaid` above a later `{{chart` showed 4 slides in the GUI and the single-slide view while the saved deck had 2; an op was accepted on a slide a fresh parse does not have; the memo and undo kept the wrong deck | the derivation's one precondition the next-marker check cannot see, made explicit (`lookaheadSafe`): the touched part is read alone only when no opener before it was left unclosed while the edit adds a `}}`, and no opener in it reaches past it — else a full parse. Sound for every construct the dispatcher looks ahead for (it is the only one); the auditor's fuzzers (fz1 seeds 2, 4, 5, 7, 8, 9 and a `{{`-heavy variant, 12 000 edits each; the op fuzz seed 6) find no mismatch | P.14 (the property's generator now makes `{{name` blocks, lone `}}`, one-line and inline `{{qr …}}`; typing `{{mermaid` a character at a time; a lone `}}` closing an earlier opener; the minimal case) |
+| B2-OPS-2 | MED (rare) | marker hygiene missed kit `{{name … }}` blocks: an unclosed `{{mermaid` swallowed every slide up to the next line holding `}}` (another `{{chart`, a one-line or even an inline `{{qr …}}`) with no lint, no fix, the ops not blocked | the same terminator-aware mechanism: `unclosed-plugin` (error; the fix inserts `}}` before the first marker line, in the text's line ending) when, after a slide marker, a line opens another multi-line `{{name` block, when the closing line's `}}` ends a one-line or inline `{{…}}` of its own, or when a DRAWN block (chart, mermaid, smiles, qr, youtube) holds a slide marker; a text block (`{{yaml`, `{{nyml`, an include) closed on purpose may still show markers (corpus `markers-in-code`); `REPAIR_CODES` (upgrade repairs it), `RUN_ON_OPENER`, the ops' `BLOCKING` | P.13, L.2 |
+| B2-ED-1 | MED | a pending arrow-key run was not written before Cmd/Ctrl+S (the save lacked the last nudge) or Cmd/Ctrl+E (the nudge was lost: the kit's `leave()` read the text before the GUI's destroy flushed it) | the class: ONE flush hook ahead of every command — the GUI listens in the window's capture phase (before the kit's and the editor's own handlers) and writes a pending run on every key that does not go on with the run (any shortcut, Tab, Enter, keys elsewhere) and on every press outside the stage; Escape still cancels it | L.12 (Save, the enlarge key, a toolbar click, Escape), W.10 (Done by Cmd/Ctrl+E in the assembled file) |
+| GUI2-1 | MED | the live card — since the owner's 2026-10-14 revision the only way into slide editing — showed no sign at rest that it can be clicked; on touch the "Edit this slide" hint (hover/focus only) never appeared | an "Edit" chip in the card's head, drawn at rest on every pointer (filled on hover and focus), clear of the head's number and fit (the frame's head keeps room for it) and of the fold button; the whole card stays the target and a keyboard button | W.10 (at rest, on touch, geometry) |
+| GUI2-2 | LOW (rare) | Ctrl/Cmd+Shift+Enter in the Editor-only view turned on an invisible single-slide mode (a 64 × 36 stage, the deck dimmed, nothing said) | with no preview to draw in, the key says "Show the preview (Split or Preview) to edit a slide on its own" and changes nothing | W.10 |
+| B2-OPS-3 | LOW (rare) | a divider next to a px/auto/em track of a 3+ track split wrote 2/8/5, 9/1/5 (sum over 12) | the fixed track of the pair is written as the split's mean fr, then the whole-split snap (sum ≤ 12); an fr pair that is the split's only fr tracks steps through the simple ratios, the fixed tracks kept | L.1 |
+| B2-ED-2 | LOW | enlarging from the keyboard (Enter on the card) dropped the focus to `<body>` | the focus goes to the single-slide view's Whole deck button | W.10 |
+| B2-ED-3 | LOW | the folded pill stayed "not checked yet" after an idle check found the slide cut | an idle check's report redraws the card or pill | W.10 |
+| B2-ED-4 | LOW (rare) | a `select()` from code to another slide while a key run was pending was undone: the run's commit pinned the caret back | a run written late after the caret left its slide leaves the caret where it is | L.12 |
+| B2-ED-5 | LOW | on touch the 36 px fold button was placed as if 24 px and overhung the card | placed from its measured width | W.10 |
+| GUI2-3 | LOW | a filmstrip auto-hidden in a short pane never came back | it comes back when the pane is 400 px or more again (40 px hysteresis), unless the reader hid it | L.7 |
+| GUI2-4 | LOW | the template look captions on a dark theme's soft-dark surround: 2.5–2.9 : 1 | the captions take the slide's scheme (light on dark; the checked one in `--lg-ink`): ≥ 4.5 : 1 on chalk, copper, inscription, neon, nocturne | L.7 |
+| GUI2-5 | LOW (rare) | Notebook: a single picture's slip filled its room, not the picture (blank paper under a wide picture) | the paper is the image's own box (sized to its aspect by deck.css); the paragraph keeps the tilt and the tape. Before/after: `output/closed-loop/b2-shots/notebook-slip-4x3-{before,after}.png` | T.12 |
+| GUI2-6 | LOW | the Keys panel broke "Ctrl/Cmd+Shift+Ent / er", did not list Ctrl/Cmd+Y, and the template note was cut to "…choose it…" | key names break only after `+` or `/`; undo and redo listed apart (Ctrl/Cmd+Y); the note "Title page: choose a look" (the rest in its title) | L.12 |
+| GUI2-7 | LOW | a box's name tag could land beside the next box's ('left' drawn just left of 'right', 27 px apart) | a name tag also tries the places along its edge between the corners, and never comes within two tag widths of a neighbouring box's left edge (where that box's tag sits); a first try (own side first) put a tag under the box onto a fit=off slide's overflowing text — caught by round B's GUI-1 probe in the full run | L.7 |
+| ISO-B2-1 | LOW (rare) | the Issues messages quoted the region name the frame reported | named from the text (the frame's region boxes in document order; a count mismatch says "box") | L.13 |
+| ISO-B2-2 | LOW (rare) | the overlay drew and selected floats the text does not have | the frame's float count is checked against the text as the regions are (a mismatch draws a stale stage) | L.13 |
+| ISO-B2-3 | LOW (UPSTREAM) | Ctrl/Cmd+Shift+Enter did nothing with the focus inside the preview frame, though W.10 said "anywhere in the editor" | scoped: the key works in the text and the editor's chrome; the frame's bridge forwards only the kit's own keys (W.10 and the Keys panel say so) | W.10 |
+
+Also taken from the improvements (cheap, same files): a report without its
+parts (a document script's `parts: null`) keeps the last good parts of the
+same slide text, so a forgery cannot make the stage stale for good (L.13).
+
+### Owner-reported bug (2026-10-15): the slide left in the pane after a shrink
+
+Intermittent: after enlarging the card and clicking Whole deck, the slide
+sometimes stayed large in the centre of the pane, with only an empty card
+frame (its fold chevron) in the corner. **Root cause**: the page's `post()`
+resent a message the frame could not take (`preview.post` is false while
+the frame's document is being rebuilt — `followPresentation` rebuilds it
+after a theme or header change — or boots) as it was, every 100 ms, with
+one counter for all messages. An enlarge (`stage: true`) that failed and a
+shrink (`stage: false`) that failed later each kept their own retry timer;
+when the frame came back between the two timers' phases, the shrink got
+through first and the older enlarge after it — the frame drew the stage,
+the page believed it was back in the whole deck, and nothing corrected it
+(nothing depended on `transitionend`: the 160 ms transition is decoration;
+the frame's `apply()` already derives its layout from each message). **Fix,
+the class**: what the frame shows is a function of the page's CURRENT
+state — a message the frame could not take is never resent; the current
+state is sent again once, shortly (`syncLive(true)`, the posted key reset so
+the slide goes with it). Reproduction (`output/closed-loop/b2-shots/
+card-shrink-race-repro.mts`: CPU 6×, the frame rebuilt between enlarge and
+shrink): on 15c9719 25 of 48 cycles ended with the stage in the pane
+(`card-shrink-race-before.png`), with the fix 0 of 48
+(`card-shrink-race-after.png`). Probe (W.10, real Chrome, CPU 4×): 45
+enlarge → shrink cycles — clicks, the key, double clicks, a click right
+after the enlarge, typing, theme changes, and the frame rebuilt between the
+enlarge and the shrink — each must end with the card in the corner, its
+slide drawn, the page's card button on it and the flattened preview back.
+It failed on 15c9719 (cycles 4, 7, … "the frame still draws the stage") and
+passes.
+
+### Coordinator item (2026-10-15): the outline column and its leaders
+
+Paper's outline at 4:3 wrapped short items ("Mechanism and / kinetics")
+in a narrow column beside half a slide of white, and its dot leaders broke
+into stray fragments next to wrapped items. The class, checked over 14
+themes × outline v1–v3 × 16:9 and 4:3, had three members:
+
+- **Paper**: `.orz-outline { width: 62% }` (≈ 470 px at 4:3); the leader
+  (`flex: 1 1 auto; min-width: 1em`) forced the text to shrink and wrap,
+  and the shrunk text box left the leader far from the wrapped line.
+- **Orchard**: `ol { max-width: 22em }` wrapped a 707 px item at 16:9 with
+  1075 px offered.
+- **Nocturne**: an 18 % right padding made v3's columns ≈ 270 px at 4:3
+  ("RAFT in the lab" wrapped).
+
+The fix is CSS only, one mechanism: the outline's measure is the same in
+both ratios and grows to the slide's width for a longer item
+(`width: fit-content; min-width: min(100%, <N>em); max-width: 100%`, N
+the theme's old 16:9 width, so 16:9 looks the same). Paper's leader takes
+only the room the text leaves (`flex: 1 1 0; min-width: 0`, whole dots):
+it is never a reason to wrap, and on a wrapped item it is 0 wide — dropped
+— with the numeral on the item's last line (`align-items: last baseline`).
+The DOM contract (§7) states the rule; T.11 binds it. Probe (T.11, every
+theme × v1–v3 × both ratios, a 6-item outline with one long item): an item
+whose one-line row needs ≤ 80 % of the width the slide offers is one line;
+a drawn leader lies on the item's last line, starting ≤ 1 em after its end
+and ending ≤ 1 em before the numeral. It failed on 15c9719 with 35 entries
+(Orchard 16:9 v1/v2, Nocturne 4:3 v3, Paper's wraps and leaders on v1–v3
+at both ratios) and passes. Screenshots:
+`output/orz-test/slides/engine/outline-fix/{before,after}/` (Paper,
+Orchard, Nocturne at 16:9 and 4:3; the sample's outline and the probe's).
+Looked at: Paper 4:3 one line per item with continuous dots; a wrapped
+long item without a leader, its numeral on the last line. Seen, not
+changed: Notebook's "← today" label (`left: 100%`) could run off the slide
+for a very long current item (round C).
+
+### Class siblings found while fixing
+
+- **The derivation's preconditions are now named in the code** next to
+  `SAYS_LINE` (`lookaheadSafe`): a later kit block construct that looks
+  ahead past markers has one place to be added.
+- **The plugin block's "closed by mistake" has three faces** (another
+  opener after a marker, a foreign `}}` on the closing line — inline uses
+  included —, a drawn block holding a slide marker); the verifier's U.7
+  point (a text block may show markers on purpose) kept `{{yaml` examples
+  lint-free.
+- **A tag's place has two neighbours to respect**: the slide's ink and the next box's tag; the edge positions between the corners serve both (GUI-1 and GUI2-7 together).
+- **Every command, not every shortcut**: the flush also runs on a pointer
+  press outside the stage (the kit's Done and Save buttons, the host page's
+  own), which before relied on the focus leaving the stage.
+
+### Open by choice (with reasons)
+
+- **The enlarge key inside the preview frame** (ISO-B2-3, the "better"
+  fix): forwarding Mod+Shift+Enter through the kit's authenticated bridge
+  changes `PREVIEW_BRIDGE` (its CSP hash and the conformance checks) for a
+  LOW; scoped instead. A kit 2.4.x item if the owner wants it.
+- **A command with no input** (an app host's own save request by message)
+  still reads the text without flushing a run made in the last 650 ms; the
+  flush hook covers every key and pointer, the only ways a run is made.
+  A kit FC-19 "before a command" hook would close it; not worth an FC-19
+  change at this stage.
+- **Notebook's sticky note at 4:3** (the second half of GUI2-5): the
+  sample's float (`w=17% h=16%`, sized at 16:9) is reported cut at 4:3 in
+  Notebook only (its larger heading font in a 163 px wide note); the lint
+  tells the author; trimming Notebook's note would change its look.
+- **Improvements not taken**: an idle-time safety net comparing the
+  derived deck with a fresh parse (the precondition is now explicit and
+  fuzzed); the fit key with the header's slide-number/progress keys and the
+  plan (no stale result found, e9); faster idle checks for slides without
+  pictures (1000 slides in ~12 min is within the background budget); the
+  live slide's place under the card in Sync scroll; ignoring repeated
+  `orz-slides-live-ready` (self-inflicted by a document script, trusted
+  author); a standing contrast test over all 14 surrounds and the T.12
+  probe over the whole stress deck (the probes above cover the cases
+  found); a nested-window negative test and an HTML-in-titles unit test
+  (p2 verified both by hand; the kit's `e.source` check and `textContent`
+  everywhere stand).
+
+### After the closing pass
+
+- orz-slides: the full suite once (main tree, all fixes but the GUI2-7
+  rework in): 23 files, 357 tests, 353 green in the run. The 4 that failed,
+  re-run alone: P.14's linear-time bound (parallel-load timing, as in rounds
+  A and B; parse + base 46/46, B.1 included — its worktree failure was the
+  worktree's node_modules link), L.8 (green alone), GUI-1 (a real regression
+  of the first GUI2-7 fix: reworked, see the table) and GUI-11 (one long
+  task of 201–206 ms at 4× CPU; 15c9719 gave 219 ms in the same session, and
+  the fixed code passed 2 of 3 runs: machine timing, round B's own note).
+  After the rework: layout-gui alone 29/29, editor + claims 21/21; tsc
+  clean; `build-themes --check` clean; conformance green in the full run.
+- Kit: untouched (no kit commit; no downstream run needed).
+- Screenshots retaken (`output/orz-test/slides/engine/editor-shots/`):
+  step6-18 (the card at rest, its Edit chip), step6-18b (on touch, 1024 ×
+  1366: the chip and the fold inside the card; the narrow card cuts its fit
+  badge to "c…", still red), step6-18c (the card focused), step6-12 (the
+  Keys panel, names broken only at +, / or spaces); the hub editor sample
+  `editor.slides.html` re-assembled; the hub decks and sheets regenerated.
+  Evidence for the owner's bug and Notebook's slip:
+  `output/closed-loop/b2-shots/`.
+
+## Round B — CLOSED (rounds B and B2)
+
+| Round | Base | Verified findings (HIGH) | LOW | A previous round's fix not fixed | Fixed in the round |
+|---|---|---|---|---|---|
+| B | 6accc1f | 17 (1: OPS-2) | 14 | — | all 17 and the 14 LOWs (ISO-B3 by scoping), with both owner revisions |
+| B2 | e92ab0c / 15c9719 | 5 (0) | 13 | 0 of 31 (every round-B item confirmed fixed) | all 5 and all 13 LOWs (ISO-B2-3 by scoping), the coordinator's outline item and the owner's intermittent card bug |
+
+The verified findings fell from 17 to 5 and the HIGHs from 1 to 0; no
+round-B fix was found broken. Under the owner's stop rule (a round with no
+HIGH ends the loop after its fix pass) **round B is CLOSED**.
+
+Open by choice when round B closed (details in each round's entry):
+
+- The kit's `readDocument` tokenises the whole deck for the lints (a 2.4.x
+  kit option to take the derived deck).
+- The enlarge key inside the preview frame (a kit bridge change); a command
+  with no input (an app host's save request) does not flush a key run of the
+  last 650 ms (a kit FC-19 "before a command" hook).
+- Notebook's sticky note at 4:3 in the sample (author's 16:9 size; the lint
+  says so); Notebook's "← today" label for a very long current item.
+- Improvements not taken (rounds B and B2): "Move to slide N…", an occlusion
+  oracle and a contrast test as standing tests over every theme, an idle-time
+  derived-vs-fresh safety net, the fit key with the header's slide-number
+  keys and the plan, faster idle checks, the caret's slide under the card,
+  repeated live-ready, nested-window and HTML-in-titles tests.
+- Root family docs (REBUILD.md, STATUS, CONTRACTS) are the coordinator's.
+
+The next loop is the final one, at step 10.
