@@ -445,6 +445,35 @@ const offlineWith = async (name: string, text: string, o: { viewport?: { width: 
   return r;
 };
 
+chromeOnly('closed-loop round B2: Notebook\'s picture slip (real Chrome, offline)', () => {
+  it('[T.12] round B2, GUI2-5: Notebook\'s paper slip hugs the picture drawn in its room, not the room — no blank paper under a wide picture in a tall box (16:9 and 4:3)', async () => {
+    const bad: string[] = [];
+    for (const ratio of ['16:9', '4:3']) {
+      const body = '<!-- slide 2col -->\n## A wide picture in a tall box\n![a wide picture](photo.svg)\n<!-- @right -->\n- one\n- two\n- three\n- four\n- five\n- six\n';
+      const { page, ctx } = await offlineWith(`b2nb-${ratio.replace(':', 'x')}`, A3('notebook', ratio, body));
+      await goTo(page, 0);
+      await page.waitForTimeout(300);
+      const r = await page.evaluate(() => {
+        const p = document.querySelector<HTMLElement>('.reveal .slides > section.present p.orz-pic')!;
+        const img = p.querySelector('img')!;
+        const painted = (e: Element): boolean => { const c = getComputedStyle(e); return c.backgroundColor !== 'rgba(0, 0, 0, 0)' || c.backgroundImage !== 'none' || c.borderTopStyle !== 'none'; };
+        const pr = p.getBoundingClientRect();
+        const ir = img.getBoundingClientRect();
+        const c = getComputedStyle(img);
+        const px = (v: string): number => parseFloat(v) || 0;
+        const cw = ir.width - px(c.paddingLeft) - px(c.paddingRight) - px(c.borderLeftWidth) - px(c.borderRightWidth);
+        const ch = ir.height - px(c.paddingTop) - px(c.paddingBottom) - px(c.borderTopWidth) - px(c.borderBottomWidth);
+        return { pPainted: painted(p), imgPainted: painted(img), roomH: pr.height, imgH: ir.height, aspect: cw / Math.max(1, ch) };
+      });
+      if (r.pPainted) bad.push(`${ratio}: the picture's paragraph (its whole room, ${Math.round(r.roomH)} px tall) is painted as the slip`);
+      if (!r.imgPainted) bad.push(`${ratio}: the picture itself carries no slip`);
+      if (Math.abs(r.aspect - 1.5) > 0.03) bad.push(`${ratio}: the slipped picture is not drawn at its aspect (${r.aspect.toFixed(3)} vs 1.5): blank paper inside the slip`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 120_000);
+});
+
 chromeOnly('round A4: footers, icons, section badges and pictures in containers (real Chrome, offline, every theme)', () => {
   it('[T.11] A4-TH-1: Nocturne\'s status bar shares its room fairly — a short footer beside a long section title is never cut (4:3 and 16:9), a long footer beside a short section takes the rest, two long texts each keep a fair share', async () => {
     const LONG_SEC = 'Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow';
@@ -659,4 +688,112 @@ chromeOnly('round B: theme probes (real Chrome, offline)', () => {
     }
     expect(bad).toEqual([]);
   }, 120_000);
+});
+
+/*
+ * The outline's measure (coordinator's finding, 2026-10-15, engine/surround/paper-4x3-in-16x9.png): Paper's outline
+ * was 62 % of the slide — at 4:3 'Molecular-weight control' wrapped in a narrow column beside half a slide of white —
+ * and its dot leader (a flex item with a minimum width) made a short item's text shrink and wrap, leaving a stray
+ * fragment of two dots far from the end of the wrapped line. Offline, every theme, outline v1–v3, at 16:9 and 4:3;
+ * each part failed on rebuild/1.0@29a4661.
+ */
+const OUTLINE_ITEMS = [
+  '**Mechanism and kinetics**',
+  'Molecular-weight control',
+  'RAFT in the lab',
+  'Chain-transfer agents and the choice of solvent',
+  'Outlook and open questions',
+  'Reversible addition–fragmentation chain-transfer polymerization of functional acrylates in continuous flow reactors, with a note on scale-up and safety',
+];
+/** Which item is the deliberately long one (0-based): it wraps everywhere. */
+const LONG_ITEM = 5;
+/** An item whose one-line row (text, numbers, leader, padding) needs at most this share of the width the slide offers it must be one line. */
+const MEASURE_SHARE = 0.8;
+
+chromeOnly('the outline\'s measure and its leaders (real Chrome, offline, every theme)', () => {
+  it('[T.11] the outline uses the width the slide offers — an item whose one-line row needs ≤ 80 % of the frame\'s content width (per column on v3) is one line — and a leader (an in-flow empty ::before/::after between an item and its number) is either not drawn or lies on the item\'s LAST line, starting ≤ 1 em after that line\'s end and ending ≤ 1 em before the next box (the number), in every theme, outline v1–v3, at 16:9 and 4:3', async () => {
+    const list = OUTLINE_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n');
+    const body = [1, 2, 3].map((v) => `<!-- slide template=outline${v > 1 ? ` v=${v}` : ''} here=2 -->\n## Today\n${list}\n`).join('\n');
+    const bad: string[] = [];
+    let leaders = 0;
+    for (const t of THEMES) for (const ratio of ['16:9', '4:3']) {
+      const { page, ctx } = await offlineWith(`outline-${t.id}-${ratio.replace(':', 'x')}`, A3(t.id, ratio, body), { viewport: ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 } });
+      const cdp = await ctx.newCDPSession(page);
+      for (let i = 0; i < 3; i++) {
+        await goTo(page, i);
+        const tag = `${t.id} ${ratio} v${i + 1}`;
+        // lines, the one-line need and the frame's offer of every item (screen px; a fit scales them alike)
+        const items = await page.evaluate(() => {
+          const s = document.querySelector('.reveal .slides > section.present')!;
+          const frame = s.querySelector<HTMLElement>('.orz-frame')!;
+          const fc = getComputedStyle(frame);
+          const k = frame.getBoundingClientRect().width / frame.offsetWidth;
+          const ol = s.querySelector<HTMLElement>('.orz-outline > :is(ol, ul)')!;
+          const oc = getComputedStyle(ol);
+          const cols = Number(oc.columnCount) > 1 ? Number(oc.columnCount) : 1;
+          const gap = cols > 1 ? parseFloat(oc.columnGap) || 0 : 0;
+          const offer = ((frame.clientWidth - parseFloat(fc.paddingLeft) - parseFloat(fc.paddingRight) - (cols - 1) * gap) / cols) * k;
+          return Array.from(ol.children).map((li) => {
+            const el = li as HTMLElement;
+            const rg = document.createRange();
+            rg.selectNodeContents(el);
+            const rs = Array.from(rg.getClientRects()).filter((x) => x.width > 0 && x.height > 0).sort((a, b) => a.top - b.top);
+            const lines: Array<{ top: number; bottom: number; right: number }> = [];
+            for (const x of rs) {
+              const last = lines[lines.length - 1];
+              if (last && (x.top + x.bottom) / 2 <= last.bottom) { last.bottom = Math.max(last.bottom, x.bottom); last.top = Math.min(last.top, x.top); last.right = Math.max(last.right, x.right); }
+              else lines.push({ top: x.top, bottom: x.bottom, right: x.right });
+            }
+            const keep = el.getAttribute('style');
+            el.setAttribute('style', `${keep ?? ''};width:max-content!important;max-width:none!important;white-space:nowrap!important;flex:none!important`);
+            const need = el.getBoundingClientRect().width;
+            if (keep === null) el.removeAttribute('style'); else el.setAttribute('style', keep);
+            const r = el.getBoundingClientRect();
+            return { lines, need, offer, em: parseFloat(getComputedStyle(el).fontSize) * k, right: r.right - parseFloat(getComputedStyle(el).paddingRight) * k };
+          });
+        });
+        if (items.length !== OUTLINE_ITEMS.length) { bad.push(`${tag}: ${items.length} items`); continue; }
+        items.forEach((it, j) => {
+          if (j !== LONG_ITEM && it.need <= MEASURE_SHARE * it.offer && it.lines.length !== 1) bad.push(`${tag} item ${j + 1}: ${it.lines.length} lines, its row needs ${Math.round(it.need)} of the ${Math.round(it.offer)} px the slide offers`);
+        });
+        if (items[LONG_ITEM].lines.length < 2) bad.push(`${tag}: the long item does not wrap (the leader check needs it)`);
+        // the leaders: pseudo-element boxes through the DevTools protocol (a page script cannot measure a ::before)
+        const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+        const { nodeIds } = await cdp.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.reveal .slides > section.present .orz-outline > :is(ol, ul) > li' });
+        for (let j = 0; j < nodeIds.length; j++) {
+          const pseudos = (await cdp.send('DOM.describeNode', { nodeId: nodeIds[j], depth: 0 })).node.pseudoElements ?? [];
+          const styles = await page.evaluate((n) => {
+            const li = document.querySelectorAll('.reveal .slides > section.present .orz-outline > :is(ol, ul) > li')[n];
+            return Object.fromEntries(['before', 'after'].map((p) => { const c = getComputedStyle(li, `::${p}`); return [p, { content: c.content, position: c.position, display: c.display, visibility: c.visibility }]; }));
+          }, j);
+          const boxes: Array<{ type: string; l: number; r: number; t: number; b: number }> = [];
+          for (const p of pseudos) {
+            if (p.pseudoType !== 'before' && p.pseudoType !== 'after') continue;
+            const m = await cdp.send('DOM.getBoxModel', { backendNodeId: p.backendNodeId }).catch(() => null);
+            if (!m) continue;
+            const q = m.model.border;
+            boxes.push({ type: p.pseudoType, l: Math.min(q[0], q[6]), r: Math.max(q[2], q[4]), t: Math.min(q[1], q[3]), b: Math.max(q[5], q[7]) });
+          }
+          for (const bx of boxes) {
+            const st = styles[bx.type];
+            const leader = st.content === '""' && /^(static|relative)$/.test(st.position) && st.display !== 'none';
+            if (!leader || st.visibility !== 'visible' || bx.r - bx.l < 1) continue;
+            leaders++;
+            const it = items[j];
+            const last = it.lines[it.lines.length - 1];
+            const mid = (bx.t + bx.b) / 2;
+            const next = Math.min(it.right, ...boxes.filter((o) => o !== bx && o.l >= bx.r - 1).map((o) => o.l));
+            const where = `${tag} item ${j + 1} (${it.lines.length} lines): the ::${bx.type} leader [${Math.round(bx.l)}, ${Math.round(bx.r)}]`;
+            if (mid < last.top || mid > last.bottom) bad.push(`${where} is not on the item's last line`);
+            if (bx.l - last.right > it.em || bx.l < last.right - 2) bad.push(`${where} starts ${Math.round(bx.l - last.right)} px from the end of the last line (${Math.round(last.right)})`);
+            if (next - bx.r > it.em) bad.push(`${where} ends ${Math.round(next - bx.r)} px before the number`);
+          }
+        }
+      }
+      await cdp.detach();
+      await ctx.close();
+    }
+    expect(leaders, 'Paper draws its leaders (the check is not vacuous)').toBeGreaterThan(0);
+    expect(bad).toEqual([]);
+  }, 600_000);
 });

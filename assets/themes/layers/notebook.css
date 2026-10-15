@@ -81,6 +81,10 @@
 .reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
 /* the slip takes the room its box leaves: its tape above it and its tilt need a little of that room, or it overflows at every scale */
 .reveal .orz-region > .markdown-body > p.orz-pic { margin-top: 12px; margin-bottom: 8px; }
+/* … and hugs the picture drawn in that room, not the room (round B2, GUI2-5: blank paper under a wide picture): the paper
+   is the image's own box (sized to its aspect by deck.css), the paragraph keeps only the tilt and the tape */
+.reveal .orz-region .markdown-body > p.orz-pic { background: none; border: 0; box-shadow: none; padding: 0; line-height: 0; }
+.reveal .orz-region .markdown-body > p.orz-pic img { background: var(--paper-slip); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12); padding: 0.4em 0.4em 0.5em; }
 /* pictures side by side: each on a slip of its own (round B, GUI-7) */
 .reveal .orz-region .markdown-body > p.orz-pics img { background: var(--paper-slip); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12); padding: 0.25em; }
 /* a picture that did not load: no tape over its alt text (round B, GUI-13) */

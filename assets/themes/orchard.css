@@ -1519,7 +1519,9 @@
   content: ''; display: inline-block; width: 0.6em; height: 0.6em; margin-left: 0.5em;
   border-radius: 0 75% 0 75%; background: var(--accent); vertical-align: -0.02em;
 }
-.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; max-width: 22em; }
+/* the measure: 22em in both ratios, growing to the slide's width for a longer item (a 22em cap wrapped an item that
+   fits the slide beside half a slide of white) */
+.reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; width: fit-content; min-width: min(100%, 22em); max-width: 100%; }
 .reveal .orz-outline li {
   counter-increment: c; position: relative; margin: 0 0 0.28em;
   padding: 0.22em 0.8em 0.26em 2.1em;

@@ -1413,7 +1413,10 @@
 .reveal .orz-section-meta::before { content: ''; display: block; width: 2.4em; height: 4px; border-radius: 2px; background: var(--h1); margin-bottom: 0.8em; }
 
 /* ───────── outline: a file list; the current item is the active entry ───────── */
-.reveal .orz-template-outline { padding: 0 18% 0 1.6em; }
+/* the measure: 29em in both ratios, growing to the slide's width for a longer item (an 18 % right padding narrowed
+   the list at 4:3, two columns most: a 15-letter item wrapped) */
+.reveal .orz-template-outline { padding: 0 1.6em; }
+.reveal .orz-outline { width: fit-content; min-width: min(100%, 29em); max-width: 100%; }
 .reveal .orz-outline h2 {
   font-family: var(--font-heading); font-size: 0.6em; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--text-muted); margin: 0 0 0.9em; padding: 0 0 0 0.85em;

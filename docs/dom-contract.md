@@ -312,6 +312,14 @@ refine one with a more specific rule):
 | outline | each item a card with an accent edge | two balanced columns | — | — | — |
 | closing | cover sign-off (`--sl-cover`), centred | oversized, low on the left | — | — | — |
 
+An outline's column is a measure, the same at 16:9 and 4:3, that grows to
+the slide's width for a longer item (`width: fit-content; min-width:
+min(100%, <N>em); max-width: 100%`), never a share of the slide: an item
+that fits on one line in the width the slide offers is not wrapped. A
+leader drawn between an item and its number takes only the room the text
+leaves (`flex: 1 1 0; min-width: 0`): it is 0 wide when the item wraps,
+never a fragment beside a wrapped line (claim T.11; Paper's dot leaders).
+
 A theme whose own page already uses a device (Notebook's title page is a
 coloured cover) sets the tokens on those slides so the variants still read
 apart (Notebook: the margin's pink for marks, its paper for the band and

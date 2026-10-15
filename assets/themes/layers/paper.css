@@ -446,7 +446,9 @@
 
 /* ───────── outline: Contents, dot leaders, the current chapter marked ───────── */
 .reveal .orz-template-outline { align-items: center; }
-.reveal .orz-outline { width: 62%; }
+/* the measure: 22em in both ratios (it was 62 % of the slide: at 4:3 short items wrapped beside half a slide of white),
+   growing to the slide's width for a longer item — an item that fits the slide is never wrapped */
+.reveal .orz-outline { width: fit-content; min-width: min(100%, 22em); max-width: 100%; }
 .reveal .orz-outline h2 {
   text-align: center;
   font-family: var(--font-heading);
@@ -475,19 +477,25 @@
   position: relative;
   display: flex;
   align-items: baseline;
+  align-items: last baseline;   /* a wrapped item's numeral stands on its last line, as in a book's contents */
   font-size: 1.1em;
   line-height: 1.3;
   margin: 0 0 0.45em;
   color: var(--muted);
 }
+/* the leader takes only the room the text leaves (basis 0, no minimum): a short item's text never shrinks for it, and
+   when an item wraps the leader is 0 wide — gone, never a stray fragment beside the wrapped text (CSS cannot end a
+   leader at a wrapped line's end). Its width counts only toward the outline's own width (fit-content above), so the
+   longest item keeps a leader too; whole dots only (round) */
 .reveal .orz-outline li::before {
   content: '';
   order: 1;
-  flex: 1 1 auto;
-  min-width: 1em;
+  flex: 1 1 0;
+  width: 2.5em;
+  min-width: 0;
   height: 0.2em;
   margin: 0 0.45em;
-  background: radial-gradient(circle, var(--hair) 0 1.6px, transparent 2px) left center / 0.42em 0.2em repeat-x;
+  background: radial-gradient(circle, var(--hair) 0 1.6px, transparent 2px) left center / 0.42em 0.2em round no-repeat;
 }
 .reveal .orz-outline li::after {
   content: counter(c, upper-roman);
