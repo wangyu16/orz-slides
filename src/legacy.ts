@@ -234,7 +234,7 @@ function repairHidden(source: string, notes: string[], lines: LineMap): string {
     for (const l of [...batch].sort((x, y) => y.fix!.from - x.fix!.from)) {
       notes.push(l.code === 'marker-in-html'
         ? `line ${lines.original(lineOf(text, l.fix!.from) + 1)}: a blank line added before the marker (it was inside a raw HTML block; 0.x read it)`
-        : `line ${lines.original(l.line ?? 1)}: the ${l.code === 'unclosed-fence' ? 'code fence' : l.code === 'unclosed-container' ? 'container' : l.code === 'unclosed-math' ? '$$ math block' : 'HTML block'} left open was closed before the next marker (0.x ended it there)`);
+        : `line ${lines.original(l.line ?? 1)}: the ${l.code === 'unclosed-fence' ? 'code fence' : l.code === 'unclosed-container' ? 'container' : l.code === 'unclosed-math' ? '$$ math block' : l.code === 'unclosed-plugin' ? '{{…}} block' : 'HTML block'} left open was closed before the next marker (0.x ended it there)`);
       lines.insert(lineOf(text, l.fix!.from));
     }
     text = next;

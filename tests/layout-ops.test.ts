@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyEdits, applyOp, blockingProblem, deleteTree, floatBox, freshName, LayoutOpError, nameProblem, partAt, placeFloat, presetMapping, presetOf, presetTree,
-  slideMap, splitTree, stepRatio, tracksForRatio, tracksTree, type LayoutOp, type OpResult,
+  slideMap, snapTracks, splitTree, stepRatio, stepTracks, tracksForRatio, tracksTree, type LayoutOp, type OpResult,
 } from '../src/layout-ops.js';
 import { parseDeck } from '../src/deck/parse.js';
 import { leaf, leaves, normalizeTree, sameTree, split, serialiseLayout } from '../src/deck/layout-spec.js';
@@ -97,6 +97,10 @@ describe('the layout ops (one op → marker-line edits)', () => {
     expect(() => ok(dup, 0, { type: 'split', box: 'left', dir: 'col' })).toThrow(/fix this first/);
     const twice = deck('<!-- slide 2col -->\n## D\nlead\n<!-- @left -->\nB\n');
     expect(blockingProblem(twice, 0)?.code).toBe('region-twice');
+    // round B2 (B2-OPS-2): a {{mermaid left open swallowing slides up to a later {{qr …}} blocks its slide
+    const swallow = deck('<!-- slide 2col -->\n## D\n{{mermaid\nflowchart LR\n\n<!-- slide -->\n## E\n\n<!-- slide -->\n{{qr x}}\n');
+    expect(blockingProblem(swallow, 0)?.code).toBe('unclosed-plugin');
+    expect(() => ok(swallow, 0, { type: 'split', box: 'left', dir: 'col' })).toThrow(/fix this first/);
     // names
     expect(nameProblem('notes', [])).toMatch(/reserved/);
     expect(nameProblem('Footer', [])).toMatch(/reserved/);
@@ -556,6 +560,27 @@ describe('closed-loop round B probes (layout ops)', () => {
     expect(snap!(['1', '1', '1'], 0, 0.25)).toEqual(['1', '3', '2']);
     let cur: string[] = ['1', '1', '1'];
     for (let k = 0; k < 8; k++) { cur = step!(cur, 0, 1); expect(cur.map(Number).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(12); expect(share(cur)[1]).toBeCloseTo(2 / 3, 6); }
+  });
+
+  it('[L.1] round B2, B2-OPS-3: a divider next to a fixed track (px, auto, em) of a 3+ track split snaps the split to small whole numbers too (the fixed track of the pair becomes the mean fr, the sum ≤ 12); an fr pair beside fixed tracks only steps through the simple ratios', () => {
+    const sumFr = (tr: string[]): number => tr.filter((x) => /^\d+$/.test(x)).map(Number).reduce((a, b) => a + b, 0);
+    for (const tr of [['200px', '1', '1'], ['1', 'auto', '1'], ['1', '1', '3em']]) {
+      for (const i of [0, 1]) {
+        for (const f of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+          const out = snapTracks(tr, i, f);
+          expect(sumFr(out), `${tr.join('/')} ${i} ${f} → ${out.join('/')}`).toBeLessThanOrEqual(12);
+        }
+        let cur = tr.slice();
+        for (const d of [1, 1, 1, 1, -1, -1, -1, -1, -1, -1] as const) { cur = stepTracks(cur, i, d); expect(sumFr(cur), `${tr.join('/')} ${i} step → ${cur.join('/')}`).toBeLessThanOrEqual(12); }
+      }
+    }
+    // the fr pair beside a fixed track: the fixed track stays, the pair steps through SNAP_RATIOS (p, q ≤ 4)
+    let cur = ['200px', '1', '1'];
+    for (let k = 0; k < 6; k++) {
+      cur = stepTracks(cur, 1, 1);
+      expect(cur[0]).toBe('200px');
+      expect(Math.max(Number(cur[1]), Number(cur[2])), cur.join('/')).toBeLessThanOrEqual(4);
+    }
   });
 
   it('[L.3] round B, OPS-6: a new float goes after the last float (notes or a footer before the floats included) and the op says which float it is (`target`), so the GUI selects the new one', () => {

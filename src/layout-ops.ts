@@ -192,7 +192,7 @@ interface SlideDoc {
 }
 
 /** The blocking lints: a slide with one of these is fixed in the text first (the GUI says why). */
-const BLOCKING = new Set(['duplicate-region', 'region-twice', 'marker-not-alone', 'bad-split', 'unknown-layout', 'layout-tracks', 'layout-on-template', 'marker-in-html', 'unclosed-fence', 'unclosed-container', 'unclosed-math', 'unclosed-html']);
+const BLOCKING = new Set(['duplicate-region', 'region-twice', 'marker-not-alone', 'bad-split', 'unknown-layout', 'layout-tracks', 'layout-on-template', 'marker-in-html', 'unclosed-fence', 'unclosed-container', 'unclosed-math', 'unclosed-html', 'unclosed-plugin']);
 
 /** Why the layout ops are off on a slide (null: they are on): a structural problem the text must fix first. */
 export function blockingProblem(text: string, index: number): { code: string; message: string; from: number; to: number } | null {
@@ -464,10 +464,34 @@ function snapCandidates(tracks: readonly string[], i: number): Array<{ tracks: s
   return [...out.values()].sort((x, y) => x.f - y.f || x.sum - y.sum);
 }
 
-/** The tracks after divider `i` is dragged to `f` (the first child's share of the pair): two tracks snap to {@link SNAP_RATIOS}; three or more to {@link snapCandidates}. */
+/**
+ * How divider `i` of a split snaps (round B2, B2-OPS-3): `ratio` — the pair alone through {@link SNAP_RATIOS}
+ * (two tracks, or a pair whose two fr tracks are the split's only fr tracks: the fixed ones stay as written) —
+ * or the whole split through {@link snapCandidates}, from `tracks` in which a fixed track of the pair (px, auto,
+ * em) is written as the split's mean fr track, as {@link tracksForRatio} does (so the sum stays ≤ {@link SNAP_SUM}).
+ */
+function snapPlan(tracks: readonly string[], i: number): { ratio: true } | { ratio: false; tracks: string[]; c: Array<{ tracks: string[]; f: number; sum: number }> } {
+  if (tracks.length <= 2) return { ratio: true };
+  const values = tracks.map(trackFr);
+  const frCount = values.filter((v) => v !== null).length;
+  if (values[i] && values[i + 1] && frCount === 2) return { ratio: true };
+  let t = tracks.slice();
+  if (!values[i] || !values[i + 1]) {
+    const frs = values.filter((v): v is Frac => v !== null);
+    const unit = frs.length > 0 ? frac(frs.reduce(fadd, frac(0)).n, frs.reduce(fadd, frac(0)).d * frs.length) : frac(1);
+    if (!values[i]) { values[i] = unit; t[i] = '1'; }
+    if (!values[i + 1]) { values[i + 1] = unit; t[i + 1] = '1'; }
+    t = normaliseTracks(t, values);
+  }
+  const c = snapCandidates(t, i);
+  return c && c.length > 0 ? { ratio: false, tracks: t, c } : { ratio: true };
+}
+
+/** The tracks after divider `i` is dragged to `f` (the first child's share of the pair): two tracks snap to {@link SNAP_RATIOS}; three or more to {@link snapCandidates} (see {@link snapPlan}). */
 export function snapTracks(tracks: readonly string[], i: number, f: number): string[] {
-  const c = tracks.length > 2 ? snapCandidates(tracks, i) : null;
-  if (!c || c.length === 0) return tracksForRatio(tracks, i, nearestRatio(f));
+  const plan = snapPlan(tracks, i);
+  if (plan.ratio) return tracksForRatio(tracks, i, nearestRatio(f));
+  const c = plan.c;
   let best = c[0];
   for (const x of c) if (Math.abs(x.f - f) < Math.abs(best.f - f) - 1e-9 || (Math.abs(Math.abs(x.f - f) - Math.abs(best.f - f)) <= 1e-9 && x.sum < best.sum)) best = x;
   return best.tracks;
@@ -475,14 +499,15 @@ export function snapTracks(tracks: readonly string[], i: number, f: number): str
 
 /** One key step of divider `i`: the next snap place, the divider moving back (-1: the first child shrinks) or forward (+1: it grows). */
 export function stepTracks(tracks: readonly string[], i: number, dir: 1 | -1): string[] {
-  const c = tracks.length > 2 ? snapCandidates(tracks, i) : null;
-  if (!c || c.length === 0) return tracksForRatio(tracks, i, stepRatio(tracks, i, dir));
-  const a = trackFr(tracks[i])!;
-  const b = trackFr(tracks[i + 1])!;
+  const plan = snapPlan(tracks, i);
+  if (plan.ratio) return tracksForRatio(tracks, i, stepRatio(tracks, i, dir));
+  const c = plan.c;
+  const a = trackFr(plan.tracks[i])!;
+  const b = trackFr(plan.tracks[i + 1])!;
   const f = (a.n / a.d) / (a.n / a.d + b.n / b.d);
   const shares = [...new Set(c.map((x) => x.f))];
   const next = dir > 0 ? shares.find((x) => x > f + 1e-9) : [...shares].reverse().find((x) => x < f - 1e-9);
-  if (next === undefined) return tracks.slice();
+  if (next === undefined) return plan.tracks;
   return c.filter((x) => Math.abs(x.f - next) < 1e-9).sort((x, y) => x.sum - y.sum)[0].tracks;
 }
 

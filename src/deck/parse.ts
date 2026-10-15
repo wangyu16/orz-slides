@@ -533,12 +533,39 @@ function movedSlide(s: Slide, dc: number, dl: number): Slide {
 const SAYS_LINE = /\bline \d/;
 
 /**
+ * The derivation's one precondition the next-marker check cannot see (closed-loop round B2, B2-OPS-1): the kit's
+ * `{{name … }}` block is the one block construct that looks AHEAD — a multi-line opener ends at the next line that
+ * holds `}}` anywhere in the text, past slide markers (orz-markdown `rules/block-dispatcher.ts`, `nextClosingLine`)
+ * — so a part read alone can end an opener differently from the whole text. Every other construct runs on inside
+ * the part and is caught by re-reading the next slide's marker. The touched part [A, until) of `text` (in `oldText`
+ * [A, oldUntil)) is read alone soundly unless:
+ * - an opener before A was left unclosed (no `}}` after the last `{{` before A in the old text) and the new part
+ *   holds a `}}` — it now closes that opener, which swallows the markers between (a top-level opener with a `}}`
+ *   after it always closes there, so one that did must have closed before A: the slide at A is real);
+ * - an opener in the new part has no `}}` after it in the part while the text after the part holds one — the
+ *   opener reaches past the part.
+ * The text before A is the same in both texts, a `}}` the edit removed closed nothing before A, and openers after
+ * the part only look forward.
+ */
+function lookaheadSafe(oldText: string, text: string, A: number, until: number): boolean {
+  const part = text.slice(A, until);
+  const close = part.indexOf('}}');
+  if (close < 0 && part.indexOf('{{') < 0) return true;
+  const before = A > 0 ? text.lastIndexOf('{{', A - 1) : -1;
+  if (before >= 0 && close >= 0 && oldText.indexOf('}}', before + 2) < 0) return false;
+  const open = part.lastIndexOf('{{');
+  if (open >= 0 && part.indexOf('}}', open + 2) < 0 && text.indexOf('}}', until) >= 0) return false;
+  return true;
+}
+
+/**
  * The deck of `text`, an edit of `oldText` (whose deck is `old`), derived instead of parsed: the slides
  * before the edit are kept, the slides the edit touches are parsed again ALONE — a text of the same
  * length and lines with everything before them blanked (the header kept), so every offset, line and
  * message is the real one — and the slides after it are the old ones moved. Sound because a slide
  * starts at a top-level marker, where the block parser starts afresh, and `parseSlide` reads nothing
- * outside its slide; checked by re-reading the next slide's marker after the edited ones. Null (a full
+ * outside its slide; checked by re-reading the next slide's marker after the edited ones, and — for the kit's
+ * `{{name … }}` blocks, which look ahead past markers — by {@link lookaheadSafe}. Null (a full
  * parse) when the edit reaches the header or the text before the first slide, when the slide count
  * around the edit does not read back, or when a moved lint names a line number.
  */
@@ -575,6 +602,7 @@ function deriveDeck(oldText: string, old: Deck, text: string): Deck | null {
   const header = readHeader(text);
   const hEnd = header ? header.end : 0;
   if (hEnd > A || hEnd !== (readHeader(oldText)?.end ?? 0)) return null;
+  if (!lookaheadSafe(oldText, text, A, until)) return null;
   // the touched slides, read alone (a slide starts at a marker, where the block parser starts afresh), then moved to
   // their place; a lint that names a line number is read in place instead (a text of the same length and lines, the
   // header kept and everything else before the slides blanked)
@@ -710,7 +738,11 @@ function linesIn(text: string, L: Lines, a: number, b: number): string[] {
 }
 
 /** The hygiene lints whose quick fix repairs a marker a block swallowed (upgrade applies them). */
-export const REPAIR_CODES: ReadonlySet<string> = new Set(['marker-in-html', 'unclosed-fence', 'unclosed-container', 'unclosed-math', 'unclosed-html']);
+export const REPAIR_CODES: ReadonlySet<string> = new Set(['marker-in-html', 'unclosed-fence', 'unclosed-container', 'unclosed-math', 'unclosed-html', 'unclosed-plugin']);
+/** The kit's block plugins that DRAW their body (it is never shown as text, so a marker line in it is a mistake). */
+const DRAWN_PLUGIN = /^(?:chart|mermaid|mm|smiles|sm|qr|qrcode|youtube|yt|space)$/;
+/** A line that opens a kit {{name … }} block (B2-OPS-2). */
+const PLUGIN_OPENER = /^ {0,3}\{\{[A-Za-z0-9-]+(?:\[[^\]\n]*\])?(?:[ \t]|$)/;
 /** A line that starts like a SLIDE marker (a slide that a block swallowed). */
 const SLIDE_LINE = /^ {0,3}<!--\s*slide\b/;
 /**
@@ -719,7 +751,7 @@ const SLIDE_LINE = /^ {0,3}<!--\s*slide\b/;
  * comment not closed on its line) — after such a line, what follows is not
  * read until that terminator.
  */
-export const RUN_ON_OPENER = /^ {0,3}(?:`{3,}|~{3,}|:{3,}|\$\$|<(?:script|pre|style|textarea)(?=[\s>]|$)|<\?|<![A-Za-z]|<!\[CDATA\[|<!--(?!.*-->))/i;
+export const RUN_ON_OPENER = /^ {0,3}(?:`{3,}|~{3,}|:{3,}|\$\$|<(?:script|pre|style|textarea)(?=[\s>]|$)|<\?|<![A-Za-z]|<!\[CDATA\[|<!--(?!.*-->)|\{\{[A-Za-z0-9-]+(?!.*\}\}))/i;
 
 /**
  * A block construct that runs on until its own terminator, not until a
@@ -728,7 +760,7 @@ export const RUN_ON_OPENER = /^ {0,3}(?:`{3,}|~{3,}|:{3,}|\$\$|<(?:script|pre|st
  * another block of the same kind that it cannot hold.
  */
 interface Terminated {
-  code: 'unclosed-fence' | 'unclosed-container' | 'unclosed-math' | 'unclosed-html';
+  code: 'unclosed-fence' | 'unclosed-container' | 'unclosed-math' | 'unclosed-html' | 'unclosed-plugin';
   /** What it is, for messages. */
   what: string;
   /** The line that closes it (the quick fix inserts it). */
@@ -769,6 +801,14 @@ function terminatorOf(t: Token, first: string): Terminated | 'blank' | null {
     return { code: 'unclosed-container', what: `${t.markup} container`, closer: t.markup, closes: run(colons, t.markup.length, ':', false), reopens: run(colons, t.markup.length, ':', true), closerAfterMap: true };
   }
   if (t.type === 'math_block') return { code: 'unclosed-math', what: '$$ math block', closer: '$$', closes: (line) => line.trim().endsWith('$$'), reopens: () => false };
+  // the kit's {{name … }} block ends at the next line that holds `}}` ANYWHERE (it looks ahead past markers: B2-OPS-2);
+  // after a slide marker, a line opening another multi-line {{name block, or a closing line whose `}}` ends a one-line
+  // or inline {{…}} of its own, means it was closed by mistake
+  if (t.type === 'plugin_block') {
+    return { code: 'unclosed-plugin', what: `{{${t.info} block`, closer: '}}', closes: (line) => line.includes('}}'),
+      reopens: (line) => PLUGIN_OPENER.test(line) && !line.includes('}}'),
+      foreign: (line) => { const o = line.indexOf('{{'); return o >= 0 && o < line.indexOf('}}'); } };
+  }
   if (t.type === 'html_block') {
     for (const h of HTML_RUN_ON) {
       const m = h.open.exec(first);
@@ -807,9 +847,11 @@ function eolBefore(text: string, L: Lines, line: number): string {
  * - a construct that runs on to a terminator of its own — a code fence of
  *   any length and character, a `:::` container of any length, a `$$` math
  *   block, an HTML block of types 1–5 (`<pre>`, `<script>`, `<style>`,
- *   `<textarea>`, a comment `<!--` left open, `<?`, `<!X`, `<![CDATA[`):
- *   `unclosed-fence` / `unclosed-container` / `unclosed-math` /
- *   `unclosed-html` (error) when it was never closed, when a marker line's
+ *   `<textarea>`, a comment `<!--` left open, `<?`, `<!X`, `<![CDATA[`,
+ *   a kit `{{name … }}` block, which ends at the next line holding `}}`
+ *   anywhere — round B2): `unclosed-fence` / `unclosed-container` /
+ *   `unclosed-math` / `unclosed-html` / `unclosed-plugin` (error) when it
+ *   was never closed, when a marker line's
  *   own `-->` closed it, or when it was closed by mistake (after a slide
  *   marker, a line opens another block of its kind it cannot hold — a
  *   ```` ```js ```` in a ```` ``` ```` fence, a `::: warning` in a `:::`
@@ -896,6 +938,9 @@ function hiddenMarkers(text: string, L: Lines, tokens: readonly Token[], ix: Tok
       if (!hidden.some(slideAt)) continue;
       if (/^container_|^math_block$/.test(t.type)) byMistake = true;
       else if (t.type === 'fence' && t.info.trim() === '') ambiguous = true;
+      // a DRAWN {{name block (a chart, diagram, molecule, QR, video) cannot show a marker line either; a text one
+      // ({{yaml, {{nyml, an include) may, on purpose (corpus markers-in-code, U.7)
+      else if (t.type === 'plugin_block' && DRAWN_PLUGIN.test(t.info)) byMistake = true;
       else continue;
     }
     const s = spanOf(L, a, a + 1);

@@ -368,7 +368,10 @@ describe('the derived deck (closed-loop round B, OPS-10)', () => {
   /** mulberry32 */
   const rng = (seed: number): (() => number) => { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   const pick = <T>(r: () => number, xs: readonly T[]): T => xs[Math.floor(r() * xs.length)];
-  const PIECES = ['<!-- slide -->', '<!-- slide 2col -->', '<!-- slide template=title v=2 -->', '<!-- slide quad bg=#eee -->', '<!-- @right -->', '<!-- @notes -->', '<!-- @footer -->', '<!-- @float left=10% top=10% w=20% h=20% -->', '<!-- @left -->', '<!-- @left -->', '## A title', '# An h1', '## A second h2', 'Some text with $x^2$.', '- a\n- b', '```', '```js', ':::', '::: warning', '$$', '<div>', '</div>', '<img src="x.png">', '<pre>', '</pre>', '<!-- notes -->', '<!-- an author comment -->', '<!-- deck\ntheme: neon\n-->', '<!--', '-->', '', '', '', '    indented code', '> quote', '| a | b |\n|---|---|\n| 1 | 2 |', '<!-- slide\n  2col -->', '<!-- slide 2col --> trailing', '<!-- @notes: -->'];
+  const PIECES = ['<!-- slide -->', '<!-- slide 2col -->', '<!-- slide template=title v=2 -->', '<!-- slide quad bg=#eee -->', '<!-- @right -->', '<!-- @notes -->', '<!-- @footer -->', '<!-- @float left=10% top=10% w=20% h=20% -->', '<!-- @left -->', '<!-- @left -->', '## A title', '# An h1', '## A second h2', 'Some text with $x^2$.', '- a\n- b', '```', '```js', ':::', '::: warning', '$$', '<div>', '</div>', '<img src="x.png">', '<pre>', '</pre>', '<!-- notes -->', '<!-- an author comment -->', '<!-- deck\ntheme: neon\n-->', '<!--', '-->', '', '', '', '    indented code', '> quote', '| a | b |\n|---|---|\n| 1 | 2 |', '<!-- slide\n  2col -->', '<!-- slide 2col --> trailing', '<!-- @notes: -->',
+    // closed-loop round B2 (B2-OPS-1): the kit's {{name … }} blocks — the one block construct that looks AHEAD for its
+    // closer (the next line holding `}}`, past slide markers) — lone `}}` lines and one-line {{qr …}} / inline uses
+    '{{mermaid', '{{mermaid\nflowchart LR\nA --> B\n}}', '{{yml\na: 1', '{{chart\ntype: bar\ndata: [1, 2]\n}}', '}}', '}}', '{{qr https://x.org}}', 'see {{qr x}} inline', '{{youtube abc}}', '{{smiles CCO}} is ethanol'];
   const deckText = (r: () => number, eol: string): string => {
     const lines: string[] = [];
     if (r() < 0.75) lines.push('{{nyml', 'kind: document', 'carrier: slides', 'title: Derive', '}}', '');
@@ -386,7 +389,7 @@ describe('the derived deck (closed-loop round B, OPS-10)', () => {
   const edit = (r: () => number, t: string, eol: string): string => {
     const at = Math.floor(r() * (t.length + 1));
     const kind = r();
-    const ins = (): string => (r() < 0.5 ? pick(r, ['x', ' ', eol, '<', '-', '`', '#', '@', '!']) : `${eol}${pick(r, PIECES).split('\n').join(eol)}${eol}`);
+    const ins = (): string => (r() < 0.5 ? pick(r, ['x', ' ', eol, '<', '-', '`', '#', '@', '!', '{', '}', '{{', '}}', '{{mermaid']) : `${eol}${pick(r, PIECES).split('\n').join(eol)}${eol}`);
     if (kind < 0.4) return t.slice(0, at) + ins() + t.slice(at);
     if (kind < 0.75) { const n = 1 + Math.floor(r() * (r() < 0.8 ? 4 : 120)); return t.slice(0, at) + t.slice(at + n); }
     const n = 1 + Math.floor(r() * 30);
@@ -415,6 +418,32 @@ describe('the derived deck (closed-loop round B, OPS-10)', () => {
     expect(compared).toBe(9000);
     // most edits are derived (the rest reach the header or the text before the first slide, or name a line number): the derivation itself is what is checked
     expect(stats.derived - d0).toBeGreaterThan(5000);
+  });
+
+  it('[P.14] B2-OPS-1: a {{name block opened in one slide whose closing }} lies in a later, untouched slide — typed, completed or closed by an edit — derives the deck a fresh parse gives (the kit looks ahead past slide markers for }})', () => {
+    const fresh = (parseModule as unknown as { parseDeckFresh: (t: string) => { slides: Array<{ title: string }> } }).parseDeckFresh;
+    const H = '{{nyml\nkind: document\ncarrier: slides\n}}\n\n';
+    const base = `${H}<!-- slide -->\n## Flow\nIntro text.\n\n<!-- slide 2col -->\n## Compare\nleft\n<!-- @right -->\nright\n\n<!-- slide -->\n## Chart\n{{chart\ntype: bar\ndata: [1, 2]\n}}\n\n<!-- slide -->\n## End\n`;
+    const at = base.indexOf('Intro text.') + 'Intro text.'.length;
+    const titles = (t: string): string => parseDeck(t).slides.map((s) => s.title).join('|');
+    const want = (t: string): string => fresh(t).slides.map((s) => s.title).join('|');
+    // typed one character at a time: every step is an edit of the last text (the editor's own path)
+    let t = base;
+    parseDeck(t);
+    for (const step of ['\n', '{', '{', 'm', 'e', 'r', 'm', 'a', 'i', 'd', '\n', 'A', '\n', '}', '}']) {
+      const k = t.indexOf('Intro text.') + 'Intro text.'.length + (t.length - base.length);
+      t = t.slice(0, k) + step + t.slice(k);
+      expect(titles(t), JSON.stringify(t.slice(at, k + 1))).toBe(want(t));
+    }
+    // the reverse: a lone }} typed in a later slide under an opener left open earlier
+    const open = base.slice(0, at) + '\n{{mermaid' + base.slice(at).replace('{{chart\ntype: bar\ndata: [1, 2]\n}}', 'chart text');
+    parseDeck(open);
+    const closed = open.replace('chart text', 'chart text\n}}');
+    expect(titles(closed)).toBe(want(closed));
+    expect(want(closed)).toBe('Flow|End');
+    // the minimal case the fuzz found
+    parseDeck(`${H}<!--slide-->\n<!--slide-->\n}}`);
+    expect(parseDeck(`${H}<!--slide-->\n{{yml\n<!--slide-->\n}}`).slides).toHaveLength(fresh(`${H}<!--slide-->\n{{yml\n<!--slide-->\n}}`).slides.length);
   });
 });
 
@@ -505,6 +534,41 @@ describe('marker hygiene, one terminator-aware mechanism (round A2)', () => {
     for (let k = 0; k < 10; k++) { const f = fixOnce(cur); if (!f) break; cur = f.text; }
     expect(parseDeck(cur).slides.map((s) => s.title)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6']);
     expect(parseDeck(cur).lint).toEqual([]);
+  });
+
+  it('[P.13] B2-OPS-2: a kit {{name block left open looks ahead to the next line holding }} — another {{name block after a slide marker, a one-line {{qr …}} or an inline use — and swallows the slides between: unclosed-plugin (error), the fix closes it with }} before the first marker, every slide back; a lone }} later closes a drawn block by mistake (a {{yaml may show markers); a closed block, or one left open with no }} after it (literal text), is fine', () => {
+    const tail = (later: string): string => `${H}<!-- slide -->\n## A\n{{mermaid\nflowchart LR\n\n<!-- slide -->\n## B\n<!-- @notes -->\nPRIVATE\n\n<!-- slide -->\n## C\n${later}\n\n<!-- slide -->\n## D\ntext\n`;
+    for (const later of ['{{chart\ntype: bar\ndata: [1, 2]\n}}', '{{qr https://example.org}}', 'see {{qr x}} inline', '{{smiles CCO}} is ethanol']) {
+      const t = tail(later);
+      const d = parseDeck(t);
+      expect(d.slides.length, later).toBeLessThan(4);
+      const l = d.lint.find((x) => x.code === 'unclosed-plugin')!;
+      expect(l, later).toMatchObject({ level: 'error', line: 8 });
+      expect(l.message, later).toMatch(/\{\{mermaid block opened on line 8/);
+      expect(l.fix!.insert, later).toBe('}}\n');
+      const f = parseDeck(fixOnce(t)!.text);
+      expect(f.slides.map((s) => s.title), later).toEqual(['A', 'B', 'C', 'D']);
+      expect(f.slides[1].notes, later).toBe('PRIVATE');
+      expect(f.lint.filter((x) => x.level === 'error'), later).toEqual([]);
+      // the ops refuse a slide the block swallowed into (a blocking error)
+    }
+    // closed later by a lone }}: a drawn block (a diagram) cannot show a marker, so it was closed by mistake …
+    const lone = tail('chart text\n}}');
+    expect(parseDeck(lone).lint.map((l) => [l.code, l.level])).toContainEqual(['unclosed-plugin', 'error']);
+    expect(parseDeck(fixOnce(lone)!.text).slides.map((s) => s.title)).toEqual(['A', 'B', 'C', 'D']);
+    // … a text block ({{yaml) may show markers on purpose (corpus markers-in-code)
+    expect(codes(lone.replace('{{mermaid', '{{yaml'))).toEqual([]);
+    // no }} after it: the kit reads it as text, no slide is lost, no lint
+    expect(codes(`${H}<!-- slide -->\n## A\n{{mermaid\nx\n\n<!-- slide -->\n## B\n`)).toEqual([]);
+    // closed in its slide: fine
+    expect(codes(`${H}<!-- slide -->\n## A\n{{mermaid\nflowchart LR\n}}\n\n<!-- slide -->\n## B\n{{qr x}}\n`)).toEqual([]);
+    // CR LF and CR keep their line ending
+    for (const eol of ['\r\n', '\r']) {
+      const t = tail('{{qr x}}').replace(/\n/g, eol);
+      const fx = fixOnce(t)!;
+      expect(fx.code).toBe('unclosed-plugin');
+      expect(/[\r\n]/.test(fx.text.split(eol).join('')), JSON.stringify(eol)).toBe(false);
+    }
   });
 
   it('[P.13] A2-FMT-4: a $$ block or a container closed AFTER a slide marker is closed by mistake (a marker line is never shown there)', () => {
