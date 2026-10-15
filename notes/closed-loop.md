@@ -698,3 +698,158 @@ entry):
 - A notice when print goes ahead after the 5 s bounded wait for webfonts
   and stylesheets: `printHtml().cut.fontsLate` and the reader's line
   (claim Q.5; a font that FAILED, offline, is no late one).
+
+---
+
+## Round B — 2026-10-14 (after step 6; rebuild/1.0@6accc1f, kit orz-markdown@6cdf16e)
+
+Audit in four areas — the layout ops and text safety, the whole-deck editor
+and saving, the layout GUI's usability, preview isolation — each finding
+reproduced by a verifier who re-rated it. Verified: 6 ops, 4 editor, 7 GUI
+(one HIGH after verification: OPS-2); LOW: 4 ops, 1 editor, 6 GUI, 3
+isolation. Owner decision 6 (intuitive and comprehensive) weighed the GUI
+items; the coordinator's step-6 decisions applied (schematic thumbnails,
+floats and options on template slides, three-track ratios simple, float
+em/px/right/bottom kept until the reader changes that axis).
+
+### Found and fixed
+
+Every probe below failed on rebuild/1.0@6accc1f (the pure probes in place
+before the fix; the Chrome probes in a 6accc1f worktree with the new tests)
+and passes now.
+
+| Id | Sev | Finding | Fix | Probe (claim) |
+|---|---|---|---|---|
+| OPS-2 | HIGH | a run of arrow keys (a divider, a float) was written to whatever slide was current when it committed: Page Down sent it to the next slide | every deferred write (key runs, divider/float/tag/slide drags) binds its slide and its text at the start; it is written there before any navigation (Page Up/Down, the filmstrip, a caret move to another slide), undo or mode switch, and dropped when the text changed under it | L.12 |
+| OPS-1 | MED (rare) | an op wrote a region marker right after a float's raw-HTML body (`<img>`, `<div>`): the slide got blocked and the next typing landed in the title | check() refuses any new blocking problem (deck-level marker-in-html / unclosed-*) and compares every float's text and geometry and the slide's options; a region marker is never anchored inside or right after a float's, the notes' or the footer's body; the GUI focuses the editor only where an op put the caret | L.6 (and the L.6 generator: floats before region markers with raw-HTML bodies) |
+| OPS-3 | MED | floats in em, without a size or anchored right/bottom jumped to a default box on their first nudge; a one-axis nudge rewrote the other axis | a move writes only the axes it moves, in the text's units (px stays px) and anchors (right/bottom stay); an em axis starts from the box the reader sees (`from`), else the op is refused with the reason | L.3, L.9 |
+| OPS-4 | MED | a divider of a 3+ track split wrote 2/8/5, 4/15/5 … | `snapTracks` / `stepTracks`: the whole split in small whole numbers (fr sum ≤ 12), the pair keeping its share so every other divider stays put | L.1, L.8 |
+| OPS-5 | LOW (rare) | a refused commit after a drag (read-only) left the frame's preview at the new place | a refused write resets the preview and redraws the stage; read-only hides the handles and dividers and disables the toolbar | L.10 |
+| OPS-6 | MED (rare) | a new float went before an author's float placed after notes/footer, and the GUI selected the author's float | a new float goes after the last float; the op names it (`target`) and the GUI selects that one | L.3, L.9 |
+| B-ED-1 | MED | after Duplicate (no blank line before the next marker) a float added on the slide before sent the stage to the next slide | an empty box/float with no body line is selected at its marker's end (inside its slide); `run()` pins the caret to the op's slide after every select | L.6, L.9 |
+| B-ED-2 | MED | after a header setting, an AI edit or a reload the slides tools' caret was stale (live view, stage, Done on the wrong slide) | the caret is the editor's own: orz-markdown `shell.getSelection()` (FC-19 additive, kit claim E.42) in the change handler, a mapped fallback for an older kit | W.8 |
+| B-ED-3 | MED | cut-on-paper / footer-cut covered only the slides shown at the caret, while the panel said "No issues in this deck." | idle fit checks: one unshown slide at a time, rendered off screen in the frame (`orz-slides-check`), after 1.2 s without typing, 120 ms apart, never during a drag or a run of keys, at most 2000 per editor; the panel says "checked on N of M slides" until done; the deck-footer lint names what it has not checked | W.5 |
+| B-ED-4 | MED (rare) | typing in the per-slide mode redrew the whole GUI per key (300 slides: p90 114 ms, max 277 ms) | the GUI follows typing at its pause (the stage marked stale meanwhile, nothing on it acting); 300 slides now median 11, p90 13, max 66 ms, no long task | W.7 |
+| GUI-1 | MED | region names and fit badges (the red "cut" included) were tucked away at rest at common window sizes | the frame reports the slide's ink (text lines, pictures); each label takes the first place on no ink and no other label (above, inside a top corner, under, inside a bottom corner), else it is tucked — a "cut" badge never is; a cut box is outlined in red (`data-fit`), a shrunk one in blue; the toolbar names every box that does not fit | L.7 (cut slide at 1280 × 800 and 1500 × 900; the sample at 1280 × 800) |
+| GUI-2 | LOW | a new float landed on the title band and body text | `placeFloat(existing, size, content)`: the emptiest 2 % grid place (bottom right first) avoiding the stage's ink and floats; with none, offset and the label says it covers content | L.3, L.9 |
+| GUI-3 | LOW | clicking the checked preset reset a custom ratio | the preset a slide already has, any sizes, is no change ("drag a divider to change the sizes") | L.2, L.8 |
+| GUI-4 | LOW | the stage used ~40 % of its pane (width-bound, 148 px filmstrip) | the filmstrip goes beside the slide or under it (a row), whichever leaves the slide larger; it folds from its own head; 1500 × 900 Split: scale 0.446 → 0.562 | L.7 |
+| GUI-5 | MED | outlines below 3 : 1 on every theme (1.7 on dark); dividers invisible until hovered, so not found on touch | the outline takes the slide theme's scheme (a dark dashed line with a light halo on light slides, the reverse on dark), ≥ 3 : 1 on all 14 themes; divider grips drawn at rest (0.55), fully under `hover: none` | L.7 |
+| GUI-6 | MED | Architect: PREPARED BY wrapped to two lines over a short meta | the meta has a minimum width, the bar one line | T.11 |
+| GUI-7 | LOW | picture rows took no theme frame (round A's open item) | each picture of `p.orz-pics` framed in the seven framing themes; the build contract refuses a theme that frames `p.orz-pic` and not a row | T.11, T.13 |
+| OPS-7 | LOW (rare) | Ctrl+Z during a drag did not cancel it; the drop moved the restored float | undo and redo cancel a drag first | L.10 |
+| OPS-8 | LOW (rare) | a region starting with indented code was refused as unsafe (the check trimmed its indentation) | the check keeps a first line's indentation (the test oracle had the same bug) | L.6 |
+| OPS-9 | LOW (rare) | with a key written twice, z/move ops wrote the first value while the parser read the last | the last value counts when a marker is rewritten | L.3 |
+| OPS-10 / GUI-11 | LOW | each op re-tokenised the whole deck (1000 slides: 130–360 ms per op); 300 slides at 4× CPU: 220–399 ms long tasks per op | the DERIVED deck: `parseDeck` of an edit of the last text re-reads only the touched slides alone and moves the rest (P.14 property: equal to a fresh parse on 9000 random edits); `presentationOf` and the fit keys' header part read once per text; idle checks never during drags. 1000 slides, per op (node, op + the deck after it): split 9.9, float-add 4.8, float-geom 2.4, tracks 12.6, slide-move 27.3, duplicate 19.9, delete 14.3, options 16.2 ms; 300 slides at 4× CPU: no long task over 200 ms | L.6, L.10, P.14 |
+| GUI-8 | LOW | refusals cut to one line with no way to read the rest | warnings wrap to two lines, the whole text in `title` and a click away | L.12 |
+| GUI-9 | LOW | internal words (2col, variant), a "Float" button, an incomplete Keys panel | labels and refusals use the picker's names and "look"; "Add a float"; every key listed (Space, Alt+Shift+Arrows, Enter on a divider, the filmstrip's Home/End/Page/Enter/Delete, ?) | L.2, L.12 |
+| GUI-10 | LOW | template thumbnails all alike, their names cut to "Ti…", fit dots only on visited slides | a drawing per template kind, the kind on the second line whole; dots for every slide once the idle checks ran | L.10 |
+| GUI-12 | LOW | the toolbar came after every box in the tab order | the toolbar first in the DOM | L.12 |
+| GUI-13 | LOW (rare) | Chalk's tape covered a broken picture's alt text | the engine marks `p.orz-pic[data-broken]`; Chalk and Notebook drop their tape | T.11 |
+| B-ED-5 | LOW (rare, UPSTREAM) | textarea fallback: This slide dimmed nothing and said nothing | the slide's text brought into view; the GUI says the rest is not dimmed | W.9 |
+| ISO-B1 | LOW (rare) | box names reported by the frame became op inputs | boxes named from the text (the frame's rectangles in document order; a count mismatch draws a stale stage) | L.13 |
+| ISO-B2 | LOW (rare) | a forged name with a newline threw in `querySelector` | `CSS.escape` | L.13 |
+| ISO-B3 | LOW | L.13 / W.4 isolation stated without scope | scoped in L.13, the per-slide seam and the DOM contract: app hosts and served pages; a standalone file from disk is orz-markdown's registered B-2 (not to be "fixed": RULES §9) | L.13 (the app host's sandbox asserted) |
+
+### Class siblings found while fixing
+
+- **The test oracle trimmed like check()**: L.6's own region normaliser
+  dropped a first line's indentation (OPS-8's bug in the oracle).
+- **Every frame-reported name** — fit badges were matched to boxes by the
+  frame's name too: now by document order with the text's names.
+- **A stale-stage click**: a stale stage's boxes no longer take the pointer
+  (a quick click after an op or while typing acted on the last report).
+- **The cursor mark** used the engine's offsets (LF, no BOM) against the
+  text's: now `shell.getSelection()` (exact offsets).
+- **Popovers** (options, swap, move, rename) close when the slide changes:
+  their choices were the last slide's.
+- **The derived deck's first cut** let an edit that unmakes a slide's own
+  marker keep the slide before it unchanged; the P.14 property caught it on
+  its first run (now: an edit inside a marker re-reads the slide before).
+
+### Open by choice (with reasons)
+
+- **Root family docs** (`docs/REBUILD.md`, STATUS, CONTRACTS FC-19 for
+  `getSelection`) are the coordinator's to record.
+- **The kit's `readDocument` still tokenises the whole deck** for the lints
+  (once per typing pause, ~25 ms at 300 slides): it is off the op path and
+  within W.7's budget; a kit option to take a derived deck is a 2.4.x item.
+- Improvements not taken: the occlusion oracle as a standing theme test over
+  every theme × template (GUI-6's probe checks the case found; T.11's
+  existing checks stand), "Move to slide N…" for far moves, a negative test
+  for messages from other windows (the kit's `e.source` check covers it, by
+  reading).
+
+### Owner decisions taken into the round (2026-10-14)
+
+- **Notebook's ruling is a background** (T.12 rewritten): the rules and the
+  margin line are the slide's own background, the same on every slide; no
+  text is aligned to them any more. Gone: the source's screen notebook in
+  the derivation (`SCREEN_GRID` empty), the region grid alignment and the
+  "onto the slide's next line" padding (src/present/grid.ts deleted), fit's
+  re-alignment at each trial scale (`fitBox`/`fitSlide` lost their
+  `prepare` hook), the ruled sheet of a shrunk region. Slips, notes and
+  taped pictures stay as decoration on the page. The probe (with every text,
+  slip and picture hidden, a short slide, two columns, three untitled rows
+  and a shrunk slide look the same) failed on 6accc1f (the shrunk slide's
+  sheet: 6.2 % of the page at 16:9, 5.7 % at 4:3). Fit cost (fresh fit of
+  every slide, offline, 1280 × 720): the sample deck 27.4 → 5.1 ms per
+  slide (worst 128 → 32 ms), the stress deck 5.2 → 1.2 ms (worst 43 → 8.6).
+  Sibling found by the full run: without the grid's block margins a picture
+  slip filled its box exactly and its 0.6° tilt overflowed by 3 px at every
+  scale (the sample's GPC slide cut at 0.6): the slip now keeps room for its
+  tape and tilt.
+  Hub sheets before: `sheets/before-roundB/`.
+- **A simpler editor** (W.10; W.1, W.4, W.9 changed): no Live slide / This
+  slide toggles. The live card is always in the preview's bottom-right
+  corner, placed by `cardLayout` (both sides compute it, as the stage), with
+  the trusted page's enlarge and fold buttons over it; clicking it or
+  Ctrl/Cmd+Shift+Enter enlarges it into the single-slide view, whose
+  labelled "Whole deck" shrink button (or the same key, in the Keys panel)
+  brings the slide back to the card and the focus to it; the card moves
+  between corner and stage in 160 ms (no motion with reduced motion); folded,
+  it is a pill "Slide N · fits" (its fit from the live view or the idle
+  checks). The preference `slideCard` replaces `liveSlide` (an old "off" is
+  carried over as folded, then forgotten).
+
+### After the round
+
+- orz-slides: the full suite once (after the two owner revisions): 22
+  files, 311 tests, 302 green in the run. The 9 that failed were re-run file
+  by file and are green: P.14 (parallel-load timing, green alone, as in
+  round A), T.2 (still asserted the retired screen notebook: now asserts
+  that no theme carries `--orz-grid`), F.6 (online webfont timing, green
+  alone), W.3 (green alone), L.7 and the OPS-5 probe (measured the frame
+  mid card→stage transition: the GUI tests wait for it), GUI-11 (201 ms
+  twice at 4× CPU: whole-text copies per change cut — 300 slides at 4× now
+  no long task over 200 ms), and F.7 / T.3 Notebook (the picture slip
+  overflowing by its tilt: fixed, see the owner decisions above). Re-run
+  alone: layout-gui 21/21, editor 14/14, settle 16/16, themes-look 29/29,
+  themes-stress 14/14, themes 6/6, parse 38/38, conformance 48/48. tsc
+  clean; `build-themes --check` clean.
+- Kit (orz-markdown 2.4.0, prepared, unpublished; `orz-markdown@606425e`:
+  E.42 `getSelection`): its suite 2112/2112. Downstream against the
+  checkout (symlink, run, restore; both git-clean after, orz-paged's
+  pretest-regenerated themes restored): orz-paged 373/374 and orz-mdhtml
+  153/154, each failing only its stale committed example (D.1, E.1), as in
+  rounds A–A4.
+- Numbers: ops on 1000 slides 130–360 → 2–27 ms; per-slide typing on 300
+  slides p90 114 → 13 ms, max 277 → 66 ms; the stage at 1500 × 900 Split
+  0.446 → 0.562 of the slide; Notebook's fit 27.4 → 5.1 ms per slide
+  (sample), 5.2 → 1.2 (stress).
+- Screenshots retaken (`output/orz-test/slides/engine/editor-shots/`,
+  step6-1 … step6-21; new: 17 fit at rest, 18 the live card, 19 folded to a
+  pill, 20 enlarged with the Whole deck button, 21 back to the deck), the
+  hub editor sample re-assembled, every hub deck and sheet regenerated;
+  Notebook's sheets before the decision kept in `sheets/before-roundB/`.
+  Looked at: labels and fit badges at rest (the cut box red), the filmstrip
+  under the slide, the card and its pill, the enlarged view's Whole deck
+  button, Notebook before/after (the ruling identical on every slide; the
+  callouts now show the source theme's coloured slips instead of the screen
+  notebook's restyling of them).
+- Commits: `orz-slides@7c3a0bf`, `@7d118f3`, `@ed91313` (round B),
+  `@18a8334` (Notebook), `@c610976` (the card) and this record; kit
+  `orz-markdown@606425e`.
+
+Round B ends here; the next round (the final loop, step 10) starts from
+this entry.
