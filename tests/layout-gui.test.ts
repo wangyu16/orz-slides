@@ -573,11 +573,17 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     await page.keyboard.type(' More.');
     const t0 = await (async () => { await expect.poll(() => text(page)).toContain('a few words. More.'); return text(page); })();
     // the forged reports arrive: the overlay is misplaced (the frame may lie about geometry)
-    await expect.poll(async () => {
-      const b = await page.locator('.orz-lg-box--region[data-box="left"]').boundingBox();
-      const s = await state(page);
-      return b ? Math.round((b.x - (await page.locator('.orz-lg').boundingBox())!.x - s.stage.x) / s.stage.scale) : -1;
-    }, { timeout: 10_000 }).toBe(900);
+    // measured in one go in the page (the forger redraws the overlay every 50 ms)
+    await expect.poll(() => page.evaluate(() => {
+      const host = document.querySelector('#host')!.firstElementChild as HTMLElement | null;
+      const root = (host?.shadowRoot ?? document) as ParentNode;
+      const ui = root.querySelector<HTMLElement>('.orz-lg');
+      const stage = root.querySelector<HTMLElement>('.orz-lg-stage');
+      const box = root.querySelector<HTMLElement>('.orz-lg-box--region[data-box="left"]');
+      const e = (globalThis as unknown as { __ed: { slides: { layoutGui(): { state(): { stage: { scale: number } } } } } }).__ed;
+      if (!ui || !stage || !box) return -1;
+      return Math.round((box.getBoundingClientRect().x - stage.getBoundingClientRect().x) / e.slides.layoutGui().state().stage.scale);
+    }), { timeout: 10_000 }).toBe(900);
     await page.waitForTimeout(1000);
     expect(await text(page)).toBe(t0);
     expect(await page.title()).not.toBe('pwned');
