@@ -635,6 +635,11 @@
 /* figures: a printed sheet taped to the board */
 .reveal .markdown-body p.orz-pic { position: relative; width: fit-content; margin: 0.45em auto 0.4em; line-height: 0; }
 .reveal .markdown-body p.orz-pic > img { display: block; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); }
+/* pictures side by side: each a sheet with its shadow, no tape (round B, GUI-7) */
+.reveal .markdown-body p.orz-pics img { box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); }
+/* a picture that did not load: no tape over its alt text (round B, GUI-13; the engine marks it data-broken) */
+.reveal .markdown-body p.orz-pic[data-broken]::before,
+.reveal .markdown-body p.orz-pic[data-broken]::after { display: none; }
 .reveal .markdown-body p.orz-pic::before,
 .reveal .markdown-body p.orz-pic::after {
   content: '';

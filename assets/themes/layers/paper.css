@@ -274,6 +274,7 @@
 .reveal .markdown-body .mermaid, .reveal .markdown-body .orz-chart-frame { background: transparent; box-shadow: none; padding: 0; }
 .reveal .markdown-body p.orz-pic { line-height: 0; width: fit-content; }
 .reveal .markdown-body p.orz-pic > img { display: block; padding: 5px; border: 1px solid var(--hair); background: #fffdf8; }
+.reveal .markdown-body p.orz-pics img { padding: 5px; border: 1px solid var(--hair); background: #fffdf8; }
 
 /* float: a marginal note in a double-ruled frame */
 .reveal .orz-float {

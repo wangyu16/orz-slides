@@ -416,6 +416,11 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
       else if (sels.some(subjectImg) && r.decls.some((d) => d.prop === 'display' && /^(block|flex|grid|table)/.test(d.value))) problems.push(`${where}: "${r.selector}" makes every image a block (a linked icon breaks its sentence): use p.orz-pic`);
     }
   }
+  // round B (GUI-7): a theme that frames a picture (p.orz-pic, or its image) frames each picture of a row too (p.orz-pics)
+  const FRAME = /^(border(-[\w-]+)?|box-shadow|outline(-[\w-]+)?|background(-color)?|padding(-[\w-]+)?)$/;
+  const framesSingle = rulesOf(css.layer).some((r) => splitTop(r.selector, ',').some((x) => /p\.orz-pic\b(?!s)/.test(own(x)) && !/::(before|after)/.test(x)) && r.decls.some((d) => FRAME.test(d.prop) && !/^(none|0|transparent)$/.test(d.value.trim())));
+  const framesRow = rulesOf(css.layer).some((r) => splitTop(r.selector, ',').some((x) => /p\.orz-pics\b/.test(own(x)) && /\bimg\b/.test(x)) && r.decls.some((d) => /^(border(-[\w-]+)?|box-shadow|outline(-[\w-]+)?)$/.test(d.prop) && !/^(none|0)$/.test(d.value.trim())));
+  if (framesSingle && !framesRow) problems.push(`${id}: a picture (p.orz-pic) is framed but the pictures of a row (p.orz-pics img) are not`);
   // round A4 (A4-TH-3): a section number drawn by ::after needs its own guard for section_numbers: none (deck.css
   // hides an empty ::before for every theme)
   const layerRules = rulesOf(css.layer);

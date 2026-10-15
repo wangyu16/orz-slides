@@ -1357,7 +1357,7 @@
 .reveal .markdown-body div.mermaid { background: transparent; border: 0; box-shadow: none; padding: 0; }
 .reveal .markdown-body .orz-chart-frame { background: transparent; border: 0; box-shadow: none; padding: 0; }
 /* the white figure becomes a plate held by corner brackets */
-.reveal .markdown-body p.orz-pic > img { border-radius: 1px; outline: 1px solid var(--border); outline-offset: 6px; }
+.reveal .markdown-body :is(p.orz-pic > img, p.orz-pics img) { border-radius: 1px; outline: 1px solid var(--border); outline-offset: 6px; }
 
 /* code and table */
 .reveal .markdown-body pre { border-radius: 2px; padding: 0.6em 0.6em; font-size: 0.7em; }

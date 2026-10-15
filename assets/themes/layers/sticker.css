@@ -148,6 +148,8 @@
   max-height: 100%;
 }
 .reveal .orz-region .markdown-body p.orz-pic { height: calc(100% - 10px); }
+/* pictures side by side: each its own sticker (round B, GUI-7) */
+.reveal .orz-region .markdown-body p.orz-pics img { background: #fffefb; border: 3px solid var(--ink); border-radius: var(--cut-2); box-shadow: 4px 4px 0 var(--ink); padding: 4px 6px; }
 
 /* mermaid: drawn in ink with hard sticker shadows on the nodes */
 .reveal .markdown-body .mermaid svg .node :is(rect, polygon, circle, path) { stroke-width: 3px !important; filter: drop-shadow(3px 3px 0 #222); }

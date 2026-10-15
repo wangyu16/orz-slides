@@ -314,6 +314,7 @@
 .reveal .markdown-body .mermaid, .reveal .markdown-body .orz-chart-frame { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
 .reveal .markdown-body p.orz-pic { line-height: 0; width: fit-content; }
 .reveal .markdown-body p.orz-pic > img { display: block; padding: 6px; background: #0f1c1d; border: 1px solid #24403e; }
+.reveal .markdown-body p.orz-pics img { padding: 6px; background: #0f1c1d; border: 1px solid #24403e; }
 
 /* float: a cursor readout pinned on the trace */
 .reveal .orz-float {

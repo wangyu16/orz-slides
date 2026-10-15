@@ -99,6 +99,10 @@
 /* a chart in its room (round A4) is sized with its slip's padding and border */
 .reveal .orz-chart-room > .orz-chart-frame { --orz-chart-pad-x: calc(0.7em + 2px); --orz-chart-pad-y: calc(0.7em + 2px); }
 .reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
+/* pictures side by side: each on a slip of its own (round B, GUI-7) */
+.reveal .orz-region .markdown-body > p.orz-pics img { background: var(--paper-slip); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12); padding: 0.25em; }
+/* a picture that did not load: no tape over its alt text (round B, GUI-13) */
+.reveal .orz-region .markdown-body > p.orz-pic[data-broken]::after { display: none; }
 .reveal .orz-region .markdown-body > p.orz-pic::after,
 .reveal .orz-region .markdown-body > .smiles-render::after {
   content: ''; position: absolute; top: -11px; left: 50%; width: 76px; height: 22px; transform: translateX(-50%) rotate(-3deg);

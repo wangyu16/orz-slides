@@ -126,6 +126,15 @@ export function markPictures(root: ParentNode): void {
     p.classList.toggle('orz-pic', pics === 1 && !other);
     // two or more pictures and nothing else: a row (round A4, A4-TH-4)
     p.classList.toggle('orz-pics', pics > 1 && !other);
+    // a picture that did not load shows its alt text: themes take their decorations off it (round B, GUI-13)
+    if (pics === 1 && !other) {
+      const img = p.querySelector('img');
+      if (img) {
+        const broken = (): void => { p.setAttribute('data-broken', ''); };
+        if (img.complete && img.naturalWidth === 0 && (img.getAttribute('src') ?? '') !== '') broken();
+        else img.addEventListener('error', broken, { once: true });
+      }
+    }
   }
 }
 

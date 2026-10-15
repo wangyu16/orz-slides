@@ -576,3 +576,62 @@ chromeOnly('round A4: footers, icons, section badges and pictures in containers 
     expect(bad).toEqual([]);
   }, 300_000);
 });
+
+/*
+ * Closed-loop round B (notes/closed-loop.md): Architect's PREPARED BY bar over
+ * a short meta (GUI-6, found by the round's screenshot-difference occlusion
+ * check), picture rows with no frame (GUI-7, round A's open item), Chalk's
+ * tape over a broken picture's alt text (GUI-13). Each failed on
+ * rebuild/1.0@6accc1f.
+ */
+chromeOnly('round B: theme probes (real Chrome, offline)', () => {
+  it('[T.11] round B, GUI-6: Architect\'s title block keeps its PREPARED BY bar on one line above the meta however short the meta is (a bare name) — the bar never lies over it — at 16:9 and 4:3', async () => {
+    const bad: string[] = [];
+    for (const ratio of ['16:9', '4:3']) for (const meta of ['Yu Wang', 'J. Smith', 'Questions welcome']) {
+      const { page, ctx } = await offline(`gui6-${ratio.replace(':', 'x')}-${meta.length}`, A3('architect', ratio, `<!-- slide template=title -->\n# A title\n## A subtitle\n${meta}\n`));
+      const r = await page.evaluate(() => {
+        const m = document.querySelector<HTMLElement>('.reveal .slides > section.present .orz-title-meta')!;
+        const b = getComputedStyle(m, '::before');
+        return { before: parseFloat(b.height), pad: parseFloat(getComputedStyle(m).paddingTop), line: parseFloat(b.lineHeight) || parseFloat(b.fontSize) * 1.2 };
+      });
+      if (r.before > r.pad + 0.5 || r.before > r.line * 1.6 + parseFloat('0') + 12) bad.push(`${ratio} "${meta}": the bar is ${r.before.toFixed(1)} px tall in a ${r.pad.toFixed(1)} px band`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 120_000);
+
+  it('[T.11] round B, GUI-7: a theme that frames a picture frames each picture of a row too — the same kind of frame (border, shadow or outline) on every image of p.orz-pics, in every theme that frames p.orz-pic', async () => {
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const { page, ctx } = await offline(`gui7-${t.id}`, A3(t.id, '16:9', '<!-- slide 2col -->\n## Pictures\n![one](big.svg)\n<!-- @right -->\n![a](big.svg) ![b](big.svg)\n'));
+      const r = await page.evaluate(() => {
+        const s = document.querySelector('.reveal .slides > section.present')!;
+        const framed = (el: Element | null): boolean => { if (!el) return false; const c = getComputedStyle(el); return parseFloat(c.borderTopWidth) > 0 || c.boxShadow !== 'none' || (c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) > 0); };
+        const single = s.querySelector('p.orz-pic');
+        const rowImgs = Array.from(s.querySelectorAll('p.orz-pics img'));
+        return { single: framed(single) || framed(single?.querySelector('img') ?? null), rows: rowImgs.length, framedRows: rowImgs.filter((i) => framed(i)).length };
+      });
+      if (r.rows !== 2) bad.push(`${t.id}: no row (${r.rows} images)`);
+      else if (r.single && r.framedRows !== 2) bad.push(`${t.id}: a picture is framed, ${2 - r.framedRows} of a row's 2 are not`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+
+  it('[T.11] round B, GUI-13: a picture that did not load shows its alt text with no decoration over it — the engine marks it data-broken and Chalk\'s and Notebook\'s tape go', async () => {
+    const bad: string[] = [];
+    for (const id of ['chalk', 'notebook']) {
+      const { page, ctx } = await offline(`gui13-${id}`, A3(id, '16:9', '<!-- slide -->\n## A broken picture\n![GPC traces at 22, 51 and 84 % conversion](missing-picture.png)\n'));
+      await page.waitForTimeout(300);
+      const r = await page.evaluate(() => {
+        const p = document.querySelector<HTMLElement>('.reveal .slides > section.present p.orz-pic');
+        if (!p) return { mark: false, tape: ['no p.orz-pic'] };
+        return { mark: p.hasAttribute('data-broken'), tape: ['::before', '::after'].map((x) => getComputedStyle(p, x)).filter((c) => c.content !== 'none' && c.display !== 'none').map((c) => `${c.width}×${c.height}`) };
+      });
+      if (!r.mark) bad.push(`${id}: not marked broken`);
+      if (r.tape.length) bad.push(`${id}: decoration over the alt text: ${r.tape.join(', ')}`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 120_000);
+});
