@@ -63,14 +63,18 @@ body.orz-live-on #orz-doc { padding-bottom: 46vh; }
 .orz-flat :is(.orz-flat-notes, .orz-flat-footer, .orz-flat-preamble) > :last-child { margin-bottom: 0; }
 
 .orz-live {
-  position: fixed; z-index: 20; right: 12px; bottom: 12px; width: min(46vw, 400px);
+  position: fixed; z-index: 20; left: 0; top: 0; width: 0; box-sizing: border-box;
   border: 1px solid var(--orz-live-line); border-radius: 8px; overflow: hidden;
+  /* the card enlarges into the stage and back (owner decision 2026-10-14: smooth but quick); placed by cardLayout / stageLayout */
+  transition: left .16s ease-out, top .16s ease-out, width .16s ease-out, border-radius .16s;
   background: var(--orz-live-chrome); color: var(--orz-live-ink);
   box-shadow: 0 2px 6px rgba(0,0,0,.10), 0 10px 28px rgba(0,0,0,.14);
   font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .orz-live[hidden] { display: none; }
-.orz-live-head { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--orz-live-line); }
+.orz-live-head { display: flex; align-items: center; gap: 8px; height: 28px; box-sizing: border-box; padding: 0 34px 0 8px; border-bottom: 1px solid var(--orz-live-line); }
+@media (prefers-reduced-motion: reduce) { .orz-live, .orz-live-port { transition: none; } }
+.orz-live-port { transition: height .16s ease-out; }
 .orz-live-n { font-weight: 600; font-variant-numeric: tabular-nums; }
 .orz-live-badge { margin-left: auto; padding: 0 7px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
 .orz-live-badge:empty { display: none; }

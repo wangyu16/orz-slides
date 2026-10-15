@@ -25,7 +25,7 @@ window. The engine sets `--sl-w` / `--sl-h` on the deck root.
 | Read view (the page) | `#orz-view.orz-slides > .reveal.orz-deck[data-orz-theme]` | `.slides > section.orz-slide` (reveal.js positions them) |
 | Print document | `.reveal.orz-deck.orz-print[.orz-with-notes]` | `.orz-page > section.orz-slide` (+ `.orz-print-notes`) |
 | Speaker view stages | `.reveal.orz-deck.orz-print[data-orz-theme]` (scaled) | `.orz-page > section.orz-slide` — static copies from the print pipeline (canvases frozen to images, fitted) |
-| Editor live view (rebuild step 5) | `#orz-live .reveal.orz-deck.orz-print.orz-live-deck[data-orz-theme]` (scaled to its card) in the editor preview frame | `.orz-page > section.orz-slide` — the caret's slide as on the print stage (every fragment shown, a `fit=scroll` slide fitted, live drawings), fitted; the frame also holds the flattened flow (`#orz-doc.markdown-body.orz-flat`), styled by the same theme's reading styles |
+| Editor live view (rebuild step 5) | `#orz-live .reveal.orz-deck.orz-print.orz-live-deck[data-orz-theme]` (scaled to its card, the card placed by `cardLayout` in the frame's bottom-right corner — the trusted page's enlarge and fold buttons lie over it; owner decision 2026-10-14) in the editor preview frame | `.orz-page > section.orz-slide` — the caret's slide as on the print stage (every fragment shown, a `fit=scroll` slide fitted, live drawings), fitted; the frame also holds the flattened flow (`#orz-doc.markdown-body.orz-flat`), styled by the same theme's reading styles |
 | Per-slide stage (rebuild step 6) | `body.orz-stage` in the editor preview frame: `#orz-live` placed by `stageLayout` (src/browser/slides/stage-geometry.ts) of the frame's size and the insets the trusted page sends (`orz-slides-live { layout: { insets, variants } }`); `.orz-live-variants > .orz-live-variant` (a template's looks) under it | the same slide DOM; the frame reports, as DATA, each box's fit and the parts the trusted overlay places itself over (`orz-slides-fit { parts: regions, splits (pre-order), title, content, template, footer, floats, ink }`, logical px; `ink`: the slide's lines of text and its pictures clipped to their boxes, at most 400 — where the overlay's labels must not lie and a new float should not go, round B) and takes drag previews as styles only (`orz-slides-preview`: a split's tracks, a float's box, `reset`); the overlay (layout-gui.ts) lives in the trusted page, never in the frame; it names its boxes from the TEXT (the frame's rectangles in document order: a reported name is never an op's input, round B ISO-B1). This holds where the frame is an opaque origin — an app host, a served page; a standalone file opened from disk gives the preview frame `allow-same-origin` (orz-markdown's registered decision B-2: the document already runs in that page as its read view), so there a document script reaches the trusted page as it does in the read view (round B, ISO-B3) |
 | Idle fit check (round B) | `.orz-check` (off screen, at the logical size) in the editor preview frame | one slide the caret has not shown, rendered by the trusted page's text (`orz-slides-check`), fitted and reported as `orz-slides-fit` with its key (no `parts`), then cleared — the editor's fit lints and the filmstrip's dots cover the whole deck |
 
@@ -191,7 +191,6 @@ Set by a theme on `:root` (defaults in deck.css):
 | `--chart-font-size`, `--mm-font-size` | 18 | chart and diagram text in logical px (a theme sets 18–22) |
 | `--chart-aspect`, `--chart-max-width` | 1.6, `min(100%, 20.8em)` | a chart's shape and width cap (≤ 13em tall: fit scales it) |
 | `--mm-labels` | `svg` (deck root) | Mermaid labels as SVG text (reveal scales with a transform) |
-| `--orz-grid` | — | on `.orz-region > .markdown-body`: the kit's baseline grid (Notebook); fit re-aligns it at each scale, and an unscaled body starts on one of the slide's lines (its top padded to the next multiple of the pitch from the slide's top) |
 | `--sl-accent`, `--sl-accent-ink` | — (required) | the theme's signature colour and the text that reads on it (≥ 4.5 : 1): the template variants draw with them (§7) |
 | `--sl-surface` | the accent at 12 % | a quiet tint (section v3's band, outline v2's cards) |
 | `--sl-band` | `--sl-accent` | title v4's band |
@@ -256,10 +255,11 @@ orz-markdown's `common.css` and its source theme adapted to a slide, then
 `layers/slide-scale.css`, then the theme's layer `layers/<id>.css` (the only
 hand-written part: chrome slots, title band, templates, outline,
 fragments, floats; the variants are deck.css's, drawn with the layer's
-tokens — below). Notebook also keeps its source's screen
-notebook (the `@media screen` rules, rescoped to `.reveal .orz-region >
-.markdown-body`): region text is written on the slide's ruled lines by the
-kit's grid pass, and a region fit shrank becomes a ruled sheet. The four
+tokens — below). Notebook's ruling is the slide's own
+background (owner decision 2026-10-14): its source's screen notebook (the
+`@media screen` baseline grid) is not kept, no text is aligned to the rules,
+and a region fit shrank looks like any other — the page is the same on every
+slide. The four
 updated 0.x themes (Architect, Chalk, Neon, Paper) have no source theme:
 `layers/content.css` (Markdown content in theme tokens) then their layer.
 The engine carries deck.css and the 14 built themes inside its bundle

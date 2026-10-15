@@ -1,7 +1,8 @@
 /**
  * KIND-SPECIFIC (slides): the SEAM of editing mode (b), per slide (REBUILD
- * §3c owner decision 1(b), plan step 6). Step 5 built the entry point — the
- * toolbar's **This slide** toggle (src/browser/slides/editor.ts): the same
+ * §3c owner decision 1(b), plan step 6). The entry point is the live card,
+ * enlarged (owner decision 2026-10-14; src/browser/slides/editor.ts; the
+ * GUI's shrink button calls `leave()`): the same
  * text editor with the text outside the caret's slide dimmed
  * (`setFocusRange`; one history for both modes, Q6) and the live view as the
  * stage in the preview frame (`orz-slides-live { stage: true }`). Step 6's
@@ -84,6 +85,8 @@ export interface StageHost {
   scheme(): 'light' | 'dark';
   /** The editor's engine ('textarea': the basic editor, nothing dimmed). */
   engine(): string;
+  /** Back to the whole deck: the slide shrinks into the live card (the GUI's shrink button; owner decision 2026-10-14). */
+  leave(): void;
   /** Preview a drag on the stage (or put it back). */
   preview(p: StagePreview): void;
   /** Show the caret's slide on the stage now (after an op), not after the typing pause. */

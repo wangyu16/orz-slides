@@ -64,8 +64,11 @@ async function openApp(text: string, at: string, o: { viewport?: { width: number
   expect(engine).toBe('codemirror6');
   await page.evaluate((s) => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number, o?: unknown): void } }).__ed; const i = e.getText().indexOf(s); e.select(i, i, { scroll: true }); }, at);
   const frame = await previewFrame(page);
-  await page.locator('[data-orz-slides-per-slide]').click();
+  // the single-slide view: the live card enlarged (owner decision 2026-10-14)
+  await page.locator('[data-orz-slides-enlarge]').click();
   await waitGui(page, (s) => !s.stale && s.boxes.length > 0);
+  // the card's move into the stage (a 160 ms transition) is over
+  await page.waitForTimeout(400);
   return { page, ctx, frame, errors };
 }
 

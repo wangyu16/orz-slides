@@ -28,7 +28,7 @@
  */
 import { chartAspects, decorate } from '../../present/decorate.js';
 import { fitSlide } from '../../present/fit.js';
-import { stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
+import { cardLayout, stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
 
 interface LiveMessage {
   type: 'orz-slides-live';
@@ -165,9 +165,12 @@ const REFITS = 24;
       });
       return;
     }
-    card.style.left = card.style.top = card.style.width = '';
-    const w = port.clientWidth;
-    if (!(w > 0)) return;
+    // the card in the bottom-right corner, where the trusted page computes it too (its buttons lie over it)
+    const C = cardLayout(W.innerWidth, W.innerHeight, shown.width, shown.height);
+    card.style.left = `${C.card.x}px`;
+    card.style.top = `${C.card.y}px`;
+    card.style.width = `${C.card.w}px`;
+    const w = C.card.w - 2;
     const s = w / shown.width;
     port.style.height = `${Math.round(shown.height * s)}px`;
     deck.style.transform = `scale(${s})`;
@@ -389,7 +392,7 @@ const REFITS = 24;
       Object.assign(el.style, { left: `${f.left}%`, top: `${f.top}%`, width: `${f.w}%`, height: `${f.h}%`, right: 'auto', bottom: 'auto' });
     }
   }
-  W.addEventListener('resize', () => { if (stage) scale(); });
+  W.addEventListener('resize', () => { scale(); });
 
   /* ── idle fit checks (round B, B-ED-3): one slide at a time, off screen ── */
   const checkHost = D.createElement('div');

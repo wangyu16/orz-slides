@@ -91,6 +91,7 @@ export const LAYOUT_KEYS: ReadonlyArray<readonly [string, string]> = [
   ['Delete (filmstrip)', 'delete the slide'],
   ['Page Up / Page Down', 'previous / next slide'],
   ['Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z', 'undo / redo'],
+  ['Ctrl/Cmd+Shift+Enter', 'back to the whole deck: the slide shrinks into the card (again: enlarge the card)'],
   ['?', 'this list'],
   ['Escape', 'cancel a drag or a run of keys; close a panel; clear the selection'],
 ];
@@ -111,6 +112,7 @@ const SVG = {
   dup: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M3.5 10.5v-7a1 1 0 0 1 1-1h7"/></svg>',
   grip: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01"/></svg>',
   strip: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="4" height="11" rx="1"/><rect x="7.5" y="2.5" width="7" height="11" rx="1"/></svg>',
+  shrink: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 2.5 9.5 6.5M9.5 3v3.5H13M2.5 13.5l4-4M6.5 13V9.5H3"/></svg>',
 };
 
 const GUI_CSS = `
@@ -401,9 +403,13 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
 
   // the bar's groups
   const gSlide = el(doc, 'span', 'orz-lg-group');
+  // back to the whole deck (owner decision 2026-10-14): the slide shrinks into the live card in the corner
+  const shrinkBtn = btn('Whole deck', SVG.shrink, { title: 'Back to the whole deck — the slide shrinks into the card in the corner (Ctrl/Cmd+Shift+Enter)', data: 'shrink' });
+  shrinkBtn.setAttribute('aria-label', 'Back to the whole deck (shrink the slide into the card)');
+  shrinkBtn.setAttribute('data-orz-slides-shrink', '');
   const stripBtn = btn('Slides', SVG.strip, { title: 'Show or hide the filmstrip', pressed: true, data: 'strip' });
   const nLabel = el(doc, 'span', 'orz-lg-n');
-  gSlide.append(stripBtn, nLabel);
+  gSlide.append(shrinkBtn, stripBtn, nLabel);
   const gPresets = el(doc, 'span', 'orz-lg-group', { role: 'radiogroup', 'aria-label': 'Layout' });
   const presetBtns = new Map<PresetChoice, HTMLButtonElement>();
   for (const p of PRESET_CHOICES) {
@@ -545,7 +551,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     let ok = false;
     try { ok = shell.applyEdits(r.edits, { label: r.label }); } catch (e) { return refused(`Could not change the text: ${String((e as Error)?.message ?? e)}`); }
     if (!ok) return refused('The document is read-only.');
-    const after = shell.getText();
+    const after = r.text;
     try { (shell as unknown as { flash?(r: Array<{ from: number; to: number }>): void }).flash?.(r.changed.map((c) => ({ from: Math.min(c.from, after.length), to: Math.min(c.to, after.length) }))); } catch { /* an older kit */ }
     if (r.slide !== i || op.type.startsWith('slide-')) host.goTo(r.slide);
     if (r.select) shell.select(r.select.from, r.select.to, { scroll: true });
@@ -702,7 +708,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     // read-only (a quiet update running): nothing on the stage or the toolbar changes the text (round B, OPS-5)
     const ro = shell.isReadOnly();
     ui.classList.toggle('is-readonly', ro);
-    if (ro) for (const b of Array.from(bar.querySelectorAll<HTMLButtonElement>('button:not([data-act="strip"])'))) b.disabled = true;
+    if (ro) for (const b of Array.from(bar.querySelectorAll<HTMLButtonElement>('button:not([data-act="strip"]):not([data-act="shrink"])'))) b.disabled = true;
     ui.setAttribute('data-scheme', host.scheme?.() === 'dark' ? 'dark' : 'light');
     if (blocked) say(`This slide's layout cannot change until its text is fixed: ${blocked}`, 'warn');
   }
@@ -1618,6 +1624,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     const act = b.getAttribute('data-act') ?? '';
     const box = sel?.kind === 'box' ? sel.name : null;
     const fl = sel?.kind === 'float' ? sel.index : null;
+    if (act === 'shrink') { flushPending(); drag?.cancel(); host.leave?.(); return; }
     if (act === 'strip') { setStrip(!stripOn); return; }
     if (act.startsWith('preset-')) { run({ type: 'preset', preset: act.slice(7) as PresetChoice }); return; }
     if (act === 'split-col' && box) { if (run({ type: 'split', box, dir: 'col' })) focusKey(`region:${box}`); return; }

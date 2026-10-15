@@ -124,21 +124,20 @@ function bigDeck(n = 100): string {
 }
 
 chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
-  it('[W.1] Edit mounts the kit\'s editor shell for a slides document — CodeMirror, the flattened preview in the sandboxed frame with the header\'s slide theme, the slides tools (Issues, Live slide, This slide) next to the settings, the seal and the GitHub link of edit mode — and an app\'s own mountEditor (hooks.save) gets the same editor', async () => {
+  it('[W.1] Edit mounts the kit\'s editor shell for a slides document — CodeMirror, the flattened preview in the sandboxed frame with the header\'s slide theme, the slides tools (Issues; the live card in the preview\'s corner with its own buttons — owner decision 2026-10-14) next to the settings, the seal and the GitHub link of edit mode — and an app\'s own mountEditor (hooks.save) gets the same editor', async () => {
     const { page, ctx, frame, errors } = await openEditor('w1.slides.html', SAMPLE);
     const label = (sel: string) => page.locator(sel).getAttribute('aria-label');
     await expect.poll(() => label('[data-orz-slides-lint]'), { timeout: 10_000 }).toBe('Issues: none');
     const shell = {
-      issues: await label('[data-orz-slides-lint]'), live: await label('[data-orz-slides-live]'), slide: await label('[data-orz-slides-per-slide]'),
-      pressed: await page.locator('[data-orz-slides-live]').getAttribute('aria-pressed'),
+      issues: await label('[data-orz-slides-lint]'), toggles: await page.locator('[data-orz-slides-live], [data-orz-slides-per-slide]').count(),
+      enlarge: await (async () => { await page.locator('[data-orz-slides-enlarge]').waitFor({ state: 'visible', timeout: 10_000 }); return label('[data-orz-slides-enlarge]'); })(),
       theme: await page.locator('button[aria-label="Theme"]').count() === 1,
       github: await page.locator('a[href="https://github.com/wangyu16/orz-slides"]').count() > 0 && await page.locator('a[href^="https://markdown.orz.how"]').count() > 0,
       sandbox: await page.locator('iframe').getAttribute('sandbox'),
     };
     expect(shell.issues).toBe('Issues: none');
-    expect(shell.live).toBe('Live slide');
-    expect(shell.slide).toBe('This slide');
-    expect(shell.pressed).toBe('true');
+    expect(shell.toggles).toBe(0);
+    expect(shell.enlarge).toMatch(/^Edit slide 1 on its own — enlarge the card \(Ctrl\/Cmd\+Shift\+Enter\)/);
     expect(shell.theme).toBe(true);
     expect(shell.github).toBe(true);
     expect(shell.sandbox).toMatch(/allow-scripts/);
@@ -259,7 +258,7 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     await page.keyboard.press('End');
     await page.keyboard.type(' zqzq');
     await frame.waitForFunction(() => (document.querySelector('#orz-live .orz-page > section')?.textContent ?? '').includes('zqzq'), undefined, { timeout: 10_000 });
-    // the preference: off hides the card, and an editor opened again keeps it off
+    // the preference: folded hides the card (a pill instead), and an editor opened again keeps it folded
     await page.evaluate(() => { (globalThis as unknown as G).OrzCarrier.standalone.editor()!.slides.setLive(false); });
     await frame.waitForFunction(() => document.getElementById('orz-live')!.hidden);
     await page.evaluate(async () => { await (globalThis as unknown as G).OrzCarrier.standalone.leave(); (globalThis as unknown as G).OrzCarrier.standalone.edit(); });
@@ -394,7 +393,7 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
   it('[W.9] the per-slide mode\'s entry point (the step-6 seam): This slide dims the text outside the caret\'s slide in the SAME editor (setFocusRange; one history) and shows the slide as the stage; it follows the caret to another slide; off restores the whole deck', async () => {
     const { page, ctx, frame, errors } = await openEditor('w9.slides.html', SAMPLE);
     await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()!; const i = e.getText().indexOf('## The RAFT equilibrium'); e.select(i, i, { scroll: true }); });
-    await page.locator('[data-orz-slides-per-slide]').click();
+    await page.locator('[data-orz-slides-enlarge]').click();
     expect(await ed(page, (e) => e.slides.isPerSlide())).toBe(true);
     await frame.waitForFunction(() => document.body.classList.contains('orz-stage') && document.querySelector('#orz-live .orz-page > section')?.getAttribute('data-n') === '5', undefined, { timeout: 10_000 });
     await expect.poll(() => page.locator('.cm-content .orz-focus-outside').count(), { timeout: 10_000 }).toBeGreaterThan(0);
@@ -407,12 +406,72 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     await page.keyboard.type('!');
     expect(await ed(page, (e) => e.undo())).toBe(true);
     expect(await ed(page, (e) => e.getText())).toBe(before);
-    await page.locator('[data-orz-slides-per-slide]').click();
+    await page.locator('[data-orz-slides-shrink]').click();
     await frame.waitForFunction(() => !document.body.classList.contains('orz-stage'));
     await expect.poll(() => page.locator('.cm-content .orz-focus-outside').count()).toBe(0);
     expect(errors).toEqual([]);
     await ctx.close();
   });
+
+  it('[W.10] the live card (owner decision 2026-10-14): shown in the preview\'s bottom-right corner with no toolbar toggle — the trusted page\'s buttons lie over it (where both sides compute it); clicking it (or Ctrl/Cmd+Shift+Enter) enlarges it into the single-slide view, whose labelled shrink button (or the same key) returns the slide to the card and the focus to it; folded, it is a pill ("Slide N · fits") that opens again, remembered — step 5\'s "Live slide off" carried over as folded', async () => {
+    const uid = 'doc-cardtest00001';
+    const text = SAMPLE.replace(/^uid: .*$/m, `uid: ${uid}`);
+    const { page, ctx, frame, errors, path } = await openEditor('w10.slides.html', text);
+    const enlarge = page.locator('[data-orz-slides-enlarge]');
+    await enlarge.waitFor({ state: 'visible', timeout: 10_000 });
+    await frame.waitForFunction(() => !document.getElementById('orz-live')!.hidden && !!document.querySelector('#orz-live .orz-page > section'));
+    await page.waitForTimeout(400);
+    // the page's button lies on the frame's card
+    const ifr = (await page.locator('iframe.orz-editor__frame').boundingBox())!;
+    const card = await frame.evaluate(() => { const r = document.getElementById('orz-live')!.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const b = (await enlarge.boundingBox())!;
+    expect(Math.abs(b.x - (ifr.x + card.x))).toBeLessThanOrEqual(2);
+    expect(Math.abs(b.y - (ifr.y + card.y))).toBeLessThanOrEqual(2);
+    expect(Math.abs(b.width - card.w)).toBeLessThanOrEqual(2);
+    expect(Math.abs(b.y + b.height - (ifr.y + card.y + card.h))).toBeLessThanOrEqual(4);
+    // bottom-right
+    expect(ifr.x + ifr.width - (b.x + b.width)).toBeLessThan(40);
+    expect(ifr.y + ifr.height - (b.y + b.height)).toBeLessThan(40);
+    // click: enlarged into the single-slide view; the shrink button (labelled) goes back, the focus to the card
+    await enlarge.click();
+    await frame.waitForFunction(() => document.body.classList.contains('orz-stage'), undefined, { timeout: 10_000 });
+    expect(await ed(page, (e) => e.slides.isPerSlide())).toBe(true);
+    expect(await page.locator('[data-orz-slides-shrink]').getAttribute('aria-label')).toMatch(/whole deck/i);
+    expect(await enlarge.isVisible()).toBe(false);
+    await page.locator('[data-orz-slides-shrink]').focus();
+    await page.keyboard.press('Enter');
+    await frame.waitForFunction(() => !document.body.classList.contains('orz-stage'), undefined, { timeout: 10_000 });
+    await expect.poll(() => page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()! as unknown as { root: ShadowRoot }; return e.root.activeElement?.hasAttribute('data-orz-slides-enlarge') ?? false; })).toBe(true);
+    // the key, from the text: enlarge; again: shrink
+    await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()!; const i = e.getText().indexOf('## Why control matters'); e.select(i, i); e.focus(); });
+    await page.keyboard.press('ControlOrMeta+Shift+Enter');
+    await frame.waitForFunction(() => document.body.classList.contains('orz-stage') && document.querySelector('#orz-live .orz-page > section')?.getAttribute('data-n') === '4', undefined, { timeout: 10_000 });
+    await page.keyboard.press('ControlOrMeta+Shift+Enter');
+    await frame.waitForFunction(() => !document.body.classList.contains('orz-stage'), undefined, { timeout: 10_000 });
+    expect(await ed(page, (e) => e.getText())).toBe(text);
+    // fold: the card goes, a pill names the slide and its fit; it opens again
+    await page.locator('[data-orz-slides-fold]').click();
+    await frame.waitForFunction(() => document.getElementById('orz-live')!.hidden);
+    const pill = page.locator('[data-orz-slides-unfold]');
+    await expect.poll(() => pill.textContent(), { timeout: 10_000 }).toMatch(/^Slide 4 · /);
+    expect(await ed(page, (e) => e.slides.isLive())).toBe(false);
+    await pill.click();
+    await frame.waitForFunction(() => !document.getElementById('orz-live')!.hidden);
+    await ctx.close();
+    // step 5's preference "Live slide off" opens folded (and is carried over)
+    const ctx2 = await context(browser!);
+    const p2 = await ctx2.newPage();
+    await p2.goto(`file://${path}`);
+    await p2.evaluate((u) => { localStorage.setItem(`orz-pref:${u}:liveSlide`, 'false'); }, uid);
+    await p2.waitForFunction(() => (globalThis as unknown as { OrzCarrier?: { standalone?: unknown } }).OrzCarrier?.standalone !== undefined);
+    await p2.evaluate(() => (globalThis as unknown as G).OrzCarrier.standalone.ready);
+    await p2.evaluate(async () => (await (globalThis as unknown as G).OrzCarrier.standalone.edit().ready).engine);
+    await expect.poll(() => p2.evaluate(() => (globalThis as unknown as G).OrzCarrier.standalone.editor()!.slides.isLive()), { timeout: 10_000 }).toBe(false);
+    await p2.locator('[data-orz-slides-unfold]').waitFor({ state: 'visible', timeout: 10_000 });
+    expect(await p2.evaluate((u) => [localStorage.getItem(`orz-pref:${u}:liveSlide`), localStorage.getItem(`orz-pref:${u}:slideCard`)], uid)).toEqual([null, '"collapsed"']);
+    expect(errors).toEqual([]);
+    await ctx2.close();
+  }, 120_000);
 
   /* ───────────────────────── closed-loop round B (rebuild/1.0@6accc1f): the probes of the whole-deck editor ───────────────────────── */
 

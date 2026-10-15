@@ -9,9 +9,13 @@
  *   (src/render-slide.ts with the deck plan — the engine's DOM) and posted
  *   to the frame as data (`orz-slides-live`); the frame draws, fits and
  *   reports it (`orz-slides-fit`). Never per keystroke: a key only moves a
- *   timer. On by default; the reader's preference `liveSlide` (stored in the
- *   document's preference namespace) hides it — the toolbar's **Live
- *   slide** toggle.
+ *   timer. The card is always in the preview's bottom-right corner (owner
+ *   decision 2026-10-14; no toolbar toggle): placed by `cardLayout`, which
+ *   the frame and this page both compute, so the page's own buttons lie over
+ *   it — clicking it (or Ctrl/Cmd+Shift+Enter) ENLARGES it into the
+ *   single-slide view; a fold button turns it into a pill ("Slide N · fits")
+ *   — the reader preference `slideCard` (step 5's `liveSlide` off migrates to
+ *   folded).
  * - **Lints** in the toolbar (**Issues**, with their count): the kit's
  *   header lints and the deck's (`readDocument`: parseDeck's, its
  *   marker-hygiene quick fixes included), and the two the live view finds
@@ -25,7 +29,8 @@
  *   selects its text; **Fix** applies its quick fix through `applyEdits`
  *   (ONE undo step), recomputed on the current text first (a stale fix is
  *   never applied).
- * - **This slide** (the per-slide mode's entry point; rebuild step 6 seam):
+ * - **The single-slide view** (the enlarged card; rebuild step 6 seam; left
+ *   by the GUI's labelled "Whole deck" shrink button or the same key):
  *   the same text editor with the text outside the caret's slide dimmed
  *   (`setFocusRange`, one history for both modes, Q6) and the live view as
  *   the stage; the layout GUI is a {@link SlideLayoutGui} (src/browser/slides/
@@ -46,7 +51,7 @@ import { presentationOf, slideSize } from '../../presentation.js';
 import { renderSlide, type Renderer } from '../../render-slide.js';
 import type { Deck, Slide, SlideLint } from '../../types.js';
 import type { SlideLayoutGui, StageGeometry, StageHost, StageParts, StagePreview } from './per-slide.js';
-import type { Rect, StageInsets } from './stage-geometry.js';
+import { cardLayout, CARD_MARGIN, CARD_MARGIN_RIGHT, type Rect, type StageInsets } from './stage-geometry.js';
 
 /** The pause in typing after which the live view and the lints follow the text (ms). */
 export const LIVE_PAUSE_MS = 450;
@@ -135,7 +140,16 @@ export interface SlidesTools {
 }
 
 const isBoolean = (v: unknown): v is boolean => typeof v === 'boolean';
-const SLIDES_PREFERENCES = { liveSlide: { default: true, valid: isBoolean } as PreferenceSpec<boolean> };
+/**
+ * The reader's preferences: `slideCard` — the live card open in the corner or folded to a pill (owner decision
+ * 2026-10-14); `liveSlide` (step 5's toggle) is read once to carry a "hidden" choice over, then forgotten.
+ */
+const SLIDES_PREFERENCES = {
+  slideCard: { default: 'open', valid: (v: unknown): v is 'open' | 'collapsed' => v === 'open' || v === 'collapsed' } as PreferenceSpec<'open' | 'collapsed'>,
+  liveSlide: { default: true, valid: isBoolean } as PreferenceSpec<boolean>,
+};
+/** Enlarge the live card into the single-slide view, or shrink it back (both views; owner decision 2026-10-14). */
+export const ENLARGE_KEY = 'Ctrl/Cmd+Shift+Enter';
 
 /** A short, stable hash (FNV-1a, 32 bit) of a string, as hex. */
 function hash(s: string): string {
@@ -198,6 +212,28 @@ const PANEL_CSS = `
 .orz-slides-toggle[aria-pressed="true"] { color: var(--orz-chrome-accent); border-color: var(--orz-chrome-accent); }
 `;
 
+/** The trusted buttons over the frame's live card, and the pill of a folded card (owner decision 2026-10-14). */
+const CARD_CSS = `
+.orz-slides-card { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.orz-slides-card[hidden] { display: none; }
+.orz-slides-card button { pointer-events: auto; font: 600 12px/1 var(--orz-chrome-font, system-ui, sans-serif); cursor: pointer; }
+.orz-slides-card__enlarge { position: absolute; padding: 0; border: 0; border-radius: 8px; background: transparent; }
+.orz-slides-card__enlarge:hover, .orz-slides-card__enlarge:focus-visible { box-shadow: inset 0 0 0 2px var(--orz-chrome-accent, #2f6fde); background: color-mix(in oklch, var(--orz-chrome-accent, #2f6fde) 6%, transparent); outline: none; }
+.orz-slides-card__hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; background: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent-fg, #fff); white-space: nowrap; opacity: 0; transition: opacity .12s; }
+.orz-slides-card__enlarge:is(:hover, :focus-visible) .orz-slides-card__hint { opacity: 1; }
+.orz-slides-card__icon { position: absolute; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-fg, #333); }
+.orz-slides-card__icon:hover, .orz-slides-card__icon:focus-visible { border-color: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent, #2f6fde); }
+.orz-slides-card svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.orz-slides-card__pill { position: absolute; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--orz-chrome-border, #ccc); border-radius: 99px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-fg, #333); box-shadow: 0 2px 8px rgba(0,0,0,.14); }
+.orz-slides-card__pill[data-fit="cut"] { color: var(--orz-chrome-danger, #c22); }
+@media (pointer: coarse) { .orz-slides-card__icon { width: 36px; height: 32px; } .orz-slides-card__pill { height: 40px; } }
+`;
+const CARD_SVG = {
+  enlarge: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/></svg>',
+  fold: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5l4 4 4-4"/></svg>',
+  unfold: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 9.5l4-4 4 4"/></svg>',
+};
+
 /** Attach the slides tools to a mounted editor shell (see the module comment). */
 export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}): SlidesTools {
   const toolbar = shell.toolbar as unknown as HTMLElement | null;
@@ -214,7 +250,9 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   const uid = readHeader(shell.getText())?.fields['uid']?.trim();
   let prefs: PreferenceStore<typeof SLIDES_PREFERENCES> | null = null;
   try { prefs = createPreferenceStore(uid, undefined, SLIDES_PREFERENCES); } catch { prefs = null; }
-  let live = prefs ? prefs.get('liveSlide') !== false : true;
+  // the card open (shown in the corner, rendered and fitted) or folded to a pill; step 5's "Live slide off" migrates to folded
+  try { if (prefs && prefs.get('liveSlide') === false) { prefs.set('slideCard', 'collapsed'); prefs.remove('liveSlide'); } } catch { /* storage refused */ }
+  let live = prefs ? prefs.get('slideCard') !== 'collapsed' : true;
   let perSlide = false;
 
   // ── the caret ──
@@ -281,7 +319,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     const deck = parseDeck(text);
     const i = slideIndexAt(deck, caret);
     if (perSlide) focusSlide(deck, i);
-    if (!live && !perSlide) { post(message(null)); return; }
+    if (!live && !perSlide) { post(message(null)); drawCard(); return; }
     if (i < 0) { post(message(null)); return; }
     const source = await sourceOf(text);
     if (destroyed || shell.getText() !== text) return;
@@ -316,6 +354,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     }
     posted = { key, index: i, fitKey };
     post(message({ key, html, theme: p.theme.id, scheme: p.theme.scheme, width: size.width, height: size.height, index: i, total: deck.slides.length }));
+    drawCard();
   }
   const scheduleLive = (ms: number): void => {
     cancel(liveTimer);
@@ -348,6 +387,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     last = { ...r, index: at.index, fitKey: at.fitKey };
     layout?.refresh();
     scheduleLints(150);
+    drawCard();
   }));
 
   // ── idle fit checks (round B, B-ED-3): the slides the caret has not shown, one at a time, while the reader pauses ──
@@ -469,8 +509,11 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   let lintBtn: HTMLElement | null = null;
   let lintCount: HTMLElement | null = null;
   let panel: HTMLElement | null = null;
-  let liveBtn: HTMLElement | null = null;
-  let slideBtn: HTMLElement | null = null;
+  /** The trusted buttons over the frame's live card (enlarge, fold) and the pill of a folded card. */
+  let cardUi: HTMLElement | null = null;
+  let enlargeBtn: HTMLButtonElement | null = null;
+  let foldBtn: HTMLButtonElement | null = null;
+  let pill: HTMLButtonElement | null = null;
   const onOutside = (e: Event): void => { if (panel && lintWrap && !e.composedPath().includes(lintWrap)) closePanel(); };
   function closePanel(): void {
     if (!panel) return;
@@ -553,10 +596,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     lintBtn?.setAttribute('aria-expanded', 'true');
     win.addEventListener('pointerdown', onOutside, true);
   }
-  const syncToggles = (): void => {
-    liveBtn?.setAttribute('aria-pressed', String(live));
-    slideBtn?.setAttribute('aria-pressed', String(perSlide));
-  };
+  const syncToggles = (): void => { drawCard(); };
   if (toolbar) {
     installCss(root as never, WIDGET_CSS);
     installCss(root as never, PANEL_CSS);
@@ -572,23 +612,112 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     lintBtn.addEventListener('click', () => { if (panel) closePanel(); else openPanel(); });
     lintWrap.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape' && panel) { e.stopPropagation(); closePanel(); lintBtn?.focus(); } });
     lintWrap.append(lintBtn);
-    liveBtn = button(doc as never, { label: 'Live slide', iconOnly: o.iconOnly === true, title: 'Show the slide at the cursor in the preview' }) as unknown as HTMLElement;
-    liveBtn.classList.add('orz-slides-toggle');
-    liveBtn.setAttribute('data-orz-slides-live', '');
-    liveBtn.addEventListener('click', () => setLive(!live));
-    slideBtn = button(doc as never, { label: 'This slide', iconOnly: o.iconOnly === true, title: 'Edit the slide at the cursor: the rest of the deck dimmed, the slide as the stage' }) as unknown as HTMLElement;
-    slideBtn.classList.add('orz-slides-toggle');
-    slideBtn.setAttribute('data-orz-slides-per-slide', '');
-    slideBtn.addEventListener('click', () => setPerSlide(!perSlide));
-    toolbar.append(lintWrap, liveBtn, slideBtn);
-    syncToggles();
+    toolbar.append(lintWrap);
+    installCss(root as never, CARD_CSS);
     drawLintButton();
+  }
+
+  /** The card's trusted overlay: placed where the frame draws the card (cardLayout, computed here too), never asked of the frame. */
+  function drawCard(): void {
+    if (destroyed) return;
+    const frame = frameEl();
+    const pane = frame?.parentElement ?? null;
+    if (!frame || !pane) return;
+    if (!cardUi) {
+      cardUi = doc.createElement('div');
+      cardUi.className = 'orz-slides-card';
+      cardUi.setAttribute('data-orz-slides-card', '');
+      enlargeBtn = doc.createElement('button');
+      enlargeBtn.type = 'button';
+      enlargeBtn.className = 'orz-slides-card__enlarge';
+      enlargeBtn.setAttribute('data-orz-slides-enlarge', '');
+      const hint = doc.createElement('span');
+      hint.className = 'orz-slides-card__hint';
+      hint.insertAdjacentHTML('beforeend', CARD_SVG.enlarge);
+      hint.append(doc.createTextNode('Edit this slide'));
+      enlargeBtn.append(hint);
+      enlargeBtn.addEventListener('click', (e) => { if (e.isTrusted) setPerSlide(true); });
+      foldBtn = doc.createElement('button');
+      foldBtn.type = 'button';
+      foldBtn.className = 'orz-slides-card__icon';
+      foldBtn.setAttribute('data-orz-slides-fold', '');
+      foldBtn.setAttribute('aria-label', 'Fold the slide card to a small tab');
+      foldBtn.title = 'Fold the slide card (it stays a small tab in the corner)';
+      foldBtn.insertAdjacentHTML('beforeend', CARD_SVG.fold);
+      foldBtn.addEventListener('click', (e) => { if (e.isTrusted) { setLive(false); pill?.focus(); } });
+      pill = doc.createElement('button');
+      pill.type = 'button';
+      pill.className = 'orz-slides-card__pill';
+      pill.setAttribute('data-orz-slides-unfold', '');
+      pill.addEventListener('click', (e) => { if (e.isTrusted) { setLive(true); enlargeBtn?.focus(); } });
+      cardUi.append(enlargeBtn, foldBtn, pill);
+    }
+    if (cardUi.parentElement !== pane) pane.append(cardUi);
+    if (perSlide) { cardUi.hidden = true; return; }
+    const text = shell.getText();
+    const d = parseDeck(text);
+    const i = slideIndexAt(d, caret);
+    const show = !perSlide && i >= 0;
+    cardUi.hidden = !show;
+    if (!show) return;
+    const pr = pane.getBoundingClientRect();
+    const fr = frame.getBoundingClientRect();
+    const size = slideSize(presentationOf(text).ratio);
+    const C = cardLayout(fr.width, fr.height, size.width, size.height).card;
+    const ox = fr.left - pr.left;
+    const oy = fr.top - pr.top;
+    const place = (el: HTMLElement, x: number, y: number, w?: number, h?: number): void => { Object.assign(el.style, { left: `${x}px`, top: `${y}px`, ...(w !== undefined ? { width: `${w}px`, height: `${h}px` } : {}) }); };
+    enlargeBtn!.hidden = !live;
+    foldBtn!.hidden = !live;
+    pill!.hidden = live;
+    const r = d.slides[i] ? fits.get(fitKeyOf(text, d.slides[i])) : undefined;
+    const min = r ? r.boxes.reduce((m, b) => Math.min(m, b.scale), 1) : 1;
+    const word = !r ? 'not checked yet' : r.boxes.some((b) => b.clipped) ? 'cut on paper' : r.footerCut ? 'footer cut' : min < 0.995 ? `shrunk to ${Math.round(min * 100)}%` : 'fits';
+    if (live) {
+      place(enlargeBtn!, ox + C.x, oy + C.y, C.w, C.h);
+      enlargeBtn!.setAttribute('aria-label', `Edit slide ${i + 1} on its own — enlarge the card (${ENLARGE_KEY}); ${word}`);
+      enlargeBtn!.title = `Edit slide ${i + 1} on its own (${ENLARGE_KEY})`;
+      place(foldBtn!, ox + C.x + C.w - 28, oy + C.y + 3);
+    } else {
+      pill!.replaceChildren();
+      pill!.insertAdjacentHTML('beforeend', CARD_SVG.unfold);
+      pill!.append(doc.createTextNode(`Slide ${i + 1} · ${word}`));
+      pill!.setAttribute('data-fit', r?.boxes.some((b) => b.clipped) ? 'cut' : 'ok');
+      pill!.setAttribute('aria-label', `Show the slide card — slide ${i + 1}, ${word}`);
+      const pw = pill!.offsetWidth || 160;
+      const ph = pill!.offsetHeight || 30;
+      place(pill!, ox + fr.width - CARD_MARGIN_RIGHT - pw, oy + fr.height - CARD_MARGIN - ph);
+    }
+  }
+  // the pane's size: the card's buttons follow (the frame places the card from its own size the same way)
+  later(() => {
+    const RO = (win as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    if (RO && !destroyed) {
+      let watched: Element | null = null;
+      const ro = new RO(() => drawCard());
+      const watch = (): void => { const p = frameEl()?.parentElement ?? null; if (p && p !== watched) { if (watched) ro.unobserve(watched); ro.observe(p); watched = p; } };
+      watch();
+      const t = win.setInterval(() => { if (!destroyed) watch(); }, 1000);
+      offs.push(() => { ro.disconnect(); win.clearInterval(t); });
+    }
+  }, 0);
+  // enlarge / shrink from the keyboard, anywhere in the editor (the reader's own key)
+  {
+    const onKey = (e: Event): void => {
+      const k = e as KeyboardEvent;
+      if (!k.isTrusted || k.key !== 'Enter' || !k.shiftKey || !(k.metaKey || k.ctrlKey)) return;
+      k.preventDefault();
+      k.stopPropagation();
+      setPerSlide(!perSlide);
+    };
+    (root as unknown as EventTarget).addEventListener('keydown', onKey, true);
+    offs.push(() => (root as unknown as EventTarget).removeEventListener('keydown', onKey, true));
   }
 
   function setLive(on: boolean): void {
     if (destroyed) return;
     live = on === true;
-    try { prefs?.set('liveSlide', live); } catch { /* storage refused */ }
+    try { prefs?.set('slideCard', live ? 'open' : 'collapsed'); } catch { /* storage refused */ }
     syncToggles();
     posted = null;
     void syncLive(true);
@@ -635,6 +764,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     },
     slideSize: () => slideSize(presentationOf(shell.getText()).ratio),
     scheme: () => presentationOf(shell.getText()).theme.scheme,
+    leave: () => setPerSlide(false),
     engine: () => engine,
     preview(pv: StagePreview) {
       if (!posted || destroyed) return;
@@ -672,12 +802,16 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       layout = o.layoutGui ? o.layoutGui.attach(stageHost) : null;
       layoutApi = (layout as { api?: unknown } | null)?.api ?? null;
     } else {
+      const hadFocus = (root as unknown as { activeElement?: Element | null }).activeElement;
+      const inGui = !!hadFocus && !!hadFocus.closest?.('.orz-lg');
       layout?.destroy();
       layout = null;
       layoutApi = null;
       stageAsk = { insets: { top: 0, right: 0, bottom: 0, left: 0 }, variants: false };
       focused = null;
       shell.setFocusRange(null);
+      // back to the whole deck: the slide returns to the card, the focus to the card's button
+      if (inGui) later(() => { drawCard(); (live ? enlargeBtn : pill)?.focus(); }, 0);
     }
     posted = null;
     void syncLive(true);
@@ -686,7 +820,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   // ── events ──
   offs.push(shell.on('selection', (e) => {
     caret = e.to;
-    caretText = shell.getText();
+    if (!(shell as unknown as { getSelection?: unknown }).getSelection) caretText = shell.getText();
     // during typing the live view waits for the pause; a caret move alone follows at once
     scheduleLive(Date.now() - lastTyping < LIVE_PAUSE_MS ? LIVE_PAUSE_MS : CARET_PAUSE_MS);
   }));
@@ -694,10 +828,11 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   let layoutTimer: number | null = null;
   offs.push(shell.on('change', (e) => {
     // the caret as the change moved it (a header setting, an AI edit, a reload map it without a selection event: B-ED-2)
-    const now = shell.getText();
     const sel = (shell as unknown as { getSelection?(): { from: number; to: number } | null }).getSelection?.();
     if (sel) caret = sel.to;
-    else if (now !== caretText) {
+    // an older kit: no getSelection — the text is copied to map the caret (a whole-text copy per change otherwise avoided)
+    const now = sel ? caretText : shell.getText();
+    if (!sel && now !== caretText) {
       // an older kit: map the caret through the change (the common start and end of the two texts)
       const a = caretText;
       let p0 = 0;
@@ -749,8 +884,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       timers.clear();
       closePanel();
       lintWrap?.remove();
-      liveBtn?.remove();
-      slideBtn?.remove();
+      cardUi?.remove();
     },
   };
 }

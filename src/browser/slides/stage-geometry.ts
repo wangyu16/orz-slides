@@ -64,3 +64,25 @@ export function stageLayout(vw: number, vh: number, insets: StageInsets, sw: num
   }
   return { port: { x, y, w, h, scale: w / sw }, variants: out };
 }
+
+/** The live card's head (its slide number and fit badge), CSS px. */
+export const CARD_HEAD = 28;
+/** The card's margin from the frame's bottom (CSS px) and from its right edge (clear of a classic scrollbar). */
+export const CARD_MARGIN = 12;
+export const CARD_MARGIN_RIGHT = 22;
+
+/**
+ * The live card in the whole-deck view (owner decision 2026-10-14): the
+ * caret's slide in the frame's bottom-right corner — a head and the slide
+ * port under it. Computed by both sides, as {@link stageLayout}: the frame
+ * draws the card there, the trusted page lays its own buttons over it
+ * (enlarge, fold), so a click on the card is the reader's, never the frame's.
+ */
+export function cardLayout(vw: number, vh: number, sw: number, sh: number): { card: Rect; port: Rect & { scale: number } } {
+  const w = Math.round(Math.max(120, Math.min(400, vw * 0.46, (vh * 0.5 - CARD_HEAD) * (sw / sh))));
+  const ph = Math.round((w * sh) / sw);
+  const h = CARD_HEAD + ph;
+  const x = Math.round(vw - CARD_MARGIN_RIGHT - w);
+  const y = Math.round(vh - CARD_MARGIN - h);
+  return { card: { x, y, w, h }, port: { x, y: y + CARD_HEAD, w, h: ph, scale: w / sw } };
+}
