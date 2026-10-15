@@ -183,9 +183,10 @@ export interface ScannedMarker {
  * blocks), in order, found with the token scanner — what `parseDeck` splits
  * on. For tools that edit marker lines (upgrade, the layout ops).
  */
-export function scanMarkers(text: string): ScannedMarker[] {
+export function scanMarkers(text: string, o: { alone?: boolean } = {}): ScannedMarker[] {
   const L = linesOf(text);
-  const tokens = deckTokens(text);
+  // `alone`: a part of a text read by itself (one slide's source: it starts at a marker, where the block parser starts afresh) — not memoised
+  const tokens = o.alone ? kitParser().parse(text, {}) : deckTokens(text);
   const contents = new Map<number, string>();
   for (const t of tokens) if (t.level === 0 && t.type === 'html_block' && t.map) contents.set(t.map[0], t.content.replace(/\n$/, ''));
   return markersOf(tokens, 0).map((m) => ({ type: m.type, span: spanOf(L, m.start, m.end), content: contents.get(m.start) ?? '', args: m.args, ...(m.name !== undefined ? { name: m.name } : {}) }));
@@ -486,13 +487,161 @@ export function parseDeck(text: string, tokens?: readonly Token[]): Deck {
       return hit.deck;
     }
   }
-  const deck = deepFreeze(parseDeckNow(text, tokens ?? deckTokens(text)));
+  // an edit of the last text (typing, a layout op): its deck derived slide by slide (closed-loop round B, OPS-10)
+  const derived = !tokens && parsed.length > 0 ? deriveDeck(parsed[0].text, parsed[0].deck, text) : null;
+  if (derived) PARSE_STATS.derived++; else PARSE_STATS.parsed++;
+  const deck = derived ?? deepFreeze(parseDeckNow(text, tokens ?? deckTokens(text)));
   parsed.unshift({ text, deck });
   if (parsed.length > PARSED_KEEP) parsed.pop();
   return deck;
 }
 
-function parseDeckNow(text: string, tokens: readonly Token[]): Deck {
+/** How many decks were derived from the last one and how many parsed in full (a test's view of the derivation). */
+export const PARSE_STATS = { derived: 0, parsed: 0 };
+
+/** `parseDeck` without the memo or the derivation: what a fresh parse of the text gives (the oracle of the derived deck). */
+export function parseDeckFresh(text: string): Deck {
+  return deepFreeze(parseDeckNow(text, kitParser().parse(text, {})));
+}
+
+/* ───────────────────────── the derived deck (closed-loop round B, OPS-10) ───────────────────────── */
+
+/** A span moved. */
+const movedSpan = (x: Span, dc: number, dl: number): Span => ({ from: x.from + dc, to: x.to + dc, line: x.line + dl, endLine: x.endLine + dl });
+
+/** A lint moved (its quick fix too). */
+function movedLint(l: SlideLint, dc: number, dl: number): SlideLint {
+  const o: SlideLint = { ...l };
+  if (typeof l.line === 'number') o.line = l.line + dl;
+  if (typeof l.from === 'number') o.from = l.from + dc;
+  if (typeof l.to === 'number') o.to = l.to + dc;
+  if (l.fix) o.fix = { ...l.fix, from: l.fix.from + dc, to: l.fix.to + dc };
+  return o;
+}
+
+/** A slide moved by `dc` characters and `dl` lines: new objects only where an offset is (its layout, options and texts shared). */
+function movedSlide(s: Slide, dc: number, dl: number): Slide {
+  const o: Slide = { ...s, span: movedSpan(s.span, dc, dl), marker: movedSpan(s.marker, dc, dl) };
+  if (s.titleSpan) o.titleSpan = movedSpan(s.titleSpan, dc, dl);
+  o.regions = s.regions.map((r) => ({ ...r, sources: r.sources.map((x) => ({ ...x, marker: x.marker ? movedSpan(x.marker, dc, dl) : null, body: movedSpan(x.body, dc, dl) })) }));
+  o.floats = s.floats.map((f) => ({ ...f, marker: movedSpan(f.marker, dc, dl), body: movedSpan(f.body, dc, dl) }));
+  o.lint = s.lint.map((l) => movedLint(l, dc, dl));
+  return o;
+}
+
+/** A line number in a lint's words ("the marker on line 12"): such a lint cannot be moved by offset arithmetic. */
+const SAYS_LINE = /\bline \d/;
+
+/**
+ * The deck of `text`, an edit of `oldText` (whose deck is `old`), derived instead of parsed: the slides
+ * before the edit are kept, the slides the edit touches are parsed again ALONE — a text of the same
+ * length and lines with everything before them blanked (the header kept), so every offset, line and
+ * message is the real one — and the slides after it are the old ones moved. Sound because a slide
+ * starts at a top-level marker, where the block parser starts afresh, and `parseSlide` reads nothing
+ * outside its slide; checked by re-reading the next slide's marker after the edited ones. Null (a full
+ * parse) when the edit reaches the header or the text before the first slide, when the slide count
+ * around the edit does not read back, or when a moved lint names a line number.
+ */
+function deriveDeck(oldText: string, old: Deck, text: string): Deck | null {
+  const slides = old.slides;
+  if (slides.length === 0) return null;
+  const oldLen = oldText.length;
+  const len = text.length;
+  // the common start and end (compared a chunk at a time first: an edited text is often a rope, slow per character)
+  const max = Math.min(oldLen, len);
+  const C = 2048;
+  let P = 0;
+  while (P + C <= max && oldText.slice(P, P + C) === text.slice(P, P + C)) P += C;
+  while (P < max && oldText.charCodeAt(P) === text.charCodeAt(P)) P++;
+  let S = 0;
+  while (S + C <= max - P && oldText.slice(oldLen - S - C, oldLen - S) === text.slice(len - S - C, len - S)) S += C;
+  while (S < max - P && oldText.charCodeAt(oldLen - 1 - S) === text.charCodeAt(len - 1 - S)) S++;
+  // the edit must lie after the first slide's marker starts
+  if (P <= slides[0].marker.from) return null;
+  // the first touched slide: the one holding the character before the edit
+  let a = slides.length - 1;
+  while (a > 0 && slides[a].marker.from > P - 1) a--;
+  // an edit inside its marker may unmake it: the slide before takes its text, so that one is read again too
+  if (P < slides[a].marker.to) { if (a === 0) return null; a--; }
+  // the first slide after the edit: its marker wholly in the unchanged end
+  const editEnd = oldLen - S;
+  let b = a + 1;
+  while (b < slides.length && slides[b].marker.from < editEnd) b++;
+  const dc = len - oldLen;
+  const A = slides[a].marker.from;
+  const next = b < slides.length ? slides[b] : null;
+  const B = next ? next.marker.from + dc : len;
+  const until = next ? next.marker.to + dc : len;
+  const header = readHeader(text);
+  const hEnd = header ? header.end : 0;
+  if (hEnd > A || hEnd !== (readHeader(oldText)?.end ?? 0)) return null;
+  // the touched slides, read alone (a slide starts at a marker, where the block parser starts afresh), then moved to
+  // their place; a lint that names a line number is read in place instead (a text of the same length and lines, the
+  // header kept and everything else before the slides blanked)
+  const lineA = slides[a].marker.line - 1;
+  let part = parseDeckNow(text.slice(A, until), kitParser().parse(text.slice(A, until), {}), a);
+  let inPlace = false;
+  if (part.lint.some((l) => SAYS_LINE.test(l.message))) {
+    const padded = text.slice(0, hEnd) + text.slice(hEnd, A).replace(/[^\r\n]+/g, (x) => ' '.repeat(x.length)) + text.slice(A, until);
+    part = parseDeckNow(padded, kitParser().parse(padded, {}), a);
+    inPlace = true;
+  }
+  const at = (x: number): number => (inPlace ? x : x + A);
+  const m = part.slides.length - (next ? 1 : 0);
+  if (m < 0 || (m === 0 && A < B)) return null;
+  if (m > 0 && at(part.slides[0].marker.from) !== A) return null;
+  if (next) {
+    const nm = part.slides[part.slides.length - 1];
+    if (at(nm.marker.from) !== B || at(nm.marker.to) !== until) return null;
+  }
+  const fresh = part.slides.slice(0, m).map((x) => (inPlace ? x : movedSlide(x, A, lineA)));
+  // the slides after the edit, moved
+  const dl = next ? (inPlace ? part.slides[part.slides.length - 1].marker.line : part.slides[part.slides.length - 1].marker.line + lineA) - next.marker.line : 0;
+  const di = a + m - b;
+  const moved: Slide[] = [];
+  for (let k = b; k < slides.length; k++) {
+    const s = slides[k];
+    if (dc === 0 && dl === 0 && di === 0) { moved.push(s); continue; }
+    if (dl !== 0 && s.lint.some((l) => SAYS_LINE.test(l.message))) return null;
+    const t = movedSlide(s, dc, dl);
+    if (di !== 0) {
+      t.index = s.index + di;
+      t.lint = t.lint.map((l) => (l.message.startsWith(`slide ${s.index + 1}: `) ? { ...l, message: `slide ${s.index + di + 1}: ${l.message.slice(`slide ${s.index + 1}: `.length)}` } : l));
+    }
+    moved.push(t);
+  }
+  const newSlides = [...slides.slice(0, a), ...fresh, ...moved];
+  // the deck's own lints (deck blocks, hidden markers, the preamble): before the edit kept, in it re-read, after it moved
+  const ofSlides = new Set<SlideLint>();
+  for (const s of slides) for (const l of s.lint) ofSlides.add(l);
+  const partOfSlides = new Set<SlideLint>();
+  for (const s of part.slides) for (const l of s.lint) partOfSlides.add(l);
+  const nextFrom = next ? next.marker.from : Infinity;
+  const own = (l: SlideLint): number => (l.code === 'deck-block' ? 0 : l.code === 'text-before-first-slide' || l.code === 'no-slides' ? 2 : 1);
+  const groups: SlideLint[][] = [[], [], []];
+  for (const l of old.lint) {
+    if (ofSlides.has(l)) continue;
+    if ((l.from ?? 0) < A) groups[own(l)].push(l);
+  }
+  for (const l of part.lint) {
+    if (partOfSlides.has(l) || own(l) === 2) continue;
+    const pl = inPlace ? l : movedLint(l, A, lineA);
+    const x = pl.from ?? 0;
+    if (x >= A && x < B) groups[own(l)].push(pl);
+  }
+  for (const l of old.lint) {
+    if (ofSlides.has(l)) continue;
+    if ((l.from ?? 0) < nextFrom) continue;
+    if (dl !== 0 && SAYS_LINE.test(l.message)) return null;
+    groups[own(l)].push(dc === 0 && dl === 0 ? l : movedLint(l, dc, dl));
+  }
+  const lint = [...groups[0], ...groups[1], ...groups[2]];
+  for (const s of newSlides) lint.push(...s.lint);
+  lint.sort((x, y) => (x.from ?? 0) - (y.from ?? 0));
+  return deepFreeze({ config: old.config, slides: newSlides, preamble: old.preamble, lint });
+}
+
+function parseDeckNow(text: string, tokens: readonly Token[], indexBase = 0): Deck {
   const L = linesOf(text);
   const header = readHeader(text);
   // the header's last line (0-based), so markers start after it
@@ -546,7 +695,7 @@ function parseDeckNow(text: string, tokens: readonly Token[]): Deck {
     while (r < regionMarkers.length && regionMarkers[r].start < m.end) r++;
     const mine: Marker[] = [];
     while (r < regionMarkers.length && regionMarkers[r].start < end) mine.push(regionMarkers[r++]);
-    slides.push(parseSlide(text, L, tokens, ix, i, m, end, mine));
+    slides.push(parseSlide(text, L, tokens, ix, i + indexBase, m, end, mine));
   }
   for (const s of slides) lint.push(...s.lint);
   lint.sort((a, b) => (a.from ?? 0) - (b.from ?? 0));

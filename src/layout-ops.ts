@@ -26,16 +26,23 @@
  * regions get short unique names (`left-2`), names that are reserved
  * (`notes`, `footer`, `float`), layout words or taken are refused.
  *
- * Every op is checked before it is returned: the new text is parsed and its
- * slide must have exactly the tree, title, regions, floats, notes and footer
- * the op means, and no new structural lint — a text that would not say that
- * (a marker swallowed by a raw HTML block, say) is tried once with blank
- * lines around the inserted markers, then refused (`LayoutOpError`), never
- * written.
+ * Every op is checked before it is returned: the new text is read back (the
+ * deck derived from the old one, slide by slide: only the op's slide is
+ * parsed again — closed-loop round B, OPS-10) and its slide must have exactly
+ * the tree, title, regions, floats (their text AND geometry), notes, footer
+ * and options the op means, no new structural lint and no blocking problem
+ * (a marker swallowed by a raw HTML block, an unclosed construct: round B,
+ * OPS-1) — a text that would not say that is tried once with blank lines
+ * around the inserted markers, then refused (`LayoutOpError`), never
+ * written. A region marker is never anchored inside or right after a
+ * float's, the notes' or the footer's body.
  *
- * Geometry comes from the TEXT only (float lengths in % or px of the
- * logical slide, tracks as written): what a sandboxed preview reports is for
- * placing handles, never an input of an op.
+ * Geometry comes from the TEXT (float lengths in % or px of the logical
+ * slide, tracks as written; a move keeps the text's units and anchors and
+ * writes only the axis it moves — round B, OPS-3). A GUI may add what the
+ * reader SEES: a new float's place (`float-add { box }`, where it covers no
+ * content) and the start of a move for an axis the text gives in em
+ * (`float-geom { from }`) — never a name, an index or an op.
  */
 import type { FloatGeom, LayoutNode, Slide, SplitNode } from './types.js';
 import { parseDeck, readFloatAttrs, readMarkerArgs, scanMarkers, tokenizeMarker, TEMPLATES, TRANSITION } from './deck/parse.js';
@@ -71,8 +78,15 @@ export type LayoutOp =
   | { type: 'swap'; a: string; b: string }
   | { type: 'move-content'; from: string; to: string }
   | { type: 'ensure-region'; name: string }
-  | { type: 'float-add'; box?: FloatBox }
-  | { type: 'float-geom'; index: number; box: Partial<FloatBox> }
+  /** `box`: where (a GUI's place from the stage; else {@link placeFloat}); `covers`: the GUI found no free place (said in the label). */
+  | { type: 'float-add'; box?: FloatBox; covers?: boolean }
+  /**
+   * The float's new box in % of the slide — ONLY the keys that changed (a horizontal nudge sends `left`): the
+   * text keeps its units (px stays px) and anchors (`right=`/`bottom=` stay), the other axis is untouched.
+   * `from`: the box the reader sees at the start (the stage's), used only for an axis the text does not give
+   * in % or px (em, no size): it seeds what the reader sees, never what the text already says.
+   */
+  | { type: 'float-geom'; index: number; box: Partial<FloatBox>; from?: FloatBox }
   | { type: 'float-delete'; index: number }
   | { type: 'float-z'; index: number; dir: 'forward' | 'backward' }
   | { type: 'variant'; v: number }
@@ -96,7 +110,14 @@ export interface OpResult {
   select?: { from: number; to: number };
   /** The changed lines (offsets in the new text, whole lines) — what an editor flashes. */
   changed: Array<{ from: number; to: number }>;
+  /** What the op made or acted on, for the GUI to select (the new float's number, the new box's name). */
+  target?: { box: string } | { float: number } | { block: 'notes' | 'footer' };
 }
+
+/** The preset picker's names (the words of the GUI, in labels and refusals too: round B, GUI-9). */
+export const PRESET_LABEL: Readonly<Record<PresetChoice, string>> = Object.freeze({ single: 'One box', '2col': 'Two columns', '3col': 'Three columns', '2row': 'Two rows', 'main-side': 'Main and side', quad: 'Four boxes' });
+/** The template slides' names. */
+export const TEMPLATE_LABEL: Readonly<Record<string, string>> = Object.freeze({ title: 'Title page', section: 'Section page', outline: 'Outline', closing: 'Closing page' });
 
 /** Why an op was refused (the GUI shows `message`). */
 export class LayoutOpError extends Error {
@@ -200,17 +221,18 @@ function readSlide(text: string, index: number): SlideDoc {
   const rel = (absLine: number): number => absLine - first;
   // title lines
   if (slide.titleSpan) for (let i = rel(slide.titleSpan.line - 1); i < rel(slide.titleSpan.endLine); i++) if (lines[i]) lines[i].title = true;
-  const markers = scanMarkers(text).filter((m) => m.type === 'region' && m.span.from >= slide.marker.to && m.span.from < end);
+  // the slide's own markers, read from its source alone (a slide starts at a marker: the same markers as in the whole text)
+  const markers = scanMarkers(raw, { alone: true }).filter((m) => m.type === 'region' && m.span.from >= slide.marker.to - start);
   const markerEnd = rel(slide.marker.endLine);
   const blocks: Block[] = [];
   const grid = leaves(slide.layout);
   const isTemplate = slide.kind === 'template';
-  const leadEnd = markers.length > 0 ? rel(markers[0].span.line - 1) : lines.length;
+  const leadEnd = markers.length > 0 ? markers[0].span.line - 1 : lines.length;
   blocks.push({ kind: 'lead', name: firstLeaf(slide.layout), marker: null, body: lines.slice(markerEnd, leadEnd) });
   markers.forEach((m, k) => {
-    const a = rel(m.span.line - 1);
-    const b = rel(m.span.endLine);
-    const e = k + 1 < markers.length ? rel(markers[k + 1].span.line - 1) : lines.length;
+    const a = m.span.line - 1;
+    const b = m.span.endLine;
+    const e = k + 1 < markers.length ? markers[k + 1].span.line - 1 : lines.length;
     const lower = (m.name ?? '').toLowerCase();
     const kind: BlockKind = lower === 'float' ? 'float' : lower === 'notes' ? 'notes' : lower === 'footer' ? 'footer'
       : (isTemplate ? m.name === DEFAULT_REGION : grid.includes(m.name!)) ? 'grid' : 'stray';
@@ -408,6 +430,62 @@ export function stepRatio(tracks: readonly string[], i: number, dir: 1 | -1): re
   return SNAP_RATIOS[0];
 }
 
+/** The largest sum of a split's fr tracks a divider writes (three-track ratios stay simple: coordinator decision, round B OPS-4). */
+export const SNAP_SUM = 12;
+
+/**
+ * The places divider `i` of a split of three or more tracks snaps to: the whole track set in small whole
+ * numbers — the other fr tracks scaled by k, the pair keeping its share of the split (so every other
+ * divider stays where it is), the fr tracks summing to at most {@link SNAP_SUM} (a text that already sums
+ * to more keeps its own numbers, k = 1). `f`: the first child's share of the pair. Null when a track of
+ * the pair is not fr.
+ */
+function snapCandidates(tracks: readonly string[], i: number): Array<{ tracks: string[]; f: number; sum: number }> | null {
+  const values = tracks.map(trackFr);
+  if (!values[i] || !values[i + 1]) return null;
+  const idx = values.map((v, k) => (v ? k : -1)).filter((k) => k >= 0);
+  const ints = wholeNumbers(idx.map((k) => values[k]!));
+  const at = new Map(idx.map((k, j) => [k, ints[j]]));
+  const pair = at.get(i)! + at.get(i + 1)!;
+  const total = ints.reduce((x, y) => x + y, 0);
+  const out = new Map<string, { tracks: string[]; f: number; sum: number }>();
+  for (let k = 1; k === 1 || k * total <= SNAP_SUM; k++) {
+    for (let a = 1; a < k * pair; a++) {
+      const nums = idx.map((t) => (t === i ? a : t === i + 1 ? k * pair - a : k * at.get(t)!));
+      const g = nums.reduce((x, y) => gcd(x, y), 0) || 1;
+      const red = nums.map((x) => x / g);
+      const t = tracks.slice();
+      idx.forEach((tk, j) => { t[tk] = `${red[j]}${/fr$/.test(tracks[tk]) ? 'fr' : ''}`; });
+      const key = t.join('/');
+      const sum = red.reduce((x, y) => x + y, 0);
+      if (!out.has(key)) out.set(key, { tracks: t, f: a / (k * pair), sum });
+    }
+  }
+  return [...out.values()].sort((x, y) => x.f - y.f || x.sum - y.sum);
+}
+
+/** The tracks after divider `i` is dragged to `f` (the first child's share of the pair): two tracks snap to {@link SNAP_RATIOS}; three or more to {@link snapCandidates}. */
+export function snapTracks(tracks: readonly string[], i: number, f: number): string[] {
+  const c = tracks.length > 2 ? snapCandidates(tracks, i) : null;
+  if (!c || c.length === 0) return tracksForRatio(tracks, i, nearestRatio(f));
+  let best = c[0];
+  for (const x of c) if (Math.abs(x.f - f) < Math.abs(best.f - f) - 1e-9 || (Math.abs(Math.abs(x.f - f) - Math.abs(best.f - f)) <= 1e-9 && x.sum < best.sum)) best = x;
+  return best.tracks;
+}
+
+/** One key step of divider `i`: the next snap place, the divider moving back (-1: the first child shrinks) or forward (+1: it grows). */
+export function stepTracks(tracks: readonly string[], i: number, dir: 1 | -1): string[] {
+  const c = tracks.length > 2 ? snapCandidates(tracks, i) : null;
+  if (!c || c.length === 0) return tracksForRatio(tracks, i, stepRatio(tracks, i, dir));
+  const a = trackFr(tracks[i])!;
+  const b = trackFr(tracks[i + 1])!;
+  const f = (a.n / a.d) / (a.n / a.d + b.n / b.d);
+  const shares = [...new Set(c.map((x) => x.f))];
+  const next = dir > 0 ? shares.find((x) => x > f + 1e-9) : [...shares].reverse().find((x) => x < f - 1e-9);
+  if (next === undefined) return tracks.slice();
+  return c.filter((x) => Math.abs(x.f - next) < 1e-9).sort((x, y) => x.sum - y.sum)[0].tracks;
+}
+
 /* ───────────────────────── tree ops (pure, on the layout tree) ───────────────────────── */
 
 /** Split a box into two columns or rows: a new sibling sharing its track (same direction as its parent) or a new split. */
@@ -529,21 +607,107 @@ export function floatBox(geom: FloatGeom, ratio: '16:9' | '4:3' = '16:9'): Float
 const round1 = (x: number): string => String(Math.round(x * 10) / 10).replace(/\.0$/, '');
 const overlaps = (a: FloatBox, b: FloatBox): boolean => a.left < b.left + b.w && b.left < a.left + a.w && a.top < b.top + b.h && b.top < a.top + a.h;
 
+/** The area two boxes share. */
+const overlapArea = (a: FloatBox, b: FloatBox): number => Math.max(0, Math.min(a.left + a.w, b.left + b.w) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.top + a.h, b.top + b.h) - Math.max(a.top, b.top));
+
 /**
- * Where a new float goes: the first place of a fixed preference order (right, then left; top to bottom)
- * that overlaps no existing float; if every place is taken, offset 4 % right and down from the last
- * float (kept on the slide).
+ * Where a new float goes (round B, GUI-2): the place on a 2 % grid that overlaps no existing float and
+ * covers the least of the slide's `content` (its title band, its text and pictures — the GUI's stage
+ * knows them; % of the slide), the bottom right first among equals; `covers` says it covers some. When
+ * every place overlaps a float: offset 4 % right and down from the last float (kept on the slide).
  */
-export function placeFloat(existing: readonly FloatBox[], size: { w: number; h: number } = { w: 30, h: 22 }): FloatBox {
+export function placeFloat(existing: readonly FloatBox[], size: { w: number; h: number } = { w: 30, h: 22 }, content: readonly FloatBox[] = []): FloatBox & { covers: boolean } {
   const { w, h } = size;
-  const cand: FloatBox[] = [];
-  const xs = [96 - w, 4, 50 - w / 2];
-  for (const x of xs) for (let y = 6; y + h <= 96; y += 4) cand.push({ left: x, top: y, w, h });
-  for (let y = 6; y + h <= 96; y += 4) for (let x = 4; x + w <= 96; x += 4) cand.push({ left: x, top: y, w, h });
-  const free = cand.find((c) => existing.every((e) => !overlaps(c, e)));
-  if (free) return { left: Math.round(free.left), top: Math.round(free.top), w, h };
+  let best: FloatBox | null = null;
+  let bestScore = Infinity;
+  for (let y = Math.max(2, 98 - h); y >= 2; y -= 2) {
+    for (let x = Math.max(2, 98 - w); x >= 2; x -= 2) {
+      const c = { left: x, top: y, w, h };
+      if (existing.some((e) => overlaps(c, e))) continue;
+      const score = content.reduce((sum, r) => sum + overlapArea(c, r), 0);
+      if (score < bestScore - 1e-9) { best = c; bestScore = score; }
+    }
+  }
+  if (best) return { left: Math.round(best.left), top: Math.round(best.top), w, h, covers: bestScore > 0.5 };
   const last = existing[existing.length - 1] ?? { left: 60, top: 10, w, h };
-  return { left: Math.round(Math.min(100 - w, last.left + 4)), top: Math.round(Math.min(100 - h, last.top + 4)), w, h };
+  const off = { left: Math.round(Math.min(100 - w, last.left + 4)), top: Math.round(Math.min(100 - h, last.top + 4)), w, h };
+  return { ...off, covers: true };
+}
+
+/** A float's geometry with some keys set (`undefined` removes one). */
+function withSet(g: FloatGeom, set: Record<string, string | undefined>): FloatGeom {
+  const out: Record<string, unknown> = { ...g };
+  for (const [k, v] of Object.entries(set)) {
+    if (v === undefined) delete out[k];
+    else out[k] = k === 'z' ? Number(v) : v;
+  }
+  return out as FloatGeom;
+}
+
+/** A length's unit as written: '%', 'px', or another (em, rem, …: not a share of the slide), or none. */
+const unitOf = (v: string | undefined): '%' | 'px' | 'other' | null => (v === undefined ? null : /%$/.test(v.trim()) ? '%' : /px$/i.test(v.trim()) ? 'px' : /^-?0*\.?0*$/.test(v.trim()) ? '%' : 'other');
+
+/**
+ * The marker keys a float move or resize writes (round B, OPS-3): per axis, only when the op changes it;
+ * a value in px stays px (whole px), in % stays %; an anchor stays — a float placed by `right=` is moved
+ * by its `right=`; what the text gives in em (or not at all) is written in %, from the box the reader
+ * saw (`from`) — refused without it.
+ */
+function floatGeomEdits(g: FloatGeom, ratio: '16:9' | '4:3', box: Partial<FloatBox>, from: FloatBox | undefined, index: number): Record<string, string | undefined> {
+  const { width, height } = SLIDE_SIZE[ratio];
+  const set: Record<string, string | undefined> = {};
+  const fin = (x: number | undefined): x is number => typeof x === 'number' && Number.isFinite(x);
+  const axis = (pos: 'left' | 'top', end: 'right' | 'bottom', size: 'w' | 'h', total: number, newPos: number | undefined, newSize: number | undefined): void => {
+    if (!fin(newPos) && !fin(newSize)) return;
+    const say = (k: string): string => `float ${index + 1}'s ${k} is not in % or px: move it on the stage, or write its ${k} in % or px`;
+    const p = pct(g[pos], total);
+    const e = pct(g[end], total);
+    const sz = pct(g[size], total);
+    // the box the reader starts from: the text's where it is exact, else the stage's
+    const S = sz ?? from?.[size === 'w' ? 'w' : 'h'];
+    const P0 = p ?? (e !== null && S !== undefined ? 100 - e - S : from?.[pos]);
+    const write = (k: string, v: string | undefined, pctValue: number, base: number): void => {
+      const u = unitOf(v);
+      set[k] = u === 'px' ? `${Math.round((pctValue / 100) * base)}px` : `${round1(pctValue)}%`;
+    };
+    const dPos = fin(newPos) ? (P0 === undefined ? NaN : newPos - P0) : 0;
+    const dSize = fin(newSize) ? (S === undefined ? NaN : newSize - S) : 0;
+    if (Number.isNaN(dPos)) throw new LayoutOpError('bad-value', say(pos));
+    if (Number.isNaN(dSize)) throw new LayoutOpError('bad-value', say(size === 'w' ? 'width' : 'height'));
+    const anchoredEnd = g[pos] === undefined && g[end] !== undefined;
+    if (anchoredEnd) {
+      // moved (or grown on its start side) by its end anchor
+      if (dPos !== 0 || dSize !== 0) {
+        const eNow = e ?? (P0 !== undefined && S !== undefined ? 100 - P0 - S : undefined);
+        if (eNow === undefined) throw new LayoutOpError('bad-value', say(end));
+        write(end, g[end], eNow - dPos - dSize, total);
+      }
+    } else if (dPos !== 0) {
+      write(pos, g[pos], (P0 as number) + dPos, total);
+      // left AND right written, no size: the box is between them — the far edge follows a move
+      if (g[end] !== undefined && g[size] === undefined && e !== null && !fin(newSize)) write(end, g[end], e - dPos, total);
+    }
+    if (fin(newSize) && dSize !== 0) write(size, g[size], Math.max(1, (S as number) + dSize), total);
+  };
+  axis('left', 'right', 'w', width, box.left, box.w);
+  axis('top', 'bottom', 'h', height, box.top, box.h);
+  return set;
+}
+
+/** The box a GUI starts a float's move or resize from: the text's values where they are in % or px, the stage's (`from`) for the rest. */
+export function floatStart(geom: FloatGeom, ratio: '16:9' | '4:3', from?: FloatBox | null): FloatBox | null {
+  const { width, height } = SLIDE_SIZE[ratio];
+  const one = (pos: 'left' | 'top', end: 'right' | 'bottom', size: 'w' | 'h', total: number): [number, number] | null => {
+    const p = pct(geom[pos], total);
+    const e = pct(geom[end], total);
+    const sz = pct(geom[size], total) ?? from?.[size] ?? null;
+    if (sz === null) return null;
+    const p0 = p ?? (e !== null ? 100 - e - sz : from?.[pos] ?? null);
+    return p0 === null ? null : [p0, sz];
+  };
+  const x = one('left', 'right', 'w', width);
+  const y = one('top', 'bottom', 'h', height);
+  return x && y ? { left: x[0], top: y[0], w: x[1], h: y[1] } : null;
 }
 
 /** The stacking order of floats (CSS: z-index, then order; the default z-index is the theme's 2). */
@@ -561,7 +725,8 @@ function floatMarkerLine(indent: string, attrs: string, set: Record<string, stri
     const m = /^([A-Za-z]+)=([\s\S]*)$/.exec(tok);
     const k0 = m?.[1].toLowerCase() ?? '';
     const k = k0 === 'width' ? 'w' : k0 === 'height' ? 'h' : k0;
-    if (m && ORDER.includes(k)) { if (!values.has(k)) values.set(k, m[2]); } else rest.push(tok);
+    // a key written twice: the last one counts, as the parser reads it (round B, OPS-9); it is written once
+    if (m && ORDER.includes(k)) values.set(k, m[2]); else rest.push(tok);
   }
   for (const [k, v] of Object.entries(set)) { if (v === undefined) values.delete(k); else values.set(k, v); }
   const out = [...ORDER.filter((k) => values.has(k)).map((k) => `${k}=${values.get(k)}`), ...rest];
@@ -718,13 +883,25 @@ interface Expect {
   tree: LayoutNode;
   /** Region name → its Markdown (blank-line runs normalised; empty regions left out). */
   regions: Record<string, string>;
-  floats: number;
+  /** Every float after the op, in order: its Markdown and (unless the op moves it) its geometry. */
+  floats: ExpectFloat[];
   /** The notes / footer after the op, when the op changes them (else as before). */
   notes?: string;
   footer?: string;
+  /** The op sets the slide's options (else they must read back as they were). */
+  options?: true;
 }
 
-const normMd = (s: string): string => s.replace(/(?:\r\n|\r)/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+interface ExpectFloat { md: string; geom: string | null }
+
+/** A float's geometry, canonically (key order fixed), for comparing. */
+const geomKey = (g: FloatGeom): string => JSON.stringify(['left', 'right', 'top', 'bottom', 'w', 'h', 'z'].map((k) => g[k as keyof FloatGeom] ?? null));
+
+/** The floats of a slide as an op that does not touch them leaves them. */
+const sameFloats = (s: Slide): ExpectFloat[] => s.floats.map((f) => ({ md: normMd(f.markdown), geom: geomKey(f.geom) }));
+
+/** A region's Markdown for comparing: LF, blank-line runs as one, blank lines at the ends dropped — a first line's indentation KEPT (indented code: round B, OPS-8). */
+const normMd = (s: string): string => s.replace(/(?:\r\n|\r)/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^(?:[ \t]*\n)+/, '').replace(/\s+$/, '');
 
 function regionsOf(s: Slide): Record<string, string> {
   const out: Record<string, string> = {};
@@ -741,7 +918,13 @@ function check(d: SlideDoc, newText: string, index: number, exp: Expect): string
   const notes = 'notes' in exp ? exp.notes : d.slide.notes;
   const footer = 'footer' in exp ? exp.footer : d.slide.footer;
   if ((ns.notes ?? null) !== (notes ?? null) || (ns.footer ?? null) !== (footer ?? null)) return 'the notes or footer changed';
-  if (ns.floats.length !== exp.floats) return 'a float was lost';
+  if (ns.floats.length !== exp.floats.length) return 'a float was lost';
+  for (let k = 0; k < exp.floats.length; k++) {
+    const e = exp.floats[k];
+    if (normMd(ns.floats[k].markdown) !== e.md) return `the text of float ${k + 1} would change`;
+    if (e.geom !== null && geomKey(ns.floats[k].geom) !== e.geom) return `float ${k + 1} would move`;
+  }
+  if (!exp.options && JSON.stringify(ns.options) !== JSON.stringify(d.slide.options)) return 'the slide options would change';
   const got = regionsOf(ns);
   const keys = new Set([...Object.keys(got), ...Object.keys(exp.regions)]);
   for (const k of keys) if ((got[k] ?? '') !== (exp.regions[k] ?? '')) return `the text of "${k}" would change`;
@@ -749,6 +932,9 @@ function check(d: SlideDoc, newText: string, index: number, exp: Expect): string
   const fresh = ns.lint.filter((l) => l.level === 'error' && !before.has(l.code));
   if (fresh.length > 0) return `it would make the error ${fresh[0].code}`;
   if (nd.slides.length !== parseDeck(d.text).slides.length) return 'the number of slides would change';
+  // a deck-level problem in the slide (a marker swallowed by a raw HTML block, an unclosed construct): the op was refused before when there was one
+  const blocked = blockingProblem(newText, index);
+  if (blocked) return `it would make the error ${blocked.code}`;
   return null;
 }
 
@@ -845,6 +1031,9 @@ function addEmptyMarkers(d: SlideDoc, blocks: Block[], tree: LayoutNode, names: 
       const later = blocks.findIndex((b, i) => i > 0 && b.kind === 'grid' && order.indexOf(b.name) > order.indexOf(n));
       after = later > 0 ? later - 1 : Math.max(0, lastGridIndex(blocks));
     }
+    // never inside or right after a float's, the notes' or the footer's body (round B, OPS-1: a raw-HTML float body
+    // swallowed the marker): before that block, after the box text before it
+    while (after > 0 && (blocks[after].kind === 'float' || blocks[after].kind === 'notes' || blocks[after].kind === 'footer')) after--;
     insertMarkerAfter(d, blocks, after, regionMarker(n), 'grid', n, spacious);
   }
 }
@@ -867,7 +1056,7 @@ function cloneBlocks(d: SlideDoc): Block[] {
 }
 
 function requireNormal(d: SlideDoc, what: string): void {
-  if (d.slide.kind === 'template') throw new LayoutOpError('template', `a template slide has its own layout (${what} works on normal slides; a template changes its look with its variant)`);
+  if (d.slide.kind === 'template') throw new LayoutOpError('template', `a template slide has its own layout (${what} works on normal slides; a template changes its look)`);
 }
 
 function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
@@ -883,7 +1072,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
     if (!b) throw new LayoutOpError('no-float', `there is no float ${i + 1}`);
     return b;
   };
-  const expectSame = (t: LayoutNode = tree): Expect => ({ tree: t, regions: oldRegions(d), floats: floats.length });
+  const expectSame = (t: LayoutNode = tree): Expect => ({ tree: t, regions: oldRegions(d), floats: sameFloats(d.slide) });
 
   switch (op.type) {
     case 'split': {
@@ -906,7 +1095,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       map.set(op.box, target);
       renameMarkers(d, blocks, map);
       settleOwners(d, blocks, t, leadOwner0 === null ? null : (map.get(leadOwner0) ?? leadOwner0), spacious);
-      return { plan: { tree: t, options: null, blocks }, expect: { tree: t, regions: remapRegions(d, map), floats: floats.length }, label: `Delete ${op.box} (its text goes to ${target})`, selectName: target };
+      return { plan: { tree: t, options: null, blocks }, expect: { tree: t, regions: remapRegions(d, map), floats: sameFloats(d.slide) }, label: `Delete ${op.box} (its text goes to ${target})`, selectName: target };
     }
     case 'tracks': {
       requireNormal(d, 'resizing');
@@ -919,12 +1108,15 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       if (!PRESET_CHOICES.includes(op.preset)) throw new LayoutOpError('bad-value', `unknown layout "${String(op.preset)}"`);
       const t = presetTree(op.preset);
       const map = presetMapping(tree, op.preset);
-      if (sameTree(normalizeTree(t), normalizeTree(tree))) throw new LayoutOpError('no-change', `the slide already has the ${op.preset} layout`);
+      // the layout it already has, whatever its sizes: no change (round B, GUI-3 — a custom ratio is never reset by picking its own layout)
+      if (presetOf(tree) === op.preset || sameTree(normalizeTree(t), normalizeTree(tree))) {
+        throw new LayoutOpError('no-change', op.preset === 'single' ? 'the slide already has one box' : `the slide already has the ${PRESET_LABEL[op.preset]} layout: drag a divider to change the sizes`);
+      }
       renameMarkers(d, blocks, map);
       settleOwners(d, blocks, t, leadOwner0 === null ? null : (map.get(leadOwner0) ?? leadOwner0), spacious);
       // every box of the preset has a place in the text
       addEmptyMarkers(d, blocks, t, leaves(t).filter((n) => ownerIndex(blocks, n) < 0 && n !== firstLeaf(t)), spacious);
-      return { plan: { tree: t, options: null, blocks }, expect: { tree: t, regions: remapRegions(d, map), floats: floats.length }, label: `Layout: ${op.preset}` };
+      return { plan: { tree: t, options: null, blocks }, expect: { tree: t, regions: remapRegions(d, map), floats: sameFloats(d.slide) }, label: `Layout: ${PRESET_LABEL[op.preset]}` };
     }
     case 'rename': {
       requireNormal(d, 'renaming');
@@ -937,7 +1129,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       const t = renameLeaves(tree, map);
       renameMarkers(d, blocks, map);
       settleOwners(d, blocks, t, leadOwner0 === null ? null : (map.get(leadOwner0) ?? leadOwner0), spacious);
-      return { plan: { tree: t, options: null, blocks }, expect: { tree: t, regions: remapRegions(d, map), floats: floats.length }, label: `Rename ${op.box} to ${op.to}`, selectName: op.to };
+      return { plan: { tree: t, options: null, blocks }, expect: { tree: t, regions: remapRegions(d, map), floats: sameFloats(d.slide) }, label: `Rename ${op.box} to ${op.to}`, selectName: op.to };
     }
     case 'swap': {
       requireNormal(d, 'swapping');
@@ -949,7 +1141,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       map.set(op.b, op.a);
       renameMarkers(d, blocks, map);
       settleOwners(d, blocks, tree, leadOwner0 === null ? null : (map.get(leadOwner0) ?? leadOwner0), spacious);
-      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: remapRegions(d, map), floats: floats.length }, label: `Swap the text of ${op.a} and ${op.b}`, selectName: op.b };
+      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: remapRegions(d, map), floats: sameFloats(d.slide) }, label: `Swap the text of ${op.a} and ${op.b}`, selectName: op.b };
     }
     case 'move-content': {
       requireNormal(d, 'moving text');
@@ -985,7 +1177,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       const exp = oldRegions(d);
       exp[op.to] = [exp[op.to], exp[op.from]].filter((x) => x).join('\n\n');
       delete exp[op.from];
-      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: exp, floats: floats.length }, label: `Move the text of ${op.from} to ${op.to}`, selectName: op.to };
+      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: exp, floats: sameFloats(d.slide) }, label: `Move the text of ${op.from} to ${op.to}`, selectName: op.to };
     }
     case 'ensure-region': {
       const lower = op.name.toLowerCase();
@@ -1006,28 +1198,30 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
     case 'float-add': {
       const ratio = parseDeck(d.text).config.ratio;
       const existing = floats.map((b) => floatBox(readFloatAttrs(markerAttrs(b)).geom, ratio));
-      const box = op.box ?? placeFloat(existing);
-      const line = `<!-- @float left=${round1(box.left)}% top=${round1(box.top)}% w=${round1(box.w)}% h=${round1(box.h)}% -->`;
-      // after the last grid / stray / float block (before notes and footer)
+      const placed = op.box ? { ...op.box, covers: op.covers === true } : placeFloat(existing);
+      const line = `<!-- @float left=${round1(placed.left)}% top=${round1(placed.top)}% w=${round1(placed.w)}% h=${round1(placed.h)}% -->`;
+      // after the last float (the new one is the last: drawn on top, its number one more — round B, OPS-6), else after the
+      // last grid / stray block — before notes and footer
+      const lastFloat = blocks.map((b) => b.kind).lastIndexOf('float');
       let after = 0;
-      for (let i = 1; i < tailStart(blocks); i++) after = i;
+      if (lastFloat > 0) after = lastFloat;
+      else for (let i = 1; i < tailStart(blocks); i++) after = i;
       insertMarkerAfter(d, blocks, after, line, 'float', 'float', spacious);
-      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: oldRegions(d), floats: floats.length + 1 }, label: 'Add a float', selectName: { float: floats.length } };
+      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: oldRegions(d), floats: [...sameFloats(d.slide), { md: '', geom: null }] }, label: placed.covers ? 'Add a float — no free place on the slide: it covers some content; drag it where it belongs' : 'Add a float', selectName: { float: floats.length } };
     }
     case 'float-geom': {
       const b = floatAt(op.index);
-      const set: Record<string, string | undefined> = {};
-      const num = (x: number | undefined): string | undefined => (x === undefined || !Number.isFinite(x) ? undefined : `${round1(x)}%`);
-      if (op.box.left !== undefined) { set.left = num(op.box.left); set.right = undefined; }
-      if (op.box.top !== undefined) { set.top = num(op.box.top); set.bottom = undefined; }
-      if (op.box.w !== undefined) set.w = num(Math.max(1, op.box.w));
-      if (op.box.h !== undefined) set.h = num(Math.max(1, op.box.h));
+      const ratio = parseDeck(d.text).config.ratio;
+      const g = readFloatAttrs(markerAttrs(b)).geom;
+      const set = floatGeomEdits(g, ratio, op.box, op.from, op.index);
       const indent = /^[ \t]*/.exec(b.marker![0].t)![0];
       const line = floatMarkerLine(indent, markerAttrs(b), set);
       if (line === b.marker!.map((l) => l.t).join('\n')) throw new LayoutOpError('no-change', 'the float is already there');
       b.marker = [{ t: line, e: b.marker![b.marker!.length - 1].e || d.eol }];
       b.touched = true;
-      return { plan: { tree: null, options: null, blocks }, expect: expectSame(), label: op.box.w !== undefined || op.box.h !== undefined ? `Resize float ${op.index + 1}` : `Move float ${op.index + 1}`, selectName: { float: op.index } };
+      const exp = expectSame();
+      exp.floats[op.index] = { ...exp.floats[op.index], geom: geomKey(withSet(g, set)) };
+      return { plan: { tree: null, options: null, blocks }, expect: exp, label: op.box.w !== undefined || op.box.h !== undefined ? `Resize float ${op.index + 1}` : `Move float ${op.index + 1}`, selectName: { float: op.index } };
     }
     case 'float-delete': {
       const b = floatAt(op.index);
@@ -1037,7 +1231,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       while (k > 0 && blank(b.body[k - 1])) k--;
       blocks[i - 1].body.push(...b.body.slice(k));
       blocks.splice(i, 1);
-      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: oldRegions(d), floats: floats.length - 1 }, label: `Delete float ${op.index + 1}` };
+      return { plan: { tree: null, options: null, blocks }, expect: { tree, regions: oldRegions(d), floats: sameFloats(d.slide).filter((_, k) => k !== op.index) }, label: `Delete float ${op.index + 1}` };
     }
     case 'float-z': {
       const fl = blocks.filter((x) => x.kind === 'float');
@@ -1061,15 +1255,18 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       const indent = /^[ \t]*/.exec(b.marker![0].t)![0];
       b.marker = [{ t: floatMarkerLine(indent, markerAttrs(b), { z: String(z) }), e: b.marker![b.marker!.length - 1].e || d.eol }];
       b.touched = true;
-      return { plan: { tree: null, options: null, blocks }, expect: expectSame(), label: op.dir === 'forward' ? `Bring float ${op.index + 1} forward` : `Send float ${op.index + 1} backward`, selectName: { float: op.index } };
+      const zExp = expectSame();
+      zExp.floats[op.index] = { ...zExp.floats[op.index], geom: geomKey({ ...readFloatAttrs(markerAttrs(fl[op.index])).geom, z }) };
+      return { plan: { tree: null, options: null, blocks }, expect: zExp, label: op.dir === 'forward' ? `Bring float ${op.index + 1} forward` : `Send float ${op.index + 1} backward`, selectName: { float: op.index } };
     }
     case 'variant': {
-      if (d.slide.kind !== 'template') throw new LayoutOpError('normal', 'only a template slide has variants');
+      if (d.slide.kind !== 'template') throw new LayoutOpError('normal', 'only a template slide (a title, section, outline or closing page) has looks');
       const max = TEMPLATES[d.slide.template!];
-      if (!Number.isInteger(op.v) || op.v < 1 || op.v > max) throw new LayoutOpError('bad-value', `the ${d.slide.template} template has variants 1 to ${max}`);
-      if ((d.slide.templateVariant ?? 1) === op.v) throw new LayoutOpError('no-change', `the slide already shows variant ${op.v}`);
+      const kind = TEMPLATE_LABEL[d.slide.template!] ?? d.slide.template!;
+      if (!Number.isInteger(op.v) || op.v < 1 || op.v > max) throw new LayoutOpError('bad-value', `a ${kind.toLowerCase()} has looks 1 to ${max}`);
+      if ((d.slide.templateVariant ?? 1) === op.v) throw new LayoutOpError('no-change', `the slide already shows look ${op.v}`);
       const opts = setOption(d.slide.optionTokens, 'v', op.v === 1 ? null : String(op.v));
-      return { plan: { tree: null, options: opts, blocks }, expect: expectSame(), label: `${d.slide.template} variant ${op.v}` };
+      return { plan: { tree: null, options: opts, blocks }, expect: { ...expectSame(), options: true }, label: `${kind}: look ${op.v}` };
     }
     case 'options': {
       let opts = [...d.slide.optionTokens];
@@ -1097,7 +1294,7 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       const before = new Set(readMarkerArgs([d.slide.layoutSpec, ...d.slide.optionTokens].filter((x) => x).join(' ')).problems.map((p) => p.message));
       const bad = read.problems.find((p) => !before.has(p.message));
       if (bad) throw new LayoutOpError('bad-value', bad.message);
-      return { plan: { tree: null, options: opts, blocks }, expect: expectSame(), label: 'Slide options' };
+      return { plan: { tree: null, options: opts, blocks }, expect: { ...expectSame(), options: true }, label: 'Slide options' };
     }
     default:
       throw new LayoutOpError('bad-value', `unknown op ${(op as { type: string }).type}`);
@@ -1172,7 +1369,8 @@ export function slideMap(text: string, index: number): SlideMap | null {
   };
   const emptyAt = (w: (typeof where)[number]): Range => {
     const first = w.bodyLines.find((x) => !x.l.title);
-    const p = first ? first.from : w.bodyFrom;
+    // no body line: the end of its marker line — inside the slide, never the next slide's marker (round B, B-ED-1)
+    const p = first ? first.from : w.b.marker ? w.markerTo : (w.bodyLines.length > 0 ? w.bodyLines[w.bodyLines.length - 1].to : w.bodyFrom);
     return { from: p, to: p };
   };
   const boxes: SlideMap['boxes'] = [];
@@ -1240,7 +1438,9 @@ export function applyOp(text: string, index: number, op: LayoutOp): OpResult {
     const { edits, changed, text: newText } = editsFor(text, d.start, raw, next);
     const why = check(d, newText, index, built.expect);
     if (why) { last = why; continue; }
-    return { edits, text: newText, label: built.label, slide: index, changed, ...selectAfter(newText, index, built.selectName) };
+    const sel = built.selectName;
+    const target = sel === undefined ? undefined : typeof sel === 'string' ? { box: sel } : sel;
+    return { edits, text: newText, label: built.label, slide: index, changed, ...selectAfter(newText, index, built.selectName), ...(target ? { target } : {}) };
   }
   throw new LayoutOpError('unsafe', `this change cannot be written safely here (${last})`);
 }
@@ -1300,7 +1500,7 @@ function deckOp(text: string, index: number, op: Extract<LayoutOp, { type: 'slid
       let block = blocks[index];
       // the copy without the original's id (two slides with one id are one target)
       if (s.options.id !== undefined) {
-        const m = scanMarkers(text).find((x) => x.type === 'slide' && x.span.from === s.marker.from)!;
+        const m = scanMarkers(block, { alone: true }).find((x) => x.type === 'slide' && x.span.from === 0)!;
         const indent = /^[ \t]*/.exec(m.content)![0];
         block = slideMarker(s.layoutSpec, s.optionTokens.filter((t) => !/^id=/.test(t)), indent) + block.slice(s.marker.to - s.marker.from);
       }
@@ -1330,6 +1530,8 @@ function deckOp(text: string, index: number, op: Extract<LayoutOp, { type: 'slid
   for (const gap of [false, true]) {
     const p = plan(gap);
     const newText = applyEdits(text, p.edits);
+    // a move is two edits far apart: the deck after the later one first, so each is derived from its neighbours (OPS-10)
+    if (p.edits.length > 1) parseDeck(applyEdits(text, p.edits.slice(1)));
     const nd = parseDeck(newText);
     const got = nd.slides.map((_, k) => trimEnd(newText.slice(nd.slides[k].marker.from, nd.slides[k + 1]?.marker.from ?? newText.length)));
     const want = p.expect.map(trimEnd);

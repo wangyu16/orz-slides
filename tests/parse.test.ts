@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { deckTokens, parseDeck, readMarkerArgs, scanMarkers } from '../src/deck/parse.js';
+import * as parseModule from '../src/deck/parse.js';
 import { deckConfig, headerLint } from '../src/deck/config.js';
 import { readDocument } from '../src/assemble.js';
 import { lintHeader } from 'orz-markdown/carrier';
@@ -360,6 +361,60 @@ describe('parse cost (round A: FMT-8)', () => {
     const a = parseDeck(t);
     expect(parseDeck(t)).toBe(a);
     expect(Object.isFrozen(a.slides[0])).toBe(true);
+  });
+});
+
+describe('the derived deck (closed-loop round B, OPS-10)', () => {
+  /** mulberry32 */
+  const rng = (seed: number): (() => number) => { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  const pick = <T>(r: () => number, xs: readonly T[]): T => xs[Math.floor(r() * xs.length)];
+  const PIECES = ['<!-- slide -->', '<!-- slide 2col -->', '<!-- slide template=title v=2 -->', '<!-- slide quad bg=#eee -->', '<!-- @right -->', '<!-- @notes -->', '<!-- @footer -->', '<!-- @float left=10% top=10% w=20% h=20% -->', '<!-- @left -->', '<!-- @left -->', '## A title', '# An h1', '## A second h2', 'Some text with $x^2$.', '- a\n- b', '```', '```js', ':::', '::: warning', '$$', '<div>', '</div>', '<img src="x.png">', '<pre>', '</pre>', '<!-- notes -->', '<!-- an author comment -->', '<!-- deck\ntheme: neon\n-->', '<!--', '-->', '', '', '', '    indented code', '> quote', '| a | b |\n|---|---|\n| 1 | 2 |', '<!-- slide\n  2col -->', '<!-- slide 2col --> trailing', '<!-- @notes: -->'];
+  const deckText = (r: () => number, eol: string): string => {
+    const lines: string[] = [];
+    if (r() < 0.75) lines.push('{{nyml', 'kind: document', 'carrier: slides', 'title: Derive', '}}', '');
+    if (r() < 0.1) lines.push('text before the first slide', '');
+    const n = 2 + Math.floor(r() * 8);
+    for (let i = 0; i < n; i++) {
+      lines.push(pick(r, ['<!-- slide -->', '<!-- slide 2col -->', '<!-- slide template=section -->', '<!-- slide main-side fit=off -->']));
+      const k = Math.floor(r() * 7);
+      for (let j = 0; j < k; j++) lines.push(...pick(r, PIECES).split('\n'));
+      if (r() < 0.7) lines.push('');
+    }
+    return lines.join(eol) + (r() < 0.8 ? eol : '');
+  };
+  /** A random edit: an insert, a delete or a replace of a few characters or of whole pieces, anywhere. */
+  const edit = (r: () => number, t: string, eol: string): string => {
+    const at = Math.floor(r() * (t.length + 1));
+    const kind = r();
+    const ins = (): string => (r() < 0.5 ? pick(r, ['x', ' ', eol, '<', '-', '`', '#', '@', '!']) : `${eol}${pick(r, PIECES).split('\n').join(eol)}${eol}`);
+    if (kind < 0.4) return t.slice(0, at) + ins() + t.slice(at);
+    if (kind < 0.75) { const n = 1 + Math.floor(r() * (r() < 0.8 ? 4 : 120)); return t.slice(0, at) + t.slice(at + n); }
+    const n = 1 + Math.floor(r() * 30);
+    return t.slice(0, at) + ins() + t.slice(at + n);
+  };
+
+  it('[P.14] PROPERTY (seeded, 3000 random decks × LF / CR LF / CR × random edits anywhere — markers made and broken, constructs opened and closed, slides merged and split, the header and the preamble touched): the deck parseDeck derives from the last text is exactly the deck a fresh parse gives', () => {
+    const fresh = (parseModule as unknown as { parseDeckFresh: (t: string) => unknown }).parseDeckFresh;
+    const r = rng(0xde41e);
+    let compared = 0;
+    const stats = (parseModule as unknown as { PARSE_STATS: { derived: number; parsed: number } }).PARSE_STATS;
+    const d0 = stats.derived;
+    for (let c = 0; c < 3000; c++) {
+      const eol = pick(r, ['\n', '\n', '\r\n', '\r']);
+      let t = deckText(r, eol);
+      parseDeck(t);
+      for (let e = 0; e < 3; e++) {
+        const n = edit(r, t, eol);
+        const got = JSON.stringify(parseDeck(n));
+        const want = JSON.stringify(fresh(n));
+        if (got !== want) throw new Error(`case ${c}.${e}: derived ≠ fresh\n${JSON.stringify(t)}\n=====\n${JSON.stringify(n)}\n--- derived\n${got}\n--- fresh\n${want}`);
+        compared++;
+        t = n;
+      }
+    }
+    expect(compared).toBe(9000);
+    // most edits are derived (the rest reach the header or the text before the first slide, or name a line number): the derivation itself is what is checked
+    expect(stats.derived - d0).toBeGreaterThan(5000);
   });
 });
 
