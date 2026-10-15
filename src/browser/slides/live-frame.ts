@@ -28,7 +28,6 @@
  */
 import { chartAspects, decorate } from '../../present/decorate.js';
 import { fitSlide } from '../../present/fit.js';
-import { gridPrepare } from '../../present/grid.js';
 import { stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
 
 interface LiveMessage {
@@ -145,7 +144,6 @@ const REFITS = 24;
   let queued = 0;
   let reportTimer = 0;
   let scrolls = false;
-  const grid = gridPrepare(W);
 
   const scale = (): void => {
     if (!shown) return;
@@ -193,7 +191,7 @@ const REFITS = 24;
     }
     scale();
     requestAnimationFrame(() => {
-      for (const sec of Array.from(thumbs.querySelectorAll<HTMLElement>('.orz-page > section'))) { try { fitSlide(sec, undefined, grid); } catch { /* a thumbnail */ } }
+      for (const sec of Array.from(thumbs.querySelectorAll<HTMLElement>('.orz-page > section'))) { try { fitSlide(sec); } catch { /* a thumbnail */ } }
     });
   }
 
@@ -284,7 +282,7 @@ const REFITS = 24;
     const s = section();
     if (!s || card.hidden) return;
     chartAspects(s);
-    fitSlide(s, undefined, grid);
+    fitSlide(s);
     if (reportTimer) clearTimeout(reportTimer);
     reportTimer = setTimeout(report, 150) as unknown as number;
   }
@@ -427,7 +425,7 @@ const REFITS = 24;
     let fits = 0;
     let quiet = 0;
     const started = Date.now();
-    const fitIt = (): void => { if (mine !== checkGen) return; try { chartAspects(s); fitSlide(s, undefined, grid); } catch { /* a slide */ } fits++; };
+    const fitIt = (): void => { if (mine !== checkGen) return; try { chartAspects(s); fitSlide(s); } catch { /* a slide */ } fits++; };
     const done = (): void => {
       if (mine !== checkGen) return;
       const sr = s.getBoundingClientRect();

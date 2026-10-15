@@ -1,13 +1,12 @@
 /* Notebook — deck layer for light-playful-1 ("a ruled school exercise book").
-   Every slide is a ruled page: blue rules every --nb-pitch from the top edge, a
-   pink margin line, text written ON the rules (concept-shim.js snaps each
-   region's blocks to the bands; text line boxes are one pitch tall). What is
-   not running text — notes, code, tables, quotes, diagrams, pictures — is a
-   slip stuck on top, as in the document theme. The title and closing pages
-   are the exercise book's cover with its name label; the section divider is a
-   tabbed divider page; the outline is today's list with the current item
-   highlighted. A region that fit has to shrink becomes a sheet with its own,
-   finer ruling, so shrunk text still sits on lines. */
+   Every slide is a ruled page: blue rules every --nb-pitch from the top edge and a
+   pink margin line — the slide's BACKGROUND, the same on every slide whatever it
+   holds and however fit scales it (owner decision 2026-10-14: the text is not
+   aligned to the rules any more; no ruled sheet for a shrunk region). What is not
+   running text — notes, code, tables, quotes, diagrams, pictures — is a slip stuck
+   on top, as in the document theme. The title and closing pages are the exercise
+   book's cover with its name label; the section divider is a tabbed divider page;
+   the outline is today's list with the current item highlighted. */
 
 :root {
   --nb-pitch: 40px;          /* line spacing; 18 lines on a 720px page */
@@ -62,28 +61,9 @@
   background: var(--nb-ruling), var(--bg-color);
 }
 
-/* text is written on the lines. The source's screen notebook (its @media screen rules, kept by the
-   build and scoped to a region's body) puts every block on the grid of --orz-grid with the kit's grid
-   pass (orz-markdown 2.3.0; fit re-aligns at each scale, src/present/grid.ts); here the grid is the
-   slide's ruling: pitch --nb-pitch, scaled with fit. A region's body starts on a rule (the title band
-   is two lines, the gap one), so its lines are the page's lines; the page draws them. */
-.reveal .orz-region > .markdown-body {
-  --nb-p: calc(var(--nb-pitch) * var(--fit-scale, 1));
-  --rule: var(--nb-p);
-  line-height: var(--nb-p);
-  background: none;
-}
-/* a region fit had to shrink: a sheet on top of the page, with its own finer ruling at the kit's rule height */
-.reveal .orz-region[data-scale]:not([data-scale="1"]) > .markdown-body[data-orz-grid] {
-  background:
-    linear-gradient(to bottom, transparent calc(var(--orz-rule-at, 31px) - 1px), var(--rule-ink) calc(var(--orz-rule-at, 31px) - 1px),
-      var(--rule-ink) var(--orz-rule-at, 31px), transparent var(--orz-rule-at, 31px)) 0 0 / 100% var(--nb-p) repeat-y,
-    var(--bg-color);
-  background-origin: content-box;
-  box-shadow: 0 0 0 6px var(--bg-color), 1.5px 2.5px 0 6px rgba(80, 60, 30, 0.12);
-}
-/* the slide-scale rhythm gives way to the grid's (a blank ruled line between blocks) */
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl) { margin-bottom: 0; }
+/* the text is written on the page, not on its rules: the ruling above is the slide's own background (owner decision
+   2026-10-14), so a box fit shrinks changes nothing about how the page looks */
+.reveal .orz-region > .markdown-body { background: none; line-height: 1.5; }
 
 /* slips stuck on top: diagrams, charts, molecules, pictures */
 .reveal .orz-region .markdown-body > :is(.mermaid, .smiles-render, p.orz-pic, p:has(> .orz-chart-frame)),
@@ -99,6 +79,8 @@
 /* a chart in its room (round A4) is sized with its slip's padding and border */
 .reveal .orz-chart-room > .orz-chart-frame { --orz-chart-pad-x: calc(0.7em + 2px); --orz-chart-pad-y: calc(0.7em + 2px); }
 .reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
+/* the slip takes the room its box leaves: its tape above it and its tilt need a little of that room, or it overflows at every scale */
+.reveal .orz-region > .markdown-body > p.orz-pic { margin-top: 12px; margin-bottom: 8px; }
 /* pictures side by side: each on a slip of its own (round B, GUI-7) */
 .reveal .orz-region .markdown-body > p.orz-pics img { background: var(--paper-slip); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12); padding: 0.25em; }
 /* a picture that did not load: no tape over its alt text (round B, GUI-13) */

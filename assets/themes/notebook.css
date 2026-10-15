@@ -1036,273 +1036,6 @@
   outline-offset: 2px;
 }
 
-/* the source's @media screen rules, scoped to .reveal .orz-region > .markdown-body */
-.reveal .orz-region > .markdown-body {
-  --orz-grid: var(--rule);
-  --orz-rule: var(--orz-rule-at, calc(var(--rule) - var(--rule-drop)));
-  --orz-sheet: var(--paper-slip);
-  --orz-sheet-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12);
-  background-image: linear-gradient(to right,
-        transparent calc(var(--pad-l) - 0.9778em),
-        var(--margin-ink) calc(var(--pad-l) - 0.9778em),
-        var(--margin-ink) calc(var(--pad-l) - 0.9778em + 1.5px),
-        transparent calc(var(--pad-l) - 0.9778em + 1.5px)),
-      linear-gradient(to bottom,
-        transparent calc(var(--orz-rule) - 1px),
-        var(--rule-ink) calc(var(--orz-rule) - 1px),
-        var(--rule-ink) var(--orz-rule),
-        transparent var(--orz-rule));
-  background-size: 100% 100%, 100% var(--orz-grid);
-  background-repeat: no-repeat, repeat;
-  background-origin: padding-box, content-box;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl),
-.reveal .orz-region > .markdown-body > :is(.center, .right) > :is(p, ul, ol, dl) {
-  line-height: var(--orz-grid);
-  margin-top: 0;
-  margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: var(--orz-grid);
-}
-
-.reveal .orz-region > .markdown-body > :is(.center, .right) {
-  margin-top: 0;
-  margin-bottom: 0;
-  padding: 0;
-}
-
-.reveal .orz-region > .markdown-body > :is(ul, ol, dl) :is(li, ul, ol, dt, dd, p),
-.reveal .orz-region > .markdown-body > :is(.center, .right) > :is(ul, ol, dl) :is(li, ul, ol, dt, dd, p) {
-  line-height: var(--orz-grid);
-  margin-top: 0;
-  margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.reveal .orz-region > .markdown-body > ul.toc-list {
-  background: none;
-  border: 0;
-  border-radius: 0;
-  margin-top: 0;
-  margin-bottom: 0;
-  padding: 0 1.2444em var(--orz-grid);
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, h1, h2, h3, h4, h5, h6, .center, .right, section.footnotes) :is(sup, sub, .footnote-backref) {
-  vertical-align: baseline;
-  position: relative;
-  line-height: 0;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, h1, h2, h3, h4, h5, h6, .center, .right, section.footnotes) sup {
-  top: -0.45em;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, h1, h2, h3, h4, h5, h6, .center, .right, section.footnotes) sub {
-  top: 0.25em;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, h1, h2, h3, h4, h5, h6, .center, .right, section.footnotes) :is(.katex .base, span.success, span.info, span.warning, span.danger) {
-  margin-top: -3em;
-  margin-bottom: -3em;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, h1, h2, h3, h4, h5, h6, .center, .right, section.footnotes) span.qrcode:not(.qrcode--standalone) {
-  margin-top: -3em;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, .center, .right) :is(.task-list-item-checkbox, input[type="checkbox"]) {
-  vertical-align: middle;
-}
-
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl, .center, .right) .katex-display .katex .base {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.reveal .orz-region > .markdown-body > :is(h1, h2, h3, h4, h5, h6) {
-  position: relative;
-  line-height: var(--orz-grid);
-  margin-top: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  border: 0;
-  transform: none;
-}
-
-.reveal .orz-region > .markdown-body > h1 {
-  line-height: calc(2 * var(--orz-grid));
-  top: var(--orz-sh-h1, 0px);
-  margin-bottom: calc(var(--orz-mb-h1, 0px) + var(--orz-grid));
-}
-
-.reveal .orz-region > .markdown-body > h2 {
-  line-height: calc(2 * var(--orz-grid));
-  top: var(--orz-sh-h2, 0px);
-  margin-bottom: calc(var(--orz-mb-h2, 0px) + var(--orz-grid));
-}
-
-.reveal .orz-region > .markdown-body > h3 {
-  top: var(--orz-sh-h3, 0px);
-  margin-bottom: var(--orz-mb-h3, 0px);
-}
-
-.reveal .orz-region > .markdown-body > h4 {
-  top: var(--orz-sh-h4, 0px);
-  margin-bottom: var(--orz-mb-h4, 0px);
-}
-
-.reveal .orz-region > .markdown-body > h5 {
-  top: var(--orz-sh-h5, 0px);
-  margin-bottom: var(--orz-mb-h5, 0px);
-}
-
-.reveal .orz-region > .markdown-body > h6 {
-  top: var(--orz-sh-h6, 0px);
-  margin-bottom: var(--orz-mb-h6, 0px);
-}
-
-.reveal .orz-region > .markdown-body > h2 {
-  text-decoration: underline dashed currentColor;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.18em;
-}
-
-.reveal .orz-region > .markdown-body > p:is(.katex-block, :has(.katex-display)) {
-  padding-top: 0;
-  padding-bottom: 0;
-  margin-bottom: var(--orz-grid);
-}
-
-.reveal .orz-region > .markdown-body > p .katex-display {
-  margin: 0;
-}
-
-.reveal .orz-region > .markdown-body > hr:not(.footnotes-sep) {
-  box-sizing: content-box;
-  height: var(--orz-grid);
-  margin: 0 0 var(--orz-grid);
-  background-position: left calc(var(--orz-rule) - 6px);
-}
-
-.reveal .orz-region > .markdown-body > hr.footnotes-sep {
-  box-sizing: content-box;
-  height: var(--orz-grid);
-  margin: 0;
-  border: 0;
-  background: linear-gradient(to right, var(--border-color) 50%, transparent 50%) left calc(var(--orz-rule) - 1.5px) / 10px 2px repeat-x;
-}
-
-.reveal .orz-region > .markdown-body > section.footnotes {
-  position: relative;
-  top: var(--orz-sh-fn, 0px);
-  margin: 0 0 var(--orz-mb-fn, 0px);
-  padding: 0 0 var(--orz-grid);
-  line-height: var(--orz-grid);
-}
-
-.reveal .orz-region > .markdown-body > section.footnotes :is(ol, li, p) {
-  line-height: var(--orz-grid);
-  margin-top: 0;
-  margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.reveal .orz-region > .markdown-body > .orz-off-grid {
-  background-color: var(--bg-color);
-}
-
-.reveal .orz-region > .markdown-body > :where(:not(p, ul, ol, dl, h1, h2, h3, h4, h5, h6, hr, section.footnotes, .center, .right, .cols, .left)),
-.reveal .orz-region > .markdown-body > :where(p.orz-picture) {
-  background-color: var(--bg-color);
-  margin-top: 0;
-  margin-bottom: var(--orz-grid);
-}
-
-.reveal .orz-region > .markdown-body > :is(blockquote, pre, table, figure, details, .tabs, .mermaid, .smiles-render, .youtube-embed, canvas.orz-chart, div:has(> canvas.orz-chart), .info, .success, .warning, .danger, .cols, p.orz-picture) {
-  margin-top: 0;
-  margin-bottom: var(--orz-grid);
-}
-
-.reveal .orz-region > .markdown-body > :is(blockquote, pre, table, figure, details, .tabs, .mermaid, .smiles-render, .youtube-embed, canvas.orz-chart, div:has(> canvas.orz-chart), p.orz-picture, .info, .success, .warning, .danger),
-.reveal .orz-region > .markdown-body > .cols > .col {
-  box-shadow: var(--orz-sheet-shadow);
-}
-
-.reveal .orz-region > .markdown-body > blockquote {
-  margin-left: 0.3556em;
-  margin-right: 0.3556em;
-  background-color: var(--orz-sheet);
-}
-
-.reveal .orz-region > .markdown-body > blockquote::before {
-  left: 0.1778em;
-}
-
-.reveal .orz-region > .markdown-body > :is(p.orz-picture, figure) {
-  position: relative;
-  width: fit-content;
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 0.5em 0.5em 0.6em;
-  background-color: var(--orz-sheet);
-  border: 1px solid var(--border-color);
-  border-radius: 2px;
-}
-
-.reveal .orz-region > .markdown-body > p.orz-picture {
-  line-height: 0;
-}
-
-.reveal .orz-region > .markdown-body > figure {
-  line-height: 1.4;
-}
-
-.reveal .orz-region > .markdown-body > figure img {
-  margin: 0;
-}
-
-.reveal .orz-region > .markdown-body > figure figcaption {
-  margin-top: 0.45em;
-  font-family: var(--heading-font);
-  font-size: 1.1em;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.reveal .orz-region > .markdown-body > :is(p.orz-picture, figure)::after {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  width: 64px;
-  height: 20px;
-  transform: translateX(-50%) rotate(-3deg);
-  background: rgba(240, 230, 205, 0.78);
-  border-left: 1px dashed rgba(150, 130, 90, 0.25);
-  border-right: 1px dashed rgba(150, 130, 90, 0.25);
-}
-
-.reveal .orz-region > .markdown-body > :is(.mermaid, div.smiles-render, canvas.orz-chart, div:has(> canvas.orz-chart), .youtube-embed) {
-  background-color: var(--orz-sheet);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 0.6em;
-}
-
-.reveal .orz-region > .markdown-body > :is(.info, .success, .warning, .danger) {
-  margin-top: 0;
-}
-
-.reveal .orz-region > .markdown-body > .cols {
-  background-color: transparent;
-  row-gap: var(--orz-grid);
-}
-
 /* ===== layers/slide-scale.css ===== */
 
 /* ==========================================================================
@@ -1368,15 +1101,14 @@
 /* ===== layers/notebook.css (the slide layer) ===== */
 
 /* Notebook — deck layer for light-playful-1 ("a ruled school exercise book").
-   Every slide is a ruled page: blue rules every --nb-pitch from the top edge, a
-   pink margin line, text written ON the rules (concept-shim.js snaps each
-   region's blocks to the bands; text line boxes are one pitch tall). What is
-   not running text — notes, code, tables, quotes, diagrams, pictures — is a
-   slip stuck on top, as in the document theme. The title and closing pages
-   are the exercise book's cover with its name label; the section divider is a
-   tabbed divider page; the outline is today's list with the current item
-   highlighted. A region that fit has to shrink becomes a sheet with its own,
-   finer ruling, so shrunk text still sits on lines. */
+   Every slide is a ruled page: blue rules every --nb-pitch from the top edge and a
+   pink margin line — the slide's BACKGROUND, the same on every slide whatever it
+   holds and however fit scales it (owner decision 2026-10-14: the text is not
+   aligned to the rules any more; no ruled sheet for a shrunk region). What is not
+   running text — notes, code, tables, quotes, diagrams, pictures — is a slip stuck
+   on top, as in the document theme. The title and closing pages are the exercise
+   book's cover with its name label; the section divider is a tabbed divider page;
+   the outline is today's list with the current item highlighted. */
 
 :root {
   --nb-pitch: 40px;          /* line spacing; 18 lines on a 720px page */
@@ -1431,28 +1163,9 @@
   background: var(--nb-ruling), var(--bg-color);
 }
 
-/* text is written on the lines. The source's screen notebook (its @media screen rules, kept by the
-   build and scoped to a region's body) puts every block on the grid of --orz-grid with the kit's grid
-   pass (orz-markdown 2.3.0; fit re-aligns at each scale, src/present/grid.ts); here the grid is the
-   slide's ruling: pitch --nb-pitch, scaled with fit. A region's body starts on a rule (the title band
-   is two lines, the gap one), so its lines are the page's lines; the page draws them. */
-.reveal .orz-region > .markdown-body {
-  --nb-p: calc(var(--nb-pitch) * var(--fit-scale, 1));
-  --rule: var(--nb-p);
-  line-height: var(--nb-p);
-  background: none;
-}
-/* a region fit had to shrink: a sheet on top of the page, with its own finer ruling at the kit's rule height */
-.reveal .orz-region[data-scale]:not([data-scale="1"]) > .markdown-body[data-orz-grid] {
-  background:
-    linear-gradient(to bottom, transparent calc(var(--orz-rule-at, 31px) - 1px), var(--rule-ink) calc(var(--orz-rule-at, 31px) - 1px),
-      var(--rule-ink) var(--orz-rule-at, 31px), transparent var(--orz-rule-at, 31px)) 0 0 / 100% var(--nb-p) repeat-y,
-    var(--bg-color);
-  background-origin: content-box;
-  box-shadow: 0 0 0 6px var(--bg-color), 1.5px 2.5px 0 6px rgba(80, 60, 30, 0.12);
-}
-/* the slide-scale rhythm gives way to the grid's (a blank ruled line between blocks) */
-.reveal .orz-region > .markdown-body > :is(p, ul, ol, dl) { margin-bottom: 0; }
+/* the text is written on the page, not on its rules: the ruling above is the slide's own background (owner decision
+   2026-10-14), so a box fit shrinks changes nothing about how the page looks */
+.reveal .orz-region > .markdown-body { background: none; line-height: 1.5; }
 
 /* slips stuck on top: diagrams, charts, molecules, pictures */
 .reveal .orz-region .markdown-body > :is(.mermaid, .smiles-render, p.orz-pic, p:has(> .orz-chart-frame)),
@@ -1468,6 +1181,8 @@
 /* a chart in its room (round A4) is sized with its slip's padding and border */
 .reveal .orz-chart-room > .orz-chart-frame { --orz-chart-pad-x: calc(0.7em + 2px); --orz-chart-pad-y: calc(0.7em + 2px); }
 .reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
+/* the slip takes the room its box leaves: its tape above it and its tilt need a little of that room, or it overflows at every scale */
+.reveal .orz-region > .markdown-body > p.orz-pic { margin-top: 12px; margin-bottom: 8px; }
 /* pictures side by side: each on a slip of its own (round B, GUI-7) */
 .reveal .orz-region .markdown-body > p.orz-pics img { background: var(--paper-slip); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 1.5px 2.5px 0 rgba(80, 60, 30, 0.12); padding: 0.25em; }
 /* a picture that did not load: no tape over its alt text (round B, GUI-13) */

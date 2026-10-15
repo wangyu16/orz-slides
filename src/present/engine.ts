@@ -54,7 +54,6 @@ import { disposeEnhancement, enhanceDocument, redrawEnhancement } from 'orz-mark
 import { printDocument } from 'orz-markdown/carrier/editor';
 import { chartAspects, decorate } from './decorate.js';
 import { fitSlide, type BoxFit } from './fit.js';
-import { gridPrepare } from './grid.js';
 import { buildPrintDocument, buildStaticDeck, cutMessage, type PaperCuts, type PrintOptions } from './print.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
 import { PresenterClock, SpeakerView, TimerOverlay } from './speaker.js';
@@ -175,7 +174,6 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
   const current = (): HTMLElement | null => (reveal?.isReady() ? reveal.getCurrentSlide() ?? null : sections()[0] ?? null);
   const index = (): number => (reveal?.isReady() ? reveal.getIndices().h : 0);
 
-  const grid = gridPrepare(win);
 
   /* ── the fit settles (closed-loop round A) ── */
   const SETTLE_MAX_MS = 10_000;
@@ -259,7 +257,7 @@ export function createDeckEngine(host: HTMLElement, options: EngineOptions = {})
     if (o.redraw) redrawEnhancement(s);
     // every chart drawn so far, not just this slide's: reveal displays the neighbours too (A4-ENG-1)
     chartAspects(o.redraw ? slidesEl : s);
-    const out = fitSlide(s, undefined, grid, o);
+    const out = fitSlide(s, undefined, o);
     const same = lastFits !== null && sameFit(out, lastFits);
     lastFits = out;
     if (byResize && same) {

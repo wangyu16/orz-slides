@@ -634,4 +634,29 @@ chromeOnly('round B: theme probes (real Chrome, offline)', () => {
     }
     expect(bad).toEqual([]);
   }, 120_000);
+
+  it('[T.12] owner decision 2026-10-14: Notebook\'s ruling is the slide\'s BACKGROUND — with every text, slip and picture hidden, a short slide, two columns, three untitled rows and a slide fit had to shrink look the same (at 16:9 and 4:3): no region paints its own ruling or sheet, whatever its content and scale', async () => {
+    const dense = Array.from({ length: 40 }, (_, i) => `- point ${i + 1} with enough words to take a whole line`).join('\n');
+    const body = `<!-- slide -->\n## Short\nOne line.\n\n<!-- slide 2col -->\n## Two\nLeft text\n<!-- @right -->\nRight text\n\n<!-- slide row 1/1/1 { a; b; c } -->\nFirst row\n<!-- @b -->\nSecond row\n<!-- @c -->\nThird row\n\n<!-- slide -->\n## Dense\n${dense}\n`;
+    const bad: string[] = [];
+    for (const ratio of ['16:9', '4:3']) {
+      const { page, ctx } = await offline(`t12-${ratio.replace(':', 'x')}`, A3('notebook', ratio, body));
+      await page.addStyleTag({ content: '.reveal .slides section.present * { visibility: hidden !important; } .reveal .slides section.present :is(.orz-region, .orz-region > .markdown-body) { visibility: visible !important; } .reveal .slides section.present .orz-region > .markdown-body > * { visibility: hidden !important; }' });
+      const shots: Buffer[] = [];
+      for (let i = 0; i < 4; i++) {
+        await goTo(page, i);
+        if (i === 3) expect(Number(await page.locator('.reveal .slides > section.present .orz-region').first().getAttribute('data-scale')), `${ratio}: the dense slide is shrunk`).toBeLessThan(1);
+        const r = (await page.locator('.reveal .slides > section.present').boundingBox())!;
+        shots.push(await page.screenshot({ clip: { x: r.x, y: r.y, width: r.width, height: r.height } }));
+      }
+      const diff = await page.evaluate(async (b64s) => {
+        const px = async (b: string): Promise<Uint8ClampedArray> => { const img = new Image(); img.src = `data:image/png;base64,${b}`; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d')!; g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+        const all = await Promise.all(b64s.map(px));
+        return all.slice(1).map((d) => { let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - all[0][i]) + Math.abs(d[i + 1] - all[0][i + 1]) + Math.abs(d[i + 2] - all[0][i + 2]) > 24) n++; return n / (d.length / 4); });
+      }, shots.map((b) => b.toString('base64')));
+      diff.forEach((d, k) => { if (d > 0.002) bad.push(`${ratio}: slide ${k + 2} differs from slide 1 on ${(d * 100).toFixed(2)} % of the page`); });
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 120_000);
 });

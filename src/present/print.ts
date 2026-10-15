@@ -27,7 +27,6 @@
 import { enhanceDocument, PREVIEW_CDN } from 'orz-markdown/preview-frame';
 import { decorate } from './decorate.js';
 import { fitBox, fitSlide } from './fit.js';
-import { gridPrepare } from './grid.js';
 import { renderDeckText, type DeckRenderContext, type RenderedDeck } from './render.js';
 import { DECK_CSS, fontsReady, stylesLate, stylesReady, themeStylesheet } from './styles.js';
 
@@ -186,8 +185,7 @@ export async function buildStaticDeck(doc: Document, text: string, o: StaticOpti
     await imagesLoaded(stage, 10_000);
     // what the bounded waits gave up on is said, never silent (paper only)
     if (o.paper && stylesLate(doc)) cut.fontsLate = true;
-    const grid = gridPrepare(doc.defaultView ?? window);
-    for (const s of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide'))) fitSlide(s, undefined, grid);
+    for (const s of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > section.orz-slide'))) fitSlide(s);
     for (const n of Array.from(stage.querySelectorAll<HTMLElement>('.orz-page > .orz-print-notes'))) fitBox(n);
     if (o.paper) {
       // every cut is visible on its page, and listed (A2-ENG-4: a fit=scroll or fit=off slide cut silently)

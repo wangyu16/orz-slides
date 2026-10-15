@@ -29,10 +29,9 @@
  * itself, which the box cannot see). Only a laid-out slide can be measured: the engine fits the visible
  * slide (and every slide of the print document).
  *
- * A theme that writes text on a baseline grid (Notebook: orz-markdown's
- * `--orz-grid`) re-aligns a box's content at every trial scale (`prepare`,
- * src/present/grid.ts): the grid's margins are part of what has to fit, and
- * its pitch follows the scale.
+ * No theme writes on a baseline grid any more (owner decision 2026-10-14:
+ * Notebook's ruling is the slide's background, independent of the content),
+ * so a trial scale is just the box's `--fit-scale`.
  */
 
 /** The smallest scale fit uses (0.x's floor). */
@@ -122,8 +121,6 @@ function report(box: HTMLElement, fit: BoxFit): BoxFit {
   return fit;
 }
 
-/** Lays a box's content out again after its scale changed (a baseline grid), before it is measured. */
-export type BoxPrepare = (box: HTMLElement) => void;
 
 /**
  * The last scale of each box, by the deck's look (theme and slide size): a
@@ -145,10 +142,10 @@ function lookOf(box: HTMLElement): string {
  * scale that fits, then bisection to {@link PRECISION}. `fresh`: ignore the
  * last scale.
  */
-export function fitBox(box: HTMLElement, mode: 'fit' | 'off' | 'scroll' = 'fit', floor = FIT_FLOOR, prepare?: BoxPrepare, o: { fresh?: boolean } = {}): BoxFit {
+export function fitBox(box: HTMLElement, mode: 'fit' | 'off' | 'scroll' = 'fit', floor = FIT_FLOOR, o: { fresh?: boolean } = {}): BoxFit {
   let trials = 0;
   let at = Number.NaN;
-  const scaleTo = (scale: number): void => { at = scale; setScale(box, scale); prepare?.(box); };
+  const scaleTo = (scale: number): void => { at = scale; setScale(box, scale); };
   box.removeAttribute('data-scroll');
   const look = lookOf(box);
   const remember = (fit: BoxFit): BoxFit => {
@@ -231,13 +228,13 @@ export function boxesOf(slide: HTMLElement): HTMLElement[] {
 }
 
 /** Fit every box of a (laid-out) slide; returns what each did, in fit order. `fresh`: no box starts from its last scale. */
-export function fitSlide(slide: HTMLElement, floor = FIT_FLOOR, prepare?: BoxPrepare, o: { fresh?: boolean } = {}): BoxFit[] {
+export function fitSlide(slide: HTMLElement, floor = FIT_FLOOR, o: { fresh?: boolean } = {}): BoxFit[] {
   const raw = slide.getAttribute('data-fit');
   const mode = raw === 'off' || raw === 'scroll' ? raw : 'fit';
   // reset first: a box's scale changes the room the others get
   const boxes = boxesOf(slide);
   for (const b of boxes) b.style.removeProperty('--fit-scale');
-  const out = boxes.map((b) => fitBox(b, mode, floor, prepare, o));
+  const out = boxes.map((b) => fitBox(b, mode, floor, o));
   // the footer is one ellipsized line: when it is cut it says so (data-clipped; its title holds the full text: A2-TH-13)
   for (const f of Array.from(slide.querySelectorAll<HTMLElement>('.orz-footer'))) {
     const cut = Array.from(f.querySelectorAll<HTMLElement>(':scope > .markdown-body > *')).some((p) => p.scrollWidth > p.clientWidth + 1);

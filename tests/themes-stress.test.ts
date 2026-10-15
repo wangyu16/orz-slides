@@ -17,8 +17,9 @@
  * - T.6 (stress): six distinct chart colours (`--chart-1…6`, CIE76 ΔE ≥ 18
  *   for every pair); a gantt chart takes its region's width (not Mermaid's
  *   300 px fallback) and its axis labels do not overprint;
- * - T.12: a theme that writes on a ruled slide (Notebook, `--orz-grid`)
- *   starts every unscaled region on one of the slide's lines.
+ * (T.12 — Notebook's ruled background — is checked in themes-look.test.ts
+ * since the owner's decision of 2026-10-14: the ruling is the slide's own
+ * background, no text is aligned to it.)
  *
  * Online (webfonts and the libraries), as the other theme tests.
  */
@@ -164,7 +165,7 @@ const simulate = (c: string, m: number[][]): string => {
 
 real('the 14 themes on the stress deck (real Chrome, online)', () => {
   for (const t of THEMES) {
-    it(`[T.3][T.11][T.10][T.6][T.12][T.14] ${t.id}: stress deck at 16:9 and 4:3 — no silent clipping, no template page clipped, chrome text inside its slot or ellipsized, no text over another; every variant its own look, covers and their chrome readable; six chart colours apart for every reader, a 10-slice pie of ten, gantt charts readable; ruled regions on the slide's lines; bg= on any slide`, async () => {
+    it(`[T.3][T.11][T.10][T.6][T.14] ${t.id}: stress deck at 16:9 and 4:3 — no silent clipping, no template page clipped, chrome text inside its slot or ellipsized, no text over another; every variant its own look, covers and their chrome readable; six chart colours apart for every reader, a 10-slice pie of ten, gantt charts readable; bg= on any slide`, async () => {
       for (const ratio of ['16:9', '4:3']) {
         const { page, ctx, errors } = await openDeck(browser!, fileFor(`${t.id}-${ratio.replace(':', 'x')}`), assemble(deckFor(t.id, ratio)), { network: true });
         await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
@@ -196,25 +197,6 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
           await page.waitForTimeout(250);
           expect(await redShare(page), `${t.id} ${ratio}: "${title}": share of the slide in its bg= colour`).toBeGreaterThan(0.4);
         }
-        // A2-TH-9: the untitled three-row slide — every ruled region is unscaled on the slide's lines, or says it is scaled
-        const rows2 = total - 1;
-        await goTo(page, rows2);
-        const off2 = await page.evaluate((n) => {
-          const s = document.querySelectorAll<HTMLElement>('.reveal .slides > section')[n];
-          const k = s.getBoundingClientRect().width / s.offsetWidth;
-          const out: string[] = [];
-          for (const b of Array.from(s.querySelectorAll<HTMLElement>('.orz-region > .markdown-body[data-orz-grid]'))) {
-            const box = b.parentElement!;
-            const pitch = Number(b.getAttribute('data-orz-grid'));
-            const cs = getComputedStyle(b);
-            const top = (b.getBoundingClientRect().top - s.getBoundingClientRect().top) / k + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
-            const line = pitch / (parseFloat(box.style.getPropertyValue('--fit-scale')) || 1);
-            const o = Math.min(top % line, line - (top % line));
-            if (box.getAttribute('data-scale') === '1' && o >= 1) out.push(`${box.getAttribute('data-region')} says scale 1 but starts ${o.toFixed(1)} px off the slide's lines`);
-          }
-          return out;
-        }, rows2);
-        expect(off2, `${t.id} ${ratio}: untitled three rows`).toEqual([]);
         if (ratio === '16:9') {
           // T.10: each template's variants pairwise distinct (same text; slide numbers and section numerals made alike)
           await page.addStyleTag({ content: '.reveal .slides > section .orz-chrome { visibility: hidden !important; } .reveal .slides > section .orz-head { visibility: hidden !important; }' });
@@ -368,23 +350,6 @@ real('the 14 themes on the stress deck (real Chrome, online)', () => {
             expect(a.labels.length, `${t.id} ${title}: ${JSON.stringify(a)}`).toBeGreaterThanOrEqual(2);
             expect(a.even, `${t.id} ${title}: uneven ticks ${JSON.stringify(a)}`).toBeLessThan(1.2);
           }
-          // T.12: ruled themes — every unscaled region of the three-row slide starts on one of the slide's lines
-          const rows = findSlide('Three rows');
-          await goTo(page, rows);
-          const off = await page.evaluate((n) => {
-            const s = document.querySelectorAll<HTMLElement>('.reveal .slides > section')[n];
-            const k = s.getBoundingClientRect().width / s.offsetWidth;
-            const out: number[] = [];
-            for (const b of Array.from(s.querySelectorAll<HTMLElement>('.orz-region[data-scale="1"] > .markdown-body[data-orz-grid]'))) {
-              const pitch = Number(b.getAttribute('data-orz-grid'));
-              const cs = getComputedStyle(b);
-              const top = (b.getBoundingClientRect().top - s.getBoundingClientRect().top) / k + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
-              out.push(Math.min(top % pitch, pitch - (top % pitch)));
-            }
-            return out;
-          }, rows);
-          for (const o of off) expect(o, `${t.id}: a ruled region starts ${o.toFixed(1)} px off the slide's lines`).toBeLessThan(1);
-          if (t.id === 'notebook') expect(off.length, 'notebook: the three rows are ruled').toBe(3);
         }
         expect(errors, `${t.id} ${ratio}`).toEqual([]);
         await ctx.close();

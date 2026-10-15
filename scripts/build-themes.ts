@@ -236,8 +236,13 @@ export function deriveSource(file: string, fonts: string[], o: { screenScope?: s
 
 /* ───────────── a derived theme ───────────── */
 
-/** Derived themes whose regions are written on the source's baseline grid (its @media screen rules kept, rescoped). */
-const SCREEN_GRID: ReadonlySet<string> = new Set(['notebook']);
+/**
+ * Derived themes whose regions are written on the source's baseline grid (its @media screen rules kept, rescoped):
+ * none since the owner's decision of 2026-10-14 — Notebook's ruling is the slide's background, independent of the
+ * content (no text aligned to it, no ruled sheet for a shrunk region); the kept mechanism takes a theme again only by
+ * a new decision.
+ */
+const SCREEN_GRID: ReadonlySet<string> = new Set([]);
 
 const IMPORT = /^@import\s+url\((['"]).*?\1\)\s*;/gm;
 

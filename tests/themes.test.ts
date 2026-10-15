@@ -26,7 +26,9 @@ describe('the engine\'s themes', () => {
       expect(css, t.id).toMatch(/\.reveal \.orz-outline li\.orz-here/);
       expect(css, t.id).toMatch(/--chart-font-size:/);
     }
-    expect(readFileSync('assets/themes/notebook.css', 'utf8')).toContain('@media screen rules, scoped to .reveal .orz-region > .markdown-body');
+    // Notebook's ruling is the slide's background (owner decision 2026-10-14): its source's screen notebook — the baseline grid — is not kept
+    expect(readFileSync('assets/themes/notebook.css', 'utf8')).not.toContain('@media screen rules, scoped to');
+    for (const id of builtThemes()) expect(readFileSync(`assets/themes/${id}.css`, 'utf8'), id).not.toMatch(/--orz-grid\s*:/);
     const orchard = readFileSync('assets/themes/orchard.css', 'utf8');
     expect(orchard).toContain('orz-markdown 2.4.0 light-neat-3.css');
     expect(orchard).toContain('.reveal .orz-outline li.orz-here');
