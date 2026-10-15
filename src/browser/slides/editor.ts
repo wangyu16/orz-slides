@@ -52,6 +52,10 @@ import type { Rect, StageInsets } from './stage-geometry.js';
 export const LIVE_PAUSE_MS = 450;
 /** A caret move without typing: the live view follows after this (ms). */
 export const CARET_PAUSE_MS = 90;
+/** Idle fit checks (round B, B-ED-3): after this long without typing, one slide at a time, this far apart (ms), at most this many per editor. */
+export const CHECK_IDLE_MS = 1200;
+export const CHECK_GAP_MS = 120;
+export const CHECK_BUDGET = 2000;
 
 export interface SlidesToolsOptions {
   /** Resolved includes (the file's `#orz-includes`, or the app's `includes`). */
@@ -100,6 +104,7 @@ function partsOf(v: unknown): StageParts | null {
     template: rectOf(o.template),
     footer: rectOf(o.footer),
     floats: list(o.floats).map((r) => rectOf(r) ?? { x: 0, y: 0, w: 0, h: 0 }),
+    ink: (Array.isArray(o.ink) ? o.ink.slice(0, 400) : []).map((r) => rectOf(r)).filter((r): r is Rect => r !== null && r.w > 0 && r.h > 0),
   };
 }
 
@@ -124,6 +129,8 @@ export interface SlidesTools {
   layoutGui(): unknown;
   /** Post the caret's slide now (tests). */
   syncLive(): Promise<void>;
+  /** How many of the deck's slides have a fit report for their current text (the live view's or an idle check's). */
+  fitCoverage(): { checked: number; total: number };
   destroy(): void;
 }
 
@@ -155,10 +162,14 @@ export function caretOf(slide: Slide): number {
   return slide.titleSpan ? slide.titleSpan.from : slide.marker.to;
 }
 
-/** What the fit lints are remembered by: the slide's text, the theme, the ratio and the deck footer. */
+/** What the fit lints are remembered by: the slide's text, the theme, the ratio and the deck footer (the header's part read once per text). */
+let fitHead: { text: string; head: string } | null = null;
 const fitKeyOf = (text: string, slide: Slide): string => {
-  const p = presentationOf(text);
-  return `${p.theme.id}|${p.ratio}|${hash(readHeader(text)?.fields['footer'] ?? '')}|${hash(slide.raw)}`;
+  if (fitHead?.text !== text) {
+    const p = presentationOf(text);
+    fitHead = { text, head: `${p.theme.id}|${p.ratio}|${hash(readHeader(text)?.fields['footer'] ?? '')}` };
+  }
+  return `${fitHead.head}|${hash(slide.raw)}`;
 };
 
 const PANEL_CSS = `
@@ -173,6 +184,7 @@ const PANEL_CSS = `
   background: var(--orz-chrome-surface); color: var(--orz-chrome-fg); box-shadow: var(--orz-chrome-shadow);
 }
 .orz-slides-lint__empty { padding: var(--orz-chrome-space-3); color: var(--orz-chrome-muted); }
+.orz-slides-lint__cover { padding: var(--orz-chrome-space-2) var(--orz-chrome-space-3); font-size: var(--orz-chrome-text-xs); color: var(--orz-chrome-muted); border-bottom: 1px solid var(--orz-chrome-border); }
 .orz-slides-lint__item { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--orz-chrome-space-3); padding: var(--orz-chrome-space-2) var(--orz-chrome-space-3); border-radius: var(--orz-chrome-radius-s); }
 .orz-slides-lint__item:hover { background: var(--orz-chrome-hover); }
 .orz-slides-lint__dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: oklch(78% 0.15 75); }
@@ -219,12 +231,18 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     }
   }
   const caretSlide = (): number => Math.max(0, slideIndexAt(parseDeck(shell.getText()), caret));
+  /** The editor's engine: 'textarea' when CodeMirror did not load (no dimming, no flash: B-ED-5). */
+  let engine = 'codemirror6';
+  void shell.ready.then((r) => { engine = r.engine; }).catch(() => undefined);
+  /** The text the caret was last read against (a change that maps it moves it: B-ED-2). */
+  let caretText = initial;
 
   // ── the live view ──
   let lastTyping = -Infinity;
   let liveTimer: number | null = null;
   let posted: { key: string; index: number; fitKey: string } | null = null;
-  const postedFitKeys = new Map<string, { fitKey: string; index: number }>();
+  /** What a posted key is the fit of (`check`: an idle check, not the live view). */
+  const postedFitKeys = new Map<string, { fitKey: string; index: number; check?: boolean }>();
   const fits = new Map<string, FitReport>();
   let last: (FitReport & { index: number; fitKey: string }) | null = null;
   let sourceCache: { text: string; source: Promise<string> } | null = null;
@@ -316,16 +334,73 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       kind: String(b?.kind ?? '').slice(0, 16), name: String(b?.name ?? '').slice(0, 64), scale: Math.max(0, Math.min(1, num(b?.scale) || 1)), clipped: b?.clipped === true,
       x: num(b?.x), y: num(b?.y), w: num(b?.w), h: num(b?.h),
     }));
-    const r: FitReport = { boxes, footerCut: d.footerCut === true, scrolls: d.scrolls === true, parts: partsOf((d as { parts?: unknown }).parts) };
+    const r: FitReport = { boxes, footerCut: d.footerCut === true, scrolls: d.scrolls === true, parts: at.check ? null : partsOf((d as { parts?: unknown }).parts) };
+    // an idle check's report: the slide's fit for the lints and the filmstrip (never the stage's geometry)
+    if (at.check) {
+      if (!fits.has(at.fitKey)) fits.set(at.fitKey, r);
+      postedFitKeys.delete(d.key);
+      if (checking?.key === d.key) { checking = null; scheduleCheck(CHECK_GAP_MS); }
+      layout?.refresh();
+      scheduleLints(150);
+      return;
+    }
     fits.set(at.fitKey, r);
     last = { ...r, index: at.index, fitKey: at.fitKey };
     layout?.refresh();
     scheduleLints(150);
   }));
 
+  // ── idle fit checks (round B, B-ED-3): the slides the caret has not shown, one at a time, while the reader pauses ──
+  let checkTimer: number | null = null;
+  let checking: { key: string } | null = null;
+  let checks = 0;
+  const scheduleCheck = (ms: number): void => { cancel(checkTimer); checkTimer = later(() => { void checkNext(); }, ms); };
+  async function checkNext(): Promise<void> {
+    checkTimer = null;
+    if (destroyed || checking || checks >= CHECK_BUDGET) return;
+    const idle = Date.now() - lastTyping;
+    if (idle < CHECK_IDLE_MS) { scheduleCheck(CHECK_IDLE_MS - idle); return; }
+    // not while the reader drags or runs keys on the stage (the check draws in the same frame)
+    const g = (layoutApi as { state?(): { dragging: boolean; pending: boolean } } | null)?.state?.();
+    if (g && (g.dragging || g.pending)) { scheduleCheck(CHECK_IDLE_MS); return; }
+    const text = shell.getText();
+    const deck = parseDeck(text);
+    if (deck.slides.length === 0) return;
+    // the nearest slide to the caret without a report for its current text
+    const c = Math.max(0, slideIndexAt(deck, caret));
+    let i = -1;
+    for (let k = 0; k < deck.slides.length && i < 0; k++) {
+      for (const j of k === 0 ? [c] : [c + k, c - k]) if (j >= 0 && j < deck.slides.length && i < 0 && !fits.has(fitKeyOf(text, deck.slides[j]))) i = j;
+    }
+    if (i < 0) return;
+    const source = await sourceOf(text);
+    if (destroyed || shell.getText() !== text) { scheduleCheck(CHECK_GAP_MS); return; }
+    const d = source === text ? deck : parseDeck(source);
+    const slide = d.slides[i];
+    if (!slide) return;
+    const p = presentationOf(text);
+    const size = slideSize(p.ratio);
+    const plans = planDeck(d, p.theme.sectionNumbers);
+    let html = renderSlide(slide, plans[i], md as unknown as Renderer, d.config, { env: env(), themeNumbers: p.theme.sectionNumbers });
+    if (o.resolveAsset) { const ra = o.resolveAsset; html = rewriteAssetUrls(html, (path) => ra(path)); }
+    const key = `check|${p.theme.id}|${p.ratio}|${hash(html)}|${i}`;
+    postedFitKeys.set(key, { fitKey: fitKeyOf(text, deck.slides[i]), index: i, check: true });
+    checking = { key };
+    checks++;
+    shell.preview.post({ type: 'orz-slides-check', key, html, theme: p.theme.id, scheme: p.theme.scheme, width: size.width, height: size.height, index: i });
+    // a frame that never answers (rebuilt, gone): the next one after a while
+    later(() => { if (checking?.key === key) { checking = null; postedFitKeys.delete(key); scheduleCheck(CHECK_IDLE_MS); } }, 4000);
+  }
+
   // ── the lints ──
   let lints: SlideLint[] = [];
   let lintTimer: number | null = null;
+  /** The slides of a text with a fit report for their current text. */
+  function checkedCount(text: string, deck: Deck): number {
+    let n = 0;
+    for (const s of deck.slides) if (fits.has(fitKeyOf(text, s))) n++;
+    return n;
+  }
   function fitLints(text: string, deck: Deck): SlideLint[] {
     const out: SlideLint[] = [];
     /** The deck footer (the header's `footer`) cut: one lint for every slide it is cut on. */
@@ -351,7 +426,8 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       const n = deckFooterCut.map((s) => s.index + 1);
       const list = n.length === 1 ? `slide ${n[0]}` : `slides ${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
       const s = deckFooterCut[0];
-      out.push({ level: 'warning', code: 'footer-cut', message: `the deck footer (the header's footer) is cut to one line, shown with "…", on ${list}: shorten it`, line: s.marker.line, from: s.marker.from, to: s.marker.to });
+      const unchecked = deck.slides.length - checkedCount(text, deck);
+      out.push({ level: 'warning', code: 'footer-cut', message: `the deck footer (the header's footer) is cut to one line, shown with "…", on ${list}${unchecked > 0 ? ` (${unchecked} slide${unchecked === 1 ? '' : 's'} not checked yet)` : ''}: shorten it`, line: s.marker.line, from: s.marker.from, to: s.marker.to });
     }
     return out;
   }
@@ -413,10 +489,22 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   function drawPanel(): void {
     if (!panel) return;
     panel.replaceChildren();
+    // what the fit lints cover: the slides with a fit report (the caret's, and the ones checked in idle time)
+    const text = shell.getText();
+    const deck = parseDeck(text);
+    const total = deck.slides.length;
+    const checked = checkedCount(text, deck);
+    if (checked < total) {
+      const c = doc.createElement('div');
+      c.className = 'orz-slides-lint__cover';
+      c.setAttribute('data-orz-fit-coverage', `${checked}/${total}`);
+      c.textContent = `Fit (cut on paper, a cut footer) checked on ${checked} of ${total} slides — the rest are checked while you pause.`;
+      panel.append(c);
+    }
     if (lints.length === 0) {
       const p = doc.createElement('div');
       p.className = 'orz-slides-lint__empty';
-      p.textContent = 'No issues in this deck.';
+      p.textContent = checked < total ? `No issues on the slides checked so far.` : 'No issues in this deck.';
       panel.append(p);
       return;
     }
@@ -514,8 +602,11 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     const s = i >= 0 ? deck.slides[i] : undefined;
     if (!s) { if (focused) { shell.setFocusRange(null); focused = null; } return; }
     if (focused && focused.index === i && focused.from === s.span.from && focused.to === s.span.to) return;
+    const moved = focused?.index !== i;
     focused = { index: i, from: s.span.from, to: s.span.to };
     shell.setFocusRange(s.span.from, s.span.to, { mode: 'dim' });
+    // the basic editor dims nothing: the slide's text is brought into view instead (round B, B-ED-5)
+    if (engine === 'textarea' && moved) { const at = Math.max(s.span.from, Math.min(s.span.to, caret)); shell.select(at, at, { scroll: true }); }
   }
   /** The frame element and its pane (the kit's preview: `iframe.orz-editor__frame` in the shell's root). KIT GAP: no accessor for the preview pane. */
   const frameEl = (): HTMLIFrameElement | null => (root?.querySelector?.('iframe.orz-editor__frame') as HTMLIFrameElement | null) ?? null;
@@ -543,6 +634,8 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       if (perSlide) { posted = null; void syncLive(true); }
     },
     slideSize: () => slideSize(presentationOf(shell.getText()).ratio),
+    scheme: () => presentationOf(shell.getText()).theme.scheme,
+    engine: () => engine,
     preview(pv: StagePreview) {
       if (!posted || destroyed) return;
       shell.preview.post({ type: 'orz-slides-preview', key: posted.key, ...pv });
@@ -593,19 +686,44 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   // ── events ──
   offs.push(shell.on('selection', (e) => {
     caret = e.to;
+    caretText = shell.getText();
     // during typing the live view waits for the pause; a caret move alone follows at once
     scheduleLive(Date.now() - lastTyping < LIVE_PAUSE_MS ? LIVE_PAUSE_MS : CARET_PAUSE_MS);
   }));
+  /** The layout GUI follows typing at its pause (round B, B-ED-4: a full redraw per key cost 100–300 ms on 300 slides). */
+  let layoutTimer: number | null = null;
   offs.push(shell.on('change', (e) => {
+    // the caret as the change moved it (a header setting, an AI edit, a reload map it without a selection event: B-ED-2)
+    const now = shell.getText();
+    const sel = (shell as unknown as { getSelection?(): { from: number; to: number } | null }).getSelection?.();
+    if (sel) caret = sel.to;
+    else if (now !== caretText) {
+      // an older kit: map the caret through the change (the common start and end of the two texts)
+      const a = caretText;
+      let p0 = 0;
+      while (p0 < a.length && p0 < now.length && a.charCodeAt(p0) === now.charCodeAt(p0)) p0++;
+      let s0 = 0;
+      while (s0 < a.length - p0 && s0 < now.length - p0 && a.charCodeAt(a.length - 1 - s0) === now.charCodeAt(now.length - 1 - s0)) s0++;
+      if (caret >= a.length - s0) caret += now.length - a.length;
+      else if (caret > p0) caret = Math.min(caret, now.length - s0);
+    }
+    caretText = now;
     // a layout op (an applyEdits with a label, from the per-slide GUI) shows at once; typing waits for the pause
     const op = perSlide && typeof e?.label === 'string';
     if (!op) lastTyping = Date.now();
     scheduleLive(op ? 0 : LIVE_PAUSE_MS);
     scheduleLints(LIVE_PAUSE_MS + 150);
-    layout?.refresh();
+    scheduleCheck(CHECK_IDLE_MS);
+    if (!layout) return;
+    cancel(layoutTimer);
+    if (op) { layoutTimer = null; layout.refresh(); return; }
+    // typing: the stage is marked stale at once (nothing on it acts on an old text), redrawn at the pause
+    (layout as { stale?(): void }).stale?.();
+    layoutTimer = later(() => { layoutTimer = null; layout?.refresh(); }, LIVE_PAUSE_MS);
   }));
   scheduleLive(0);
   scheduleLints(300);
+  scheduleCheck(CHECK_IDLE_MS);
 
   return {
     caretSlide,
@@ -619,6 +737,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     lastFit: () => (last ? { ...last, boxes: last.boxes.map((b) => ({ ...b })) } : null),
     layoutGui: () => layoutApi,
     syncLive: () => syncLive(true),
+    fitCoverage: () => { const text = shell.getText(); const d = parseDeck(text); return { checked: checkedCount(text, d), total: d.slides.length }; },
     destroy() {
       if (destroyed) return;
       try { o.onLeave?.(caretSlide()); } catch { /* the read view's */ }

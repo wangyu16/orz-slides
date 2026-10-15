@@ -27,9 +27,14 @@ export interface Presentation {
 
 /** The presentation of a text, from its header only. */
 export function presentationOf(text: string): Presentation {
+  // the last text's (the editor asks per slide and per redraw: round B, GUI-11 — the header read once per text)
+  if (lastPresentation?.text === text) return lastPresentation.p;
   const c = deckConfig(text);
-  return { theme: themeOf(c.theme), ratio: c.ratio };
+  const p: Presentation = Object.freeze({ theme: themeOf(c.theme), ratio: c.ratio });
+  lastPresentation = { text, p };
+  return p;
 }
+let lastPresentation: { text: string; p: Presentation } | null = null;
 
 /** The logical slide size (Q2: height 720 for every ratio). */
 export function slideSize(ratio: Ratio): { width: number; height: number } {

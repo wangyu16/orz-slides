@@ -29,7 +29,7 @@ let staged = false;
 interface GuiState {
   slide: number; total: number; selection: unknown; boxes: string[]; floats: number; dividers: number;
   stage: { x: number; y: number; w: number; h: number; scale: number }; insets: { top: number; left: number; bottom: number; right: number };
-  status: string; template: string | null; blocked: string | null; stale: boolean; strip: number[];
+  status: string; template: string | null; blocked: string | null; stale: boolean; strip: number[]; stripAxis: 'x' | 'y' | null;
 }
 
 async function context(b: Browser, o: { viewport?: { width: number; height: number }; touch?: boolean } = {}): Promise<BrowserContext> {
@@ -142,7 +142,8 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     expect(s.boxes).toEqual(['left', 'right']);
     expect(s.dividers).toBe(1);
     expect(s.insets.top).toBeGreaterThan(20);
-    expect(s.insets.left).toBeGreaterThan(100);
+    // the filmstrip beside the slide or under it (round B, GUI-4: whichever leaves the slide larger)
+    expect(s.stripAxis === 'y' ? s.insets.left : s.insets.bottom).toBeGreaterThan(s.stripAxis === 'y' ? 100 : 90);
     const aligned = async (): Promise<number> => {
       const ifr = (await page.locator('iframe.orz-editor__frame').boundingBox())!;
       const inFrame = await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('#orz-live .orz-page > section .orz-content .orz-region')).map((r) => { const b = r.getBoundingClientRect(); return { name: r.getAttribute('data-region'), x: b.x, y: b.y, w: b.width, h: b.height }; }));
@@ -430,18 +431,22 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     const before = await text(page);
     const item = (await page.locator('.orz-lg-item[data-slide="2"]').boundingBox())!;
     const scroll = (await page.locator('.orz-lg-strip-scroll').boundingBox())!;
-    await page.mouse.move(item.x + 40, item.y + item.height / 2);
+    // the filmstrip is a column beside the slide or a row under it: the drag goes along it
+    const horiz = (await state(page)).stripAxis === 'x';
+    const at = (p: number): [number, number] => (horiz ? [p, item.y + item.height / 2] : [item.x + 40, p]);
+    const p0 = horiz ? item.x + item.width / 2 : item.y + item.height / 2;
+    await page.mouse.move(...at(p0));
     await page.mouse.down();
-    await page.mouse.move(item.x + 40, item.y + item.height / 2 + 20, { steps: 3 });
-    await page.mouse.move(item.x + 40, scroll.y + scroll.height - 8, { steps: 10 });
-    // autoscroll until rows past 40 show, then back off the edge (it stops) and drop on the top edge of a row X: the slide goes to X - 1
+    await page.mouse.move(...at(p0 + 20), { steps: 3 });
+    await page.mouse.move(...at(horiz ? scroll.x + scroll.width - 8 : scroll.y + scroll.height - 8), { steps: 10 });
+    // autoscroll until rows past 40 show, then back off the edge (it stops) and drop on the leading edge of a row X: the slide goes to X - 1
     await expect.poll(async () => Math.max(-1, ...(await state(page)).strip), { timeout: 15_000 }).toBeGreaterThan(45);
-    await page.mouse.move(item.x + 40, scroll.y + scroll.height / 2, { steps: 3 });
+    await page.mouse.move(...at(horiz ? scroll.x + scroll.width / 2 : scroll.y + scroll.height / 2), { steps: 3 });
     await page.waitForTimeout(300);
     const rows = (await state(page)).strip;
     const X = rows[Math.floor(rows.length / 2)];
     const row = (await page.locator(`.orz-lg-item[data-slide="${X}"]`).boundingBox())!;
-    await page.mouse.move(item.x + 40, row.y + 3, { steps: 3 });
+    await page.mouse.move(...at((horiz ? row.x : row.y) + 3), { steps: 3 });
     await page.mouse.up();
     t = await changed(page, before);
     const moved = parseDeck(t).slides.findIndex((s) => s.title === 'Slide 3: code');
@@ -518,11 +523,13 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     await drag(fl, { x: fl.x - st.stage.w * 0.2, y: fl.y });
     t = await changed(page, t);
     expect(slideMap(t, 1)!.floats[0].box.left).toBe(b0.left - 20);
-    // a slide by its grip: the second slide below the third
+    // a slide by its grip: the second slide after the third (the filmstrip a column or a row)
     const grip = (await page.locator('.orz-lg-item[data-slide="1"] .orz-lg-item-grip').boundingBox())!;
     expect(grip.width).toBeGreaterThanOrEqual(30);
     const third = (await page.locator('.orz-lg-item[data-slide="2"]').boundingBox())!;
-    await drag({ x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 }, { x: grip.x + grip.width / 2, y: third.y + third.height - 4 });
+    const horiz = (await state(page)).stripAxis === 'x';
+    const g0 = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+    await drag(g0, horiz ? { x: third.x + third.width - 4, y: g0.y } : { x: g0.x, y: third.y + third.height - 4 });
     t = await changed(page, t);
     expect(parseDeck(t).slides.map((s) => s.title ?? s.template)).toEqual(['title', 'One box', 'Two boxes']);
     expect(errors).toEqual([]);
@@ -625,3 +632,353 @@ function bigDeck(n = 100): string {
   }
   return out.join('\n');
 }
+
+/* ───────────────────────── closed-loop round B (rebuild/1.0@6accc1f): the probes of the layout GUI ───────────────────────── */
+
+const HB = '{{nyml\nkind: document\ncarrier: slides\nuid: doc-layoutguiroundb\ntitle: Round B\ntheme: orchard\n}}\n\n';
+/** Page rectangles of the ink (text lines, pictures) of the stage slide in the frame. */
+async function inkRects(page: Page, frame: Frame): Promise<Array<{ x: number; y: number; w: number; h: number }>> {
+  const ifr = (await page.locator('iframe.orz-editor__frame').boundingBox())!;
+  const rs = await frame.evaluate(() => {
+    const s = document.querySelector('#orz-live .orz-page > section');
+    const out: Array<{ x: number; y: number; w: number; h: number }> = [];
+    if (!s) return out;
+    const w = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      if (!(n.textContent ?? '').trim()) continue;
+      const el = n.parentElement!;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || el.closest('.orz-footer, .orz-slot, .orz-chrome, [aria-hidden="true"]')) continue;
+      range.selectNodeContents(n);
+      for (const r of Array.from(range.getClientRects())) if (r.width > 1 && r.height > 1) out.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+    }
+    for (const m of Array.from(s.querySelectorAll('img, svg, canvas, video'))) { const r = m.getBoundingClientRect(); if (r.width > 1 && r.height > 1) out.push({ x: r.x, y: r.y, w: r.width, h: r.height }); }
+    return out;
+  });
+  return rs.map((r) => ({ x: r.x + ifr.x, y: r.y + ifr.y, w: r.w, h: r.h }));
+}
+const hit = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 1;
+/** The labels (name tags, fit badges) of the stage as the reader sees them now: text, opacity, page rectangle. */
+const labels = (page: Page) => page.evaluate(() => {
+  const host = document.querySelector('#host')!.firstElementChild as HTMLElement | null;
+  const root = (host?.shadowRoot ?? document) as ParentNode;
+  return Array.from(root.querySelectorAll<HTMLElement>('.orz-lg-stage :is(.orz-lg-tag, .orz-lg-badge)')).map((l) => { const r = l.getBoundingClientRect(); return { text: l.textContent ?? '', cls: l.className, box: l.parentElement?.getAttribute('data-box') ?? l.parentElement?.getAttribute('data-float') ?? '', opacity: Number(getComputedStyle(l).opacity), x: r.x, y: r.y, w: r.width, h: r.height }; });
+});
+
+chrome('closed-loop round B probes (the layout GUI, real Chrome, offline)', () => {
+  it('[L.12] round B, OPS-2: a run of arrow keys (a divider, a float) is written to the slide it started on — Page Down, a filmstrip click or a caret move to another slide first writes it there; the next slide is never touched', async () => {
+    const deck = `${HB}<!-- slide 2col -->\n## Slide A\nLeft A\n<!-- @right -->\nRight A\n<!-- @float left=60% top=10% w=30% h=20% -->\nFloat A\n\n<!-- slide 2col -->\n## Slide B\nLeft B\n<!-- @right -->\nRight B\n<!-- @float left=10% top=50% w=30% h=20% -->\nFloat B\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Slide A');
+    const t0 = await text(page);
+    // a divider run, then Page Down at once
+    await page.locator('.orz-lg-div').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('PageDown');
+    await waitGui(page, (s) => s.slide === 1 && !s.stale);
+    await page.waitForTimeout(900);
+    let t = await text(page);
+    expect(slideOf(t, 0).layoutSpec).toBe('2col 2/1');
+    expect(slideOf(t, 1).layoutSpec).toBe('2col');
+    // a float run, then a filmstrip click on the other slide
+    await page.locator('.orz-lg-item[data-slide="0"]').click();
+    await waitGui(page, (s) => s.slide === 0 && !s.stale);
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    for (let k = 0; k < 3; k++) await page.keyboard.press('ArrowRight');
+    await page.locator('.orz-lg-item[data-slide="1"]').click();
+    await waitGui(page, (s) => s.slide === 1 && !s.stale);
+    await page.waitForTimeout(900);
+    t = await text(page);
+    expect(slideOf(t, 0).floats[0].geom).toMatchObject({ left: '63%', top: '10%' });
+    expect(slideOf(t, 1).floats[0].geom).toMatchObject({ left: '10%', top: '50%' });
+    expect(t).not.toBe(t0);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.10] round B, OPS-5 and OPS-7: a drag that is refused (read-only) or cancelled by an undo leaves the stage as the text says — no preview left in the frame, nothing written to whatever now has the dragged float\'s number', async () => {
+    const deck = `${HB}<!-- slide -->\n## Floats\nBody\n<!-- @float left=10% top=20% w=20% h=20% -->\nFloat A\n<!-- @float left=60% top=60% w=20% h=20% -->\nFloat B\n`;
+    const { page, ctx, frame, errors } = await openApp(deck, '## Floats');
+    const frameFloat = (k: number) => frame.evaluate((i) => { const f = document.querySelectorAll<HTMLElement>('#orz-live .orz-page > section > .orz-float')[i]; const r = f.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), style: f.getAttribute('style') ?? '' }; }, k);
+    const before = await frameFloat(1);
+    // read-only: the drag is refused; the frame's preview is put back
+    await ed(page, 'e.setReadOnly(true)');
+    const f = await center(page, '.orz-lg-float[data-float="1"]');
+    await page.mouse.move(f.x, f.y);
+    await page.mouse.down();
+    await page.mouse.move(f.x - 200, f.y - 120, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(700);
+    expect(await text(page)).toBe(deck);
+    expect(await frameFloat(1)).toEqual(before);
+    await ed(page, 'e.setReadOnly(false)');
+    // delete A, drag B (now float 1), undo in the middle of the drag: the drag is cancelled, A comes back, nothing moves
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    await page.keyboard.press('Delete');
+    const t1 = await changed(page, deck);
+    const g = await center(page, '.orz-lg-float[data-float="0"]');
+    await page.mouse.move(g.x, g.y);
+    await page.mouse.down();
+    await page.mouse.move(g.x - 100, g.y - 60, { steps: 6 });
+    await page.keyboard.press('ControlOrMeta+z');
+    await page.mouse.move(g.x - 150, g.y - 80, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(900);
+    expect(t1).not.toBe(deck);
+    expect(await text(page)).toBe(deck);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.9] round B, B-ED-1 and OPS-6: after Duplicate (no blank line before the next marker) a float added on the slide before stays on that slide\'s stage; a new float is the one selected even when the notes come before the floats', async () => {
+    const deck = `${HB}<!-- slide -->\n## One\nBody one\n\n<!-- slide -->\n## Two\nBody two\n<!-- @notes -->\nNotes first.\n<!-- @float left=5% top=60% w=20% h=20% -->\nAn existing float\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Two');
+    let t = await text(page);
+    await page.locator('[data-act="slide-duplicate"]').click();
+    t = await changed(page, t);
+    await page.locator('.orz-lg-item[data-slide="1"]').click();
+    await waitGui(page, (s) => s.slide === 1 && !s.stale);
+    await page.locator('[data-act="float-add"]').click();
+    t = await changed(page, t);
+    const s = await waitGui(page, (x) => !x.stale);
+    expect(s.slide).toBe(1);
+    expect(slideOf(t, 1).floats.map((x) => x.markdown)).toEqual(['An existing float', '']);
+    expect(s.selection).toEqual({ kind: 'float', index: 1 });
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.7] round B, GUI-1: fit and names readable at rest — a cut box is outlined in red and its "cut" badge is shown (never tucked), every box\'s name is shown, and no label at rest lies on the slide\'s text, at 1280 × 800 and 1500 × 900', async () => {
+    const many = Array.from({ length: 40 }, (_, i) => `- item ${i} with quite a few words so that it wraps onto two lines in the column`).join('\n');
+    const deck = `${HB}<!-- slide 2col fit=off -->\n## Too much text\n${many}\n<!-- @right -->\nShort.\n`;
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 1500, height: 900 }]) {
+      const { page, ctx, frame, errors } = await openApp(deck, '## Too much', { viewport });
+      await page.waitForTimeout(600);
+      const ls = (await labels(page)).filter((l) => /orz-lg-(tag|badge)/.test(l.cls));
+      const cut = ls.find((l) => l.text === 'cut');
+      expect(cut, JSON.stringify(viewport)).toBeDefined();
+      expect(cut!.opacity, JSON.stringify(viewport)).toBeGreaterThan(0.95);
+      for (const name of ['left', 'right']) expect(ls.find((l) => l.text === name)?.opacity ?? 0, `${name} ${JSON.stringify(viewport)}`).toBeGreaterThan(0.95);
+      expect(await page.locator('.orz-lg-box--region[data-box="left"]').getAttribute('data-fit')).toBe('cut');
+      const ink = await inkRects(page, frame);
+      const over = ls.filter((l) => l.opacity > 0.5 && l.text !== 'cut' && ink.some((r) => hit(l, r)));
+      expect(over.map((l) => l.text), JSON.stringify(viewport)).toEqual([]);
+      expect(errors).toEqual([]);
+      await ctx.close();
+    }
+  }, 120_000);
+
+  it('[L.7] round B, GUI-1 on the sample: on a normal slide every region\'s name is readable at rest at 1280 × 800 and none lies on the slide\'s text', async () => {
+    const { page, ctx, frame } = await openApp(SAMPLE, '## The RAFT equilibrium', { viewport: { width: 1280, height: 800 } });
+    await page.waitForTimeout(600);
+    const ls = await labels(page);
+    for (const name of ['left', 'right']) expect(ls.find((l) => l.text === name)?.opacity ?? 0, name).toBeGreaterThan(0.95);
+    const ink = await inkRects(page, frame);
+    expect(ls.filter((l) => l.opacity > 0.5 && ink.some((r) => hit(l, r))).map((l) => l.text)).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.7] round B, GUI-5: the overlay\'s outlines reach 3 : 1 against the slide in every theme (dark ones included), and the dividers are drawn at rest — on a touch screen too', async () => {
+    const themes = ['orchard', 'sky', 'stationery', 'preprint', 'small-press', 'notebook', 'sticker', 'inscription', 'copper', 'nocturne', 'architect', 'chalk', 'neon', 'paper'];
+    const lum = ([r, g, b]: number[]): number => { const f = (v: number): number => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const ratio = (a: number[], b: number[]): number => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const worst: string[] = [];
+    for (const th of themes) {
+      const deck = `${HB.replace('theme: orchard', `theme: ${th}`)}<!-- slide 2col -->\n## Why control matters\nShort text.\n<!-- @right -->\nMore.\n`;
+      const { page, ctx } = await openApp(deck, '## Why control', { viewport: { width: 1400, height: 860 } });
+      await page.waitForTimeout(500);
+      const b = (await page.locator('.orz-lg-box--region[data-box="right"]').boundingBox())!;
+      const clip = { x: Math.round(b.x) - 4, y: Math.round(b.y + b.height * 0.45), width: 10, height: 40 };
+      const shot = async (): Promise<number[][][]> => {
+        const png = await page.screenshot({ clip });
+        return page.evaluate(async (b64) => { const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d')!; g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, c.width, c.height).data; const rows: number[][][] = []; for (let y = 0; y < c.height; y++) { const row: number[][] = []; for (let x = 0; x < c.width; x++) { const i = (y * c.width + x) * 4; row.push([d[i], d[i + 1], d[i + 2]]); } rows.push(row); } return rows; }, png.toString('base64'));
+      };
+      const withOverlay = await shot();
+      await page.evaluate(() => { const host = document.querySelector('#host')!.firstElementChild as HTMLElement; (host.shadowRoot!.querySelector('.orz-lg-stage') as HTMLElement).style.visibility = 'hidden'; });
+      const without = await shot();
+      // per run of 10 rows (a dash and its gap), the strongest contrast of the outline against what is under it; the median run
+      const runs: number[] = [];
+      for (let y0 = 0; y0 + 10 <= withOverlay.length; y0 += 10) {
+        let best = 1;
+        for (let y = y0; y < y0 + 10; y++) for (let x = 0; x < withOverlay[y].length; x++) best = Math.max(best, ratio(withOverlay[y][x], without[y][x]));
+        runs.push(best);
+      }
+      runs.sort((x, y) => x - y);
+      const med = runs[Math.floor(runs.length / 2)];
+      if (med < 3) worst.push(`${th} ${med.toFixed(2)}`);
+      await ctx.close();
+    }
+    expect(worst).toEqual([]);
+    // the dividers at rest: a mouse, and a touch screen (no hover)
+    for (const touch of [false, true]) {
+      const { page, ctx } = await openApp(TWO, '## Two boxes', { touch, viewport: { width: 1280, height: 860 } });
+      const shown = await page.evaluate(() => { const host = document.querySelector('#host')!.firstElementChild as HTMLElement; const d = host.shadowRoot!.querySelector('.orz-lg-div')!; return [Number(getComputedStyle(d, '::before').opacity), Number(getComputedStyle(d, '::after').opacity)]; });
+      expect(Math.max(...shown), `touch ${touch}`).toBeGreaterThanOrEqual(touch ? 0.7 : 0.35);
+      await ctx.close();
+    }
+  }, 240_000);
+
+  it('[L.9] round B, GUI-2: a new float avoids the slide\'s text as well as the floats — it covers no word of a full two-column slide with a long title', async () => {
+    const deck = `${HB}<!-- slide 2col -->\n## A title long enough to run across most of the slide's title band\nLeft side point one runs long enough to wrap.\n\n- one\n- two\n- three\n<!-- @right -->\nRight side point one runs long enough to wrap onto lines.\n`;
+    const { page, ctx, frame, errors } = await openApp(deck, '## A title long');
+    let t = await text(page);
+    await page.locator('[data-act="float-add"]').click();
+    t = await changed(page, t);
+    await page.waitForTimeout(500);
+    const f = (await page.locator('.orz-lg-float[data-float="0"]').boundingBox())!;
+    const fr = { x: f.x, y: f.y, w: f.width, h: f.height };
+    const ink = await inkRects(page, frame);
+    expect(ink.filter((r) => hit(fr, r)).length).toBe(0);
+    expect(slideOf(t, 0).floats).toHaveLength(1);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.7] round B, GUI-4: the stage uses its pane — at 1500 × 900 (Split) the slide is drawn at least 0.53 of its size (it was 0.446), and the filmstrip folds away from its own head', async () => {
+    const { page, ctx, errors } = await openApp(SAMPLE, '## The RAFT equilibrium');
+    const s = await state(page);
+    expect(s.stage.scale).toBeGreaterThanOrEqual(0.53);
+    await page.locator('[data-act="strip-hide"]').click();
+    const s2 = await waitGui(page, (x) => x.stripAxis === null);
+    expect(s2.strip).toEqual([]);
+    expect(s2.stage.scale).toBeGreaterThanOrEqual(s.stage.scale);
+    // a pane where the slide is bound by its height: hiding the filmstrip makes it larger
+    await ed(page, 'e.setSplitRatio(0.3)');
+    await page.locator('[data-act="strip"]').click();
+    const s3 = await waitGui(page, (x) => x.stripAxis !== null && !x.stale);
+    await page.locator('[data-act="strip-hide"]').click();
+    const s4 = await waitGui(page, (x) => x.stripAxis === null && !x.stale);
+    expect(s4.stage.scale).toBeGreaterThanOrEqual(s3.stage.scale);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.8] round B, GUI-3, OPS-4: clicking the layout the slide already has keeps its sizes (and says so); a divider of three columns snaps the whole split to small whole numbers, the other divider staying where it is', async () => {
+    const deck = `${HB}<!-- slide 2col 3/2 -->\n## Sized\nL\n<!-- @right -->\nR\n\n<!-- slide 3col -->\n## Three\nA\n<!-- @mid -->\nB\n<!-- @right -->\nC\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Sized');
+    await page.locator('[data-act="preset-2col"]').click();
+    await page.waitForTimeout(600);
+    expect(await text(page)).toBe(deck);
+    expect((await state(page)).status).toMatch(/already .*Two columns.*divider/i);
+    await page.keyboard.press('PageDown');
+    await waitGui(page, (s) => s.slide === 1 && !s.stale && s.dividers === 2);
+    const d0 = page.locator('.orz-lg-div[data-i="0"]');
+    const d1before = (await page.locator('.orz-lg-div[data-i="1"]').boundingBox())!;
+    const a = await center(page, '.orz-lg-box--region[data-box="left"]');
+    const c = await center(page, '.orz-lg-div[data-i="0"]');
+    await d0.hover();
+    await page.mouse.down();
+    await page.mouse.move(c.x - a.w * 0.45, c.y, { steps: 10 });
+    await page.mouse.up();
+    const t = await changed(page, deck);
+    const tracks = slideOf(t, 1).layout.kind === 'split' ? (slideOf(t, 1).layout as { tracks: string[] }).tracks.map(Number) : [];
+    expect(tracks.every((x) => Number.isInteger(x) && x >= 1)).toBe(true);
+    expect(tracks.reduce((x, y) => x + y, 0)).toBeLessThanOrEqual(12);
+    const d1after = (await page.locator('.orz-lg-div[data-i="1"]').boundingBox())!;
+    expect(Math.abs(d1after.x - d1before.x)).toBeLessThanOrEqual(3);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.9] round B, OPS-3: a float written in em or anchored right/bottom moves by the step the reader asked for — one Arrow moves it 1 % from where it is drawn, writes that axis only, and keeps the other axis\' em and the anchor', async () => {
+    const deck = `${HB}<!-- slide -->\n## Em floats\nBody text\n<!-- @float left=1em top=8em w=12em h=3em -->\nAn em float\n<!-- @float right=5% bottom=5% -->\nA corner note\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Em floats');
+    const st = await state(page);
+    const b0 = (await page.locator('.orz-lg-float[data-float="0"]').boundingBox())!;
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    await page.keyboard.press('ArrowRight');
+    const t1 = await changed(page, deck);
+    const g = slideOf(t1, 0).floats[0].geom;
+    expect(g.top).toBe('8em');
+    expect(g.w).toBe('12em');
+    expect(g.h).toBe('3em');
+    expect(g.left).toMatch(/%$/);
+    const b1 = (await page.locator('.orz-lg-float[data-float="0"]').boundingBox())!;
+    expect(Math.abs(b1.x - b0.x - st.stage.w * 0.01)).toBeLessThanOrEqual(st.stage.w * 0.012);
+    await page.locator('.orz-lg-float[data-float="1"]').focus();
+    await page.keyboard.press('ArrowLeft');
+    const t2 = await changed(page, t1);
+    expect(slideOf(t2, 0).floats[1].geom).toEqual({ right: '6%', bottom: '5%' });
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.12] round B, GUI-8, GUI-9, GUI-12: the toolbar comes first in the tab order; a refusal is shown in full (two lines and its title); the words match the buttons (Add a float; the layout names); the Keys panel lists every key', async () => {
+    const deck = `${HB}<!-- slide 2col -->\n## Blocked\n<div>\n<!-- @right -->\nRight\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Blocked');
+    const s = await state(page);
+    expect(s.blocked).not.toBeNull();
+    const msg = page.locator('.orz-lg-msg');
+    expect(await msg.getAttribute('title')).toBe(s.status);
+    const m = (await msg.boundingBox())!;
+    const line = await msg.evaluate((e) => parseFloat(getComputedStyle(e).lineHeight) || 16);
+    expect(m.height).toBeGreaterThan(line * 1.5);
+    expect(await page.locator('[data-act="float-add"]').getAttribute('aria-label')).toBe('Add a float');
+    // DOM order is tab order: the toolbar before the filmstrip and the stage
+    const order = await page.evaluate(() => { const host = document.querySelector('#host')!.firstElementChild as HTMLElement; const ui = host.shadowRoot!.querySelector('.orz-lg')!; return Array.from(ui.children).map((c) => c.className.split(' ')[0]); });
+    expect(order.indexOf('orz-lg-bar')).toBeLessThan(order.indexOf('orz-lg-strip'));
+    expect(order.indexOf('orz-lg-bar')).toBeLessThan(order.indexOf('orz-lg-stage'));
+    await page.locator('[data-act="keys"]').click();
+    const keys = await page.locator('.orz-lg-pop dt').allTextContents();
+    for (const k of ['Alt+Shift+Arrows (box)', 'Delete (filmstrip)', 'Home / End (filmstrip)', 'Enter (filmstrip)', 'Space (box, float)']) expect(keys, k).toContain(k);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.10] round B, GUI-10: the filmstrip tells the slides apart — each template kind draws its own thumbnail and its name is not cut', async () => {
+    const deck = `${HB}<!-- slide template=title -->\n# T\n\n<!-- slide template=section -->\n# S\n\n<!-- slide template=outline -->\n# O\n\n<!-- slide template=closing -->\n# C\n\n<!-- slide -->\n## Normal\nx\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Normal');
+    const items = await page.evaluate(() => { const host = document.querySelector('#host')!.firstElementChild as HTMLElement; return Array.from(host.shadowRoot!.querySelectorAll<HTMLElement>('.orz-lg-item')).slice(0, 4).map((it) => { const mini = it.querySelector('.orz-lg-mini')!; const kind = it.querySelector<HTMLElement>('.orz-lg-item-kind')!; return { mini: mini.innerHTML, cut: kind.scrollWidth > kind.clientWidth + 1, kind: kind.textContent }; }); });
+    expect(new Set(items.map((x) => x.mini)).size).toBe(4);
+    expect(items.filter((x) => x.cut).map((x) => x.kind)).toEqual([]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.10] round B, GUI-11 and OPS-10: ops on a 300-slide deck at a quarter of the CPU (4 × throttled) make no long task over 200 ms', async () => {
+    const deck = bigDeck(300);
+    const { page, ctx, errors } = await openApp(deck, 'Left text of slide 152');
+    await waitGui(page, (s) => s.slide === 151);
+    await page.waitForTimeout(2500);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.evaluate(() => { const w = window as unknown as { __lt: number[] }; w.__lt = []; new PerformanceObserver((l) => { for (const e of l.getEntries()) w.__lt.push(Math.round(e.duration)); }).observe({ type: 'longtask' }); });
+    let t = await text(page);
+    await page.locator('[data-act="float-add"]').click();
+    t = await changed(page, t);
+    await page.locator('.orz-lg-box--region[data-box="right"]').focus();
+    await page.keyboard.press('c');
+    t = await changed(page, t);
+    await page.locator('.orz-lg-strip-scroll').focus();
+    await page.keyboard.press('Alt+ArrowDown');
+    t = await changed(page, t);
+    await page.waitForTimeout(1500);
+    const lt = await page.evaluate(() => [...(window as unknown as { __lt: number[] }).__lt]);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    // eslint-disable-next-line no-console
+    console.log(`[L.10] GUI-11 300 slides, CPU 4×: long tasks around three ops: ${lt.join(', ') || 'none'}`);
+    expect(lt.filter((d) => d > 200)).toEqual([]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 240_000);
+
+  it('[L.13] round B, ISO-B1, ISO-B2: the overlay\'s boxes are named from the TEXT — a document script that renames the frame\'s regions (swapped, a name with a newline, one not in the text) misnames nothing and throws nothing in the page; the preview frame of an app host is an opaque origin', async () => {
+    const SWAP = "var W=window;if(!W.__sw){W.__sw=1;setInterval(function(){var r=document.querySelectorAll('#orz-live .orz-region[data-region]');if(r.length===2){r[0].setAttribute('data-region','right');r[1].setAttribute('data-region','zz\\ny')}},20)}";
+    const deck = `${HB}<!-- slide 2col -->\n## Two\nLEFT-CONTENT <img src="x" onerror="${SWAP}">\n<!-- @right -->\nRIGHT-CONTENT\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Two');
+    // a fresh report after the script ran: type on the slide
+    await page.evaluate(() => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number): void; focus(): void } }).__ed; const i = e.getText().indexOf('RIGHT-CONTENT') + 13; e.select(i, i); e.focus(); });
+    await page.keyboard.type(' x');
+    await page.waitForTimeout(2500);
+    const boxes = await page.evaluate(() => { const host = document.querySelector('#host')!.firstElementChild as HTMLElement; return Array.from(host.shadowRoot!.querySelectorAll<HTMLElement>('.orz-lg-box--region')).map((b) => ({ name: b.getAttribute('data-box'), x: b.getBoundingClientRect().x })); });
+    expect(boxes.map((b) => b.name).sort()).toEqual(['left', 'right']);
+    const left = boxes.find((b) => b.name === 'left')!;
+    const right = boxes.find((b) => b.name === 'right')!;
+    expect(left.x).toBeLessThan(right.x);
+    for (const b of ['left', 'right']) await page.locator(`.orz-lg-box--region[data-box="${b}"]`).click({ position: { x: 20, y: 30 } });
+    expect(await page.locator('iframe.orz-editor__frame').getAttribute('sandbox')).toBe('allow-scripts');
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+});

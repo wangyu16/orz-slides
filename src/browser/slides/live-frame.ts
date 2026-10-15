@@ -73,6 +73,30 @@ interface PartsReport {
   template: Rect | null;
   footer: Rect | null;
   floats: Rect[];
+  /**
+   * The slide's ink (round B, GUI-1 / GUI-2): its lines of text and its pictures, each clipped to its box
+   * (what is drawn), at most {@link INK_MAX} — where a label must not lie and a new float should not go.
+   */
+  ink: Rect[];
+}
+
+/** At most this many ink rectangles per report (a line of text is one). */
+const INK_MAX = 400;
+
+/**
+ * An idle fit check (round B, B-ED-3): a slide the caret has not shown, rendered off screen by the
+ * trusted page's text (data), fitted, reported like the live view's (`orz-slides-fit`, with its key), then
+ * cleared — so the editor's fit lints and the filmstrip's dots cover the whole deck.
+ */
+interface CheckMessage {
+  type: 'orz-slides-check';
+  key: string;
+  html: string;
+  theme: string;
+  scheme: 'light' | 'dark';
+  width: number;
+  height: number;
+  index: number;
 }
 
 /** Refits per render (a drawing that never stops resizing is not refitted for ever). */
@@ -175,6 +199,44 @@ const REFITS = 24;
 
   const section = (): HTMLElement | null => page.querySelector(':scope > section');
 
+  /** The ink of a slide (see {@link PartsReport.ink}), in logical px relative to the slide. */
+  function inkOf(s: HTMLElement, sr: DOMRect, k: number): Rect[] {
+    const out: Rect[] = [];
+    const clipTo = (r: { left: number; top: number; right: number; bottom: number }, el: Element | null): Rect | null => {
+      const box = (el?.closest('.orz-box') ?? s).getBoundingClientRect();
+      const l = Math.max(r.left, box.left, sr.left);
+      const t = Math.max(r.top, box.top, sr.top);
+      const rr = Math.min(r.right, box.right, sr.right);
+      const b = Math.min(r.bottom, box.bottom, sr.bottom);
+      if (rr - l < 1 || b - t < 1) return null;
+      return { x: Math.round((l - sr.left) / k), y: Math.round((t - sr.top) / k), w: Math.round((rr - l) / k), h: Math.round((b - t) / k) };
+    };
+    const range = D.createRange();
+    const walker = D.createTreeWalker(s, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n && out.length < INK_MAX; n = walker.nextNode()) {
+      if (!(n.textContent ?? '').trim()) continue;
+      const el = n.parentElement;
+      if (!el || el.closest('[hidden], [aria-hidden="true"], script, style, template')) continue;
+      range.selectNodeContents(n);
+      for (const r of Array.from(range.getClientRects())) {
+        const c = clipTo(r, el);
+        if (!c) continue;
+        // one rectangle per line of a text: joined with the one before it on the same line
+        const prev = out[out.length - 1];
+        if (prev && Math.abs(prev.y - c.y) <= 1 && Math.abs(prev.h - c.h) <= 1 && c.x - (prev.x + prev.w) <= 2 && c.x >= prev.x) { prev.w = c.x + c.w - prev.x; continue; }
+        out.push(c);
+        if (out.length >= INK_MAX) break;
+      }
+    }
+    for (const m of Array.from(s.querySelectorAll('img, svg, canvas, video, iframe'))) {
+      if (out.length >= INK_MAX) break;
+      if ((m as Element).closest('svg') !== m && (m as Element).parentElement?.closest('svg')) continue;
+      const c = clipTo(m.getBoundingClientRect(), m);
+      if (c) out.push(c);
+    }
+    return out;
+  }
+
   function report(): void {
     reportTimer = 0;
     const s = section();
@@ -205,6 +267,7 @@ const REFITS = 24;
       template: rel(s.querySelector('.orz-template')),
       footer: rel(s.querySelector('.orz-footer')),
       floats: Array.from(s.querySelectorAll<HTMLElement>(':scope > .orz-float')).map((el) => rel(el)!),
+      ink: inkOf(s, sr, k),
     };
     const footerCut = s.querySelector('.orz-footer[data-clipped]') !== null;
     const clipped = boxes.some((b) => b.clipped);
@@ -330,11 +393,65 @@ const REFITS = 24;
   }
   W.addEventListener('resize', () => { if (stage) scale(); });
 
+  /* ── idle fit checks (round B, B-ED-3): one slide at a time, off screen ── */
+  const checkHost = D.createElement('div');
+  checkHost.className = 'orz-check';
+  checkHost.setAttribute('aria-hidden', 'true');
+  // off screen, at the logical size, drawn (not display: none: a hidden box measures nothing)
+  checkHost.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none;contain:layout paint';
+  D.body.appendChild(checkHost);
+  let checkGen = 0;
+  /** What a picture or a drawing loading in the checked slide does (the current check's). */
+  let onCheckLoad: (() => void) | null = null;
+  checkHost.addEventListener('load', () => onCheckLoad?.(), true);
+  checkHost.addEventListener('error', () => onCheckLoad?.(), true);
+  function check(m: CheckMessage): void {
+    const mine = ++checkGen;
+    const w = Number(m.width) || 1280;
+    const h = Number(m.height) || 720;
+    checkHost.innerHTML = `<div class="reveal orz-deck orz-print"><div class="orz-page">${String(m.html)}</div></div>`;
+    const dk = checkHost.firstElementChild as HTMLElement;
+    dk.setAttribute('data-orz-theme', String(m.theme));
+    dk.style.width = `${w}px`;
+    dk.style.setProperty('--sl-w', `${w}px`);
+    dk.style.setProperty('--sl-h', `${h}px`);
+    const s = dk.querySelector<HTMLElement>('.orz-page > section');
+    if (!s) { post({ type: 'orz-slides-fit', key: m.key, index: m.index, boxes: [], footerCut: false, scrolls: false, parts: null }); return; }
+    const scrollsHere = s.getAttribute('data-fit') === 'scroll';
+    if (scrollsHere) s.setAttribute('data-fit', 'fit');
+    for (const img of Array.from(s.querySelectorAll('img'))) img.setAttribute('loading', 'eager');
+    decorate(dk, { steps: false });
+    try { W.__orzEnhance?.(); } catch { /* the libraries' */ }
+    try { W.__orzRedraw?.(s); } catch { /* the libraries' */ }
+    // settle: refit after what changes the size (a picture, a drawing), then report once it is quiet (at most ~2 s)
+    let fits = 0;
+    let quiet = 0;
+    const started = Date.now();
+    const fitIt = (): void => { if (mine !== checkGen) return; try { chartAspects(s); fitSlide(s, undefined, grid); } catch { /* a slide */ } fits++; };
+    const done = (): void => {
+      if (mine !== checkGen) return;
+      const sr = s.getBoundingClientRect();
+      const boxes: BoxReport[] = Array.from(s.querySelectorAll<HTMLElement>('.orz-box')).map((b) => {
+        const r = b.getBoundingClientRect();
+        const kind = b.classList.contains('orz-title') ? 'title' : b.classList.contains('orz-float') ? 'float' : b.classList.contains('orz-template') ? 'template' : 'region';
+        return { kind, name: b.getAttribute('data-region') ?? kind, scale: Number(b.getAttribute('data-scale') ?? '1') || 1, clipped: b.hasAttribute('data-clipped'), x: Math.round(r.left - sr.left), y: Math.round(r.top - sr.top), w: Math.round(r.width), h: Math.round(r.height) };
+      });
+      const footerCut = s.querySelector('.orz-footer[data-clipped]') !== null;
+      post({ type: 'orz-slides-fit', key: m.key, index: m.index, boxes, footerCut, scrolls: scrollsHere, parts: null });
+      onCheckLoad = null;
+      checkHost.replaceChildren();
+    };
+    const again = (): void => { if (mine !== checkGen) return; if (fits < REFITS) requestAnimationFrame(fitIt); clearTimeout(quiet); quiet = setTimeout(done, Date.now() - started > 1800 ? 0 : 250) as unknown as number; };
+    onCheckLoad = again;
+    requestAnimationFrame(() => { fitIt(); again(); });
+  }
+
   const before = W.__orzPreviewMessage;
   W.__orzPreviewMessage = (m: unknown): void => {
     const d = m as Partial<LiveMessage> | null;
     if (d && typeof d === 'object' && d.type === 'orz-slides-live') { apply(d as LiveMessage); return; }
     if (d && typeof d === 'object' && (d as { type?: unknown }).type === 'orz-slides-preview') { previewApply(d as unknown as PreviewMessage); return; }
+    if (d && typeof d === 'object' && (d as { type?: unknown }).type === 'orz-slides-check' && typeof (d as { html?: unknown }).html === 'string') { check(d as unknown as CheckMessage); return; }
     if (typeof before === 'function') before(m);
   };
   post({ type: 'orz-slides-live-ready' });

@@ -38,12 +38,12 @@ const PICKER_INIT = `(() => {
 })();`;
 
 /** A context that serves CodeMirror (and the kit's other vendored files) from the installed orz-markdown; everything else off the machine is refused. */
-async function context(b: Browser, o: { picker?: boolean; viewport?: { width: number; height: number } } = {}): Promise<BrowserContext> {
+async function context(b: Browser, o: { picker?: boolean; viewport?: { width: number; height: number }; noCodeMirror?: boolean } = {}): Promise<BrowserContext> {
   const ctx = await b.newContext({ viewport: o.viewport ?? { width: 1440, height: 900 } });
   if (o.picker) await ctx.addInitScript(PICKER_INIT);
   await ctx.route(/^https?:\/\//, (r) => {
     const m = /^https:\/\/cdn\.jsdelivr\.net\/npm\/orz-markdown@[^/]+\/(vendor\/.+)$/.exec(r.request().url());
-    const f = m ? join('node_modules/orz-markdown', m[1]) : '';
+    const f = m && !o.noCodeMirror ? join('node_modules/orz-markdown', m[1]) : '';
     if (f && existsSync(f)) return r.fulfill({ status: 200, body: readFileSync(f), headers: { 'content-type': extname(f) === '.css' ? 'text/css' : 'text/javascript', 'access-control-allow-origin': '*' } });
     return r.abort();
   });
@@ -58,7 +58,7 @@ type Ed = {
 };
 
 /** Open an assembled deck, enter edit mode and wait for CodeMirror and the preview's first render. */
-async function openEditor(name: string, text: string, o: { picker?: boolean; slide?: number; viewport?: { width: number; height: number } } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[]; path: string }> {
+async function openEditor(name: string, text: string, o: { picker?: boolean; slide?: number; viewport?: { width: number; height: number }; noCodeMirror?: boolean } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[]; path: string }> {
   const path = join(dir, name);
   writeFileSync(path, assemble(text), 'utf8');
   const ctx = await context(browser!, o);
@@ -73,7 +73,7 @@ async function openEditor(name: string, text: string, o: { picker?: boolean; sli
     await page.waitForFunction((i) => (globalThis as unknown as G).OrzCarrier.standalone.view.engine.index() === i, o.slide);
   }
   const engine = await page.evaluate(async () => (await (globalThis as unknown as G).OrzCarrier.standalone.edit().ready).engine);
-  expect(engine).toBe('codemirror6');
+  expect(engine).toBe(o.noCodeMirror ? 'textarea' : 'codemirror6');
   const frame = await previewFrame(page);
   return { page, ctx, frame, errors, path };
 }
@@ -300,7 +300,9 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     await page.waitForFunction(() => (globalThis as unknown as G).OrzCarrier.standalone.editor()!.slides.refreshLints().some((l) => l.code === 'footer-cut'), undefined, { timeout: 10_000 });
     const fitLints = await ed(page, (e) => e.slides.refreshLints().filter((l) => l.code === 'cut-on-paper' || l.code === 'footer-cut').map((l) => ({ code: l.code, line: l.line, level: l.level })));
     const tooMuch = after.split('\n').findIndex((l) => l === '<!-- slide fit=off -->') + 1;
-    expect(fitLints).toEqual(expect.arrayContaining([{ code: 'cut-on-paper', line: tooMuch, level: 'warning' }, { code: 'footer-cut', line: tooMuch, level: 'warning' }]));
+    expect(fitLints).toEqual(expect.arrayContaining([{ code: 'cut-on-paper', line: tooMuch, level: 'warning' }]));
+    // the deck footer's lint: one, at the first slide it is cut on (round B: every slide is checked, B-ED-3)
+    expect(fitLints.filter((l) => l.code === 'footer-cut')).toHaveLength(1);
     expect(errors).toEqual([]);
     await ctx.close();
   });
@@ -411,5 +413,82 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     expect(errors).toEqual([]);
     await ctx.close();
   });
-});
 
+  /* ───────────────────────── closed-loop round B (rebuild/1.0@6accc1f): the probes of the whole-deck editor ───────────────────────── */
+
+  const SIX = `{{nyml\nkind: document\ncarrier: slides\nuid: doc-roundbeditor01\ntitle: Caret\n}}\n\n${Array.from({ length: 6 }, (_, i) => `<!-- slide -->\n## Title ${i + 1}\n\nBody ${i + 1}\n`).join('\n')}`;
+
+  it('[W.8] round B, B-ED-2: a header setting (Section numbers, a footer) changed while editing keeps the caret\'s slide — the live view, the per-slide stage and Done stay on it', async () => {
+    const { page, ctx, frame, errors } = await openEditor('rb-caret.slides.html', SIX, { slide: 3 });
+    expect(await ed(page, (e) => e.slides.caretSlide())).toBe(3);
+    await ed(page, (e) => e.setHeader({ section_numbers: 'roman' }));
+    await page.waitForTimeout(800);
+    expect(await ed(page, (e) => e.slides.caretSlide())).toBe(3);
+    await frame.waitForFunction(() => (document.querySelector('#orz-live .orz-live-n')?.textContent ?? '') === 'Slide 4 of 6', undefined, { timeout: 10_000 });
+    await ed(page, (e) => e.slides.setPerSlide(true));
+    await ed(page, (e) => e.setHeader({ footer: 'A footer long enough to shift everything by more than one slide marker' }));
+    await page.waitForTimeout(800);
+    expect(await ed(page, (e) => e.slides.caretSlide())).toBe(3);
+    await ed(page, (e) => e.slides.setPerSlide(false));
+    await page.evaluate(() => (globalThis as unknown as G).OrzCarrier.standalone.leave());
+    await page.waitForFunction(() => (globalThis as unknown as G).OrzCarrier.standalone.view.engine.index() === 3, undefined, { timeout: 10_000 });
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
+  it('[W.5] round B, B-ED-3: the fit lints cover the whole deck — slides never shown at the caret are checked in idle time (one at a time, after a pause), the deck footer\'s lint names every slide it is cut on, and the panel says how many slides were checked', async () => {
+    const long = Array.from({ length: 60 }, (_, i) => `- point ${i + 1} with enough words to take a whole line of the slide`).join('\n');
+    const over = Array.from({ length: 30 }, (_, i) => `- item ${i + 1} with some words`).join('\n');
+    const text = `{{nyml\nkind: document\ncarrier: slides\nuid: doc-roundbeditor03\ntitle: Cut\nfooter: A deck footer that is far too long for its one line in the bottom slot of every single slide of this deck, and then some more words\n}}\n\n<!-- slide -->\n## One\nx\n\n<!-- slide -->\n## Two\nx\n\n<!-- slide -->\n## Three\nx\n\n<!-- slide -->\n## Four\n${long}\n\n<!-- slide fit=off -->\n## Five\n${over}\n\n<!-- slide -->\n## Six\nx\n`;
+    const { page, ctx, errors } = await openEditor('rb-cut.slides.html', text);
+    const coverage = () => ed(page, (e) => (e.slides as unknown as { fitCoverage?(): { checked: number; total: number } }).fitCoverage?.() ?? null);
+    await expect.poll(coverage, { timeout: 30_000 }).toEqual({ checked: 6, total: 6 });
+    const lints = await ed(page, (e) => e.slides.refreshLints().filter((l) => l.code === 'cut-on-paper' || l.code === 'footer-cut').map((l) => (l as unknown as { message: string }).message));
+    expect(lints.some((m) => /slide 4 /.test(m))).toBe(true);
+    expect(lints.some((m) => /slide 5 /.test(m))).toBe(true);
+    expect(lints.some((m) => /slides 1, 2, 3, 4, 5 and 6/.test(m))).toBe(true);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[W.7] round B, B-ED-4: typing in the per-slide mode stays fast on a 300-slide deck: per key p90 ≤ 100 ms, max ≤ 250 ms, no long task over 200 ms (the layout GUI follows the typing at its pause)', async () => {
+    const deck = bigDeck(300);
+    const { page, ctx, errors } = await openEditor('rb-type.slides.html', deck);
+    await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()!; const i = e.getText().indexOf('Left text of slide 152'); e.select(i, i, { scroll: true }); e.focus(); });
+    await ed(page, (e) => e.slides.setPerSlide(true));
+    await page.waitForTimeout(2500);
+    await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()!; const i = e.getText().indexOf('Left text of slide 152'); e.select(i, i); e.focus(); });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => { const w = window as unknown as { __lt: number[] }; w.__lt = []; new PerformanceObserver((l) => { for (const e of l.getEntries()) w.__lt.push(Math.round(e.duration)); }).observe({ type: 'longtask' }); });
+    const trip: number[] = [];
+    for (let i = 0; i < 60; i++) {
+      const k0 = Date.now();
+      await page.keyboard.type('kq'[i % 2]!);
+      trip.push(Date.now() - k0);
+      await page.waitForTimeout(i % 15 === 14 ? 700 : 110);
+    }
+    const lt = await page.evaluate(() => [...(window as unknown as { __lt: number[] }).__lt]);
+    const ks = [...trip].sort((a, b) => a - b);
+    // eslint-disable-next-line no-console
+    console.log(`[W.7] B-ED-4 300 slides, per-slide mode: per key median ${ks[30]} ms, p90 ${ks[54]} ms, max ${ks[59]} ms; long tasks: ${lt.join(', ') || 'none'}`);
+    expect(ks[54]).toBeLessThanOrEqual(100);
+    expect(ks[59]).toBeLessThanOrEqual(250);
+    expect(lt.filter((d) => d > 200)).toEqual([]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 180_000);
+
+  it('[W.9] round B, B-ED-5: with the basic (textarea) editor, This slide brings the slide\'s text into view and says that the rest of the deck is not dimmed', async () => {
+    const { page, ctx, errors } = await openEditor('rb-ta.slides.html', SIX, { slide: 4, noCodeMirror: true });
+    await ed(page, (e) => e.slides.setPerSlide(true));
+    await page.waitForTimeout(1200);
+    const ta = await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()! as unknown as { root: ShadowRoot; getText(): string }; const t = e.root.querySelector('textarea')!; const i = e.getText().indexOf('## Title 5'); return { start: t.selectionStart, at: i, top: t.scrollTop, line: t.value.slice(0, i).split('\n').length - 1, lh: parseFloat(getComputedStyle(t).lineHeight) || 20, h: t.clientHeight }; });
+    expect(Math.abs(ta.start - ta.at)).toBeLessThanOrEqual(12);
+    expect(ta.line * ta.lh).toBeGreaterThanOrEqual(ta.top - ta.lh);
+    expect(ta.line * ta.lh).toBeLessThanOrEqual(ta.top + ta.h);
+    const status = await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()! as unknown as { root: ShadowRoot }; return e.root.querySelector('.orz-lg-msg')?.textContent ?? ''; });
+    expect(status).toMatch(/not dimmed/);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+});

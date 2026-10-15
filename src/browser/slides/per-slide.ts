@@ -17,9 +17,16 @@
  * - `slide()`: the caret's slide of the current text.
  * - `geometry()`: the stage's last fit report — each box's kind, region
  *   name, scale, clipping and rectangle, and the parts the overlay places
- *   itself over (regions, splits, title, floats), in logical px — DATA from
- *   the sandboxed frame (it may be forged by the document's scripts: it
- *   places handles and badges, never an input of an edit).
+ *   itself over (regions, splits, title, floats, the slide's ink), in
+ *   logical px — DATA from the sandboxed frame (it may be forged by the
+ *   document's scripts: it places handles, badges and labels, and SEEDS
+ *   what the reader then sees and confirms — a new float's place, the start
+ *   of a move of a float the text gives in em — never a name, an index or
+ *   an op; boxes are named from the text, round B ISO-B1). Scope: the frame
+ *   is an opaque origin in an app host and a served page; a standalone file
+ *   opened from disk gives it `allow-same-origin` (orz-markdown's registered
+ *   decision B-2), where the document already runs in the page as its read
+ *   view (round B, ISO-B3).
  * - `pane()` / `frame()`: the trusted container over the frame and the
  *   frame; the stage's place is computed by the page itself
  *   (`stageLayout` of the frame's size and the insets the GUI asks for with
@@ -46,6 +53,8 @@ export interface StageParts {
   template: Rect | null;
   footer: Rect | null;
   floats: Rect[];
+  /** The slide's ink: its lines of text and its pictures, clipped to their boxes (where labels must not lie; round B, GUI-1). */
+  ink: Rect[];
 }
 
 /** The stage's last fit report: the slide it is of, its boxes and parts, and whether it is of the current text. */
@@ -71,6 +80,10 @@ export interface StageHost {
   setStage(o: { insets: StageInsets; variants: boolean }): void;
   /** The deck's logical slide size (16:9 1280 × 720, 4:3 960 × 720). */
   slideSize(): { width: number; height: number };
+  /** The slide theme's scheme (the overlay's outlines take the colour that reads on it). */
+  scheme(): 'light' | 'dark';
+  /** The editor's engine ('textarea': the basic editor, nothing dimmed). */
+  engine(): string;
   /** Preview a drag on the stage (or put it back). */
   preview(p: StagePreview): void;
   /** Show the caret's slide on the stage now (after an op), not after the typing pause. */
@@ -83,5 +96,6 @@ export interface StageHost {
 
 /** The layout GUI: attached on entering the per-slide mode. */
 export interface SlideLayoutGui {
-  attach(host: StageHost): { refresh(): void; destroy(): void };
+  /** `stale()`: the text changed by typing — the stage is out of date until the next `refresh()` (at the typing pause). */
+  attach(host: StageHost): { refresh(): void; destroy(): void; stale?(): void };
 }

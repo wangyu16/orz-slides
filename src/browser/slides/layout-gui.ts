@@ -17,16 +17,26 @@
  *   the changed lines flashed (`shell.flash`). A drag or a run of arrow
  *   nudges shows a preview and writes once, when it ends (the preview is the
  *   only thing not in the text, and it lasts until the pointer is up or the
- *   keys pause).
+ *   keys pause) — to the slide and the text it STARTED on (closed-loop round
+ *   B, OPS-2): a run is written before any navigation, undo or mode switch,
+ *   and dropped when the text changed under it; a refused write puts the
+ *   stage back as the text says.
  * - **Only the reader's own input acts**: every handler that leads to an op
  *   checks `event.isTrusted`; nothing the frame sends is an op — its reports
- *   (the boxes' rectangles) place handles and badges, and an op's numbers
- *   come from the text and the pointer (a float's start from its marker, a
- *   divider's ratio from the snapped pointer position shown in the bubble).
- *   The stage's own place is computed here (`stageLayout`), never asked.
- * - **Labels never cover content**: names and badges sit ON the box edge and
- *   fade while the pointer is over the box's content; handles sit on the
- *   edges; the toolbar and filmstrip are beside the stage, not over it.
+ *   (the boxes' rectangles, the slide's ink) place handles, badges and
+ *   labels, and seed only what the reader then sees and confirms (a new
+ *   float's place; the start of a move of a float the text gives in em); an
+ *   op's numbers come from the text and the pointer (a float's start from its
+ *   marker where it is in % or px, a divider's sizes from the snapped pointer
+ *   position shown in the bubble); boxes are named from the text. The
+ *   stage's own place is computed here (`stageLayout`), never asked.
+ * - **Labels never cover content, and are read at rest** (round B, GUI-1):
+ *   each name and fit badge takes the first place that lies on no text or
+ *   picture of the slide (above its box, inside a top corner, under it,
+ *   inside a bottom corner); a cut box is outlined in red and its badge is
+ *   never hidden; the toolbar says every box that does not fit. Handles sit
+ *   on the edges; the toolbar and the filmstrip (beside the slide or under
+ *   it, whichever leaves the slide larger) are not over the slide.
  * - Touch and keyboard: pointer events everywhere, larger targets on coarse
  *   pointers; every box, divider, float and slide is focusable with its own
  *   keys (the `?` panel lists them) and a screen-reader label.
@@ -37,41 +47,52 @@ import { installCss } from 'orz-markdown/carrier/app';
 import { parseDeck, TEMPLATES } from '../../deck/parse.js';
 import { leaves, normalizeTree } from '../../deck/layout-spec.js';
 import {
-  applyOp, blockingProblem, LayoutOpError, nameProblem, nearestRatio, pairRatio, partAt, PRESET_CHOICES, presetOf, presetTree, slideMap, splitsOf, stepRatio,
-  tracksForRatio, type FloatBox, type LayoutOp, type OpResult, type PresetChoice, type SlideMap,
+  applyOp, blockingProblem, floatStart, LayoutOpError, nameProblem, pairRatio, partAt, placeFloat, PRESET_CHOICES, PRESET_LABEL, presetOf, presetTree, slideMap, snapTracks, splitsOf, stepTracks,
+  TEMPLATE_LABEL, type FloatBox, type LayoutOp, type OpResult, type PresetChoice, type SlideMap,
 } from '../../layout-ops.js';
 import type { Deck, LayoutNode, Slide } from '../../types.js';
 import type { SlideLayoutGui, StageGeometry, StageHost } from './per-slide.js';
-import { stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
+import { STAGE_PAD, stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
 
 /** How long a run of arrow keys waits before it is written (one undo step for the run). */
 export const NUDGE_COMMIT_MS = 650;
 /** Filmstrip row height (CSS px; coarse pointers get more). */
 const ROW = 66;
 const ROW_COARSE = 80;
-
-const PRESET_LABEL: Readonly<Record<PresetChoice, string>> = { single: 'One box', '2col': 'Two columns', '3col': 'Three columns', '2row': 'Two rows', 'main-side': 'Main and side', quad: 'Four boxes' };
-const TEMPLATE_LABEL: Readonly<Record<string, string>> = { title: 'Title page', section: 'Section page', outline: 'Outline', closing: 'Closing page' };
+/** The filmstrip beside the stage (its width) or under it (its height; an item's width) — whichever leaves the slide larger (round B, GUI-4). */
+const STRIP_W = 148;
+const STRIP_H = 84;
+const STRIP_H_COARSE = 100;
+const ITEM_W = 150;
+const ITEM_W_COARSE = 170;
 
 /** The keys, as the `?` panel lists them. */
 export const LAYOUT_KEYS: ReadonlyArray<readonly [string, string]> = [
-  ['Tab / Shift+Tab', 'next / previous box, divider, float'],
+  ['Tab / Shift+Tab', 'the toolbar, the filmstrip, then each box, divider and float'],
   ['Arrows (box)', 'go to the box on that side'],
+  ['Space (box, float)', 'select its text in the editor'],
   ['Enter (box, float)', 'edit its text'],
   ['C / R (box)', 'split into columns / rows'],
   ['F2 (box)', 'rename'],
   ['Alt+Arrows (box)', 'swap the text with the box on that side'],
+  ['Alt+Shift+Arrows (box)', 'move the text to the end of the box on that side'],
   ['Delete (box)', 'delete — its text goes to the neighbour'],
-  ['Arrows (divider)', 'next simple ratio'],
+  ['Arrows (divider)', 'the next simple size'],
+  ['Enter (divider)', 'write the size now'],
   ['Arrows (float)', 'move 1 % (Shift: 5 %)'],
   ['Alt+Arrows (float)', 'resize'],
   ['] / [ (float)', 'bring forward / send backward'],
   ['Delete (float)', 'delete the float'],
-  ['Up / Down (filmstrip)', 'go to a slide'],
+  ['Up / Down (filmstrip)', 'go to a slide (Left / Right when it is under the slide)'],
+  ['Home / End (filmstrip)', 'the first / last slide'],
+  ['Page Up / Page Down (filmstrip)', 'a screenful of slides'],
+  ['Enter (filmstrip)', 'go to the slide\'s boxes'],
   ['Alt+Up / Alt+Down (filmstrip)', 'move the slide'],
+  ['Delete (filmstrip)', 'delete the slide'],
   ['Page Up / Page Down', 'previous / next slide'],
   ['Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z', 'undo / redo'],
-  ['Escape', 'cancel a drag; close a panel; clear the selection'],
+  ['?', 'this list'],
+  ['Escape', 'cancel a drag or a run of keys; close a panel; clear the selection'],
 ];
 
 type Sel = { kind: 'box'; name: string } | { kind: 'float'; index: number } | { kind: 'title' } | null;
@@ -93,7 +114,10 @@ const SVG = {
 };
 
 const GUI_CSS = `
-.orz-lg { position: absolute; inset: 0; z-index: 3; pointer-events: none; font: 13px/1.35 var(--orz-chrome-font, system-ui, sans-serif); color: var(--orz-chrome-fg); --lg-accent: var(--orz-chrome-accent, #2f6fde); --lg-hit: 10px; --lg-handle: 10px; }
+.orz-lg { position: absolute; inset: 0; z-index: 3; pointer-events: none; font: 13px/1.35 var(--orz-chrome-font, system-ui, sans-serif); color: var(--orz-chrome-fg); --lg-accent: var(--orz-chrome-accent, #2f6fde); --lg-hit: 10px; --lg-handle: 10px;
+  /* the overlay on the SLIDE reads on the slide's theme (round B, GUI-5: ≥ 3 : 1): a dark line and a light halo on a light slide, the other way round on a dark one */
+  --lg-ink: oklch(45% 0.17 258); --lg-halo: rgb(255 255 255 / .75); --lg-cut: oklch(52% 0.2 27); --lg-shrunk: oklch(48% 0.15 255); --lg-fits: oklch(48% 0.12 150); }
+.orz-lg[data-scheme="dark"] { --lg-ink: oklch(82% 0.11 245); --lg-halo: rgb(0 0 0 / .6); --lg-cut: oklch(72% 0.17 27); --lg-shrunk: oklch(80% 0.1 255); --lg-fits: oklch(80% 0.12 150); }
 @media (pointer: coarse) { .orz-lg { --lg-hit: 26px; --lg-handle: 22px; } }
 .orz-lg button { font: inherit; color: inherit; }
 .orz-lg :focus-visible { outline: 2px solid var(--orz-chrome-focus, var(--lg-accent)); outline-offset: 2px; }
@@ -116,6 +140,12 @@ const GUI_CSS = `
 .orz-lg-mini > i, .orz-lg-mini b > i { display: block; width: 100%; height: 100%; background: currentColor; opacity: .32; border-radius: 1px; }
 .orz-lg-mini > i { height: 100%; }
 .orz-lg-strip { position: absolute; left: 0; bottom: 0; width: 148px; display: flex; flex-direction: column; border-right: 1px solid var(--orz-chrome-border, #ddd); }
+.orz-lg-strip[data-axis="x"] { right: 0; width: auto; flex-direction: row; border-right: 0; border-top: 1px solid var(--orz-chrome-border, #ddd); }
+.orz-lg-strip[data-axis="x"] .orz-lg-strip-head { display: grid; grid-template-columns: auto auto; align-content: center; border-bottom: 0; border-right: 1px solid var(--orz-chrome-border, #ddd); }
+.orz-lg-strip[data-axis="x"] .orz-lg-strip-scroll { overflow-x: auto; overflow-y: hidden; }
+.orz-lg-strip[data-axis="x"] .orz-lg-strip-inner { height: 100%; }
+.orz-lg-strip[data-axis="x"] .orz-lg-drop { left: auto; right: auto; top: 4px; bottom: 4px; width: 3px; height: auto; margin: 0 0 0 -2px; }
+.orz-lg-strip[data-axis="x"] .orz-lg-ghost { left: auto; right: auto; top: 4px; }
 .orz-lg-strip[hidden] { display: none; }
 .orz-lg-strip-head { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--orz-chrome-border, #ddd); }
 .orz-lg-strip-scroll { position: relative; flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scroll-behavior: auto; }
@@ -126,8 +156,17 @@ const GUI_CSS = `
 .orz-lg-item-n { grid-row: 1 / span 2; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--orz-chrome-muted, #666); }
 .orz-lg-item-thumb { display: flex; align-items: center; gap: 4px; min-width: 0; height: 28px; }
 .orz-lg-item-thumb .orz-lg-mini { width: 44px; height: 26px; flex: none; }
-.orz-lg-item-kind { font-size: 11px; color: var(--orz-chrome-muted, #666); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orz-lg-item-t { grid-column: 2 / span 2; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orz-lg-item-line { grid-column: 2 / span 2; display: flex; gap: 4px; min-width: 0; font-size: 11.5px; white-space: nowrap; }
+.orz-lg-item-kind { flex: none; font-size: 11px; color: var(--orz-chrome-muted, #666); white-space: nowrap; }
+.orz-lg-item-kind:empty { display: none; }
+.orz-lg-item-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a template slide's thumbnail: its own drawing per kind (round B, GUI-10) */
+.orz-lg-tpl { position: relative; display: block; width: 100%; height: 100%; }
+.orz-lg-tpl > i { position: absolute; display: block; background: currentColor; border-radius: 1px; opacity: .45; }
+.orz-lg-tpl--title > i:nth-child(1) { left: 15%; right: 15%; top: 30%; height: 22%; opacity: .6; } .orz-lg-tpl--title > i:nth-child(2) { left: 30%; right: 30%; top: 62%; height: 10%; }
+.orz-lg-tpl--section > i:nth-child(1) { left: 12%; width: 16%; top: 35%; height: 30%; opacity: .7; border-radius: 50%; } .orz-lg-tpl--section > i:nth-child(2) { left: 34%; right: 12%; top: 42%; height: 16%; }
+.orz-lg-tpl--outline > i { left: 15%; height: 9%; } .orz-lg-tpl--outline > i:nth-child(1) { top: 18%; right: 30%; opacity: .6; } .orz-lg-tpl--outline > i:nth-child(2) { top: 40%; right: 40%; } .orz-lg-tpl--outline > i:nth-child(3) { top: 58%; right: 35%; } .orz-lg-tpl--outline > i:nth-child(4) { top: 76%; right: 45%; }
+.orz-lg-tpl--closing > i:nth-child(1) { left: 12%; width: 46%; top: 38%; height: 20%; opacity: .6; } .orz-lg-tpl--closing > i:nth-child(2) { right: 12%; width: 22%; top: 25%; height: 50%; border-radius: 2px; }
 .orz-lg-item-grip { grid-column: 3; grid-row: 1; display: flex; align-items: center; justify-content: center; width: 18px; height: 26px; cursor: grab; touch-action: none; color: var(--orz-chrome-muted, #666); }
 .orz-lg-item-grip svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 @media (pointer: coarse) { .orz-lg-item-grip { width: 32px; height: 40px; } .orz-lg-item { grid-template-columns: 22px 1fr 32px; } }
@@ -138,24 +177,31 @@ const GUI_CSS = `
 .orz-lg-drop { position: absolute; left: 4px; right: 4px; height: 3px; margin-top: -2px; border-radius: 2px; background: var(--lg-accent); pointer-events: none; }
 .orz-lg-ghost { position: absolute; left: 4px; right: 4px; opacity: .85; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.18); background: var(--orz-chrome-surface, #fff); border-color: var(--lg-accent) !important; }
 .orz-lg-status { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 3px 8px; border-top: 1px solid var(--orz-chrome-border, #ddd); font-size: 12px; }
+.orz-lg-status { min-height: 44px; }
 .orz-lg-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orz-lg-msg[data-tone="warn"] { color: var(--orz-chrome-warning, #a60); }
+/* a refusal says how to fix it: two lines, the whole text in its title and a click away (round B, GUI-8) */
+.orz-lg-msg[data-tone="warn"] { color: var(--orz-chrome-warning, #a60); white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.35; cursor: help; }
 .orz-lg-msg[data-tone="ok"]::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: oklch(78% 0.15 90); vertical-align: 1px; }
 .orz-lg-stage { position: absolute; pointer-events: none; }
-.orz-lg-stage.is-stale > * { opacity: .45; }
-.orz-lg-box { position: absolute; pointer-events: auto; box-sizing: border-box; border: 1px dashed color-mix(in oklch, var(--lg-accent) 55%, transparent); border-radius: 2px; cursor: pointer; touch-action: manipulation; }
-.orz-lg-box:hover { border-style: solid; background: color-mix(in oklch, var(--lg-accent) 4%, transparent); }
-.orz-lg-box.is-cursor { border-style: solid; border-color: color-mix(in oklch, var(--lg-accent) 70%, transparent); }
-.orz-lg-box.is-selected { border: 2px solid var(--lg-accent); background: color-mix(in oklch, var(--lg-accent) 6%, transparent); }
+.orz-lg-stage.is-stale > * { opacity: .45; pointer-events: none; }
+.orz-lg-box { position: absolute; pointer-events: auto; box-sizing: border-box; border: 1.5px dashed var(--lg-ink); box-shadow: 0 0 0 1px var(--lg-halo); border-radius: 2px; cursor: pointer; touch-action: manipulation; }
+.orz-lg-box:hover { border-style: solid; background: color-mix(in oklch, var(--lg-ink) 5%, transparent); }
+.orz-lg-box.is-cursor { border-style: solid; }
+.orz-lg-box.is-selected { border: 2px solid var(--lg-ink); background: color-mix(in oklch, var(--lg-ink) 7%, transparent); }
 .orz-lg-box.is-target { border: 2px solid oklch(66% 0.17 150); background: color-mix(in oklch, oklch(66% 0.17 150) 10%, transparent); }
-.orz-lg-box--title, .orz-lg-box--footer { border-color: color-mix(in oklch, var(--orz-chrome-muted, #888) 50%, transparent); }
+.orz-lg-box--title, .orz-lg-box--footer { border-color: color-mix(in oklch, var(--lg-ink) 70%, transparent); }
+/* the fit on the outline itself (never tucked: round B, GUI-1) */
+.orz-lg-box[data-fit="cut"] { border: 2.5px solid var(--lg-cut); }
+.orz-lg-box[data-fit="shrunk"] { border-color: var(--lg-shrunk); }
 .orz-lg-tag, .orz-lg-badge { position: absolute; bottom: 100%; margin-bottom: 1px; max-width: calc(100% - 8px); padding: 0 5px; border-radius: 4px 4px 0 0; font: 600 10.5px/15px var(--orz-chrome-font, system-ui, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .15s; }
 .orz-lg-tag { left: 6px; background: var(--lg-accent); color: var(--orz-chrome-accent-fg, #fff); cursor: grab; touch-action: none; }
 .orz-lg-box--title .orz-lg-tag, .orz-lg-box--footer .orz-lg-tag { background: var(--orz-chrome-muted, #777); cursor: pointer; }
 .orz-lg-badge { right: 6px; background: oklch(94% 0.03 150); color: oklch(42% 0.12 150); }
 .orz-lg-badge[data-fit="shrunk"] { background: oklch(93% 0.03 255); color: oklch(45% 0.14 255); }
-.orz-lg-badge[data-fit="cut"] { background: oklch(58% 0.19 27); color: #fff; }
-.orz-lg-stage :is(.orz-lg-tag, .orz-lg-badge).is-tucked { opacity: 0; }
+.orz-lg-badge[data-fit="cut"] { background: oklch(52% 0.2 27); color: #fff; }
+/* a label placed by placeLabels(): inside or under its box when its place above would lie on text */
+.orz-lg-tag[data-at], .orz-lg-badge[data-at] { border-radius: 4px; }
+.orz-lg-stage :is(.orz-lg-tag, .orz-lg-badge).is-tucked:not([data-fit="cut"]) { opacity: 0; }
 .orz-lg-stage :is(.orz-lg-box, .orz-lg-float):is(:hover, :focus-visible, .is-selected) > :is(.orz-lg-tag, .orz-lg-badge).is-tucked { opacity: 1; }
 /* labels sit OUTSIDE their box, on its top edge: never over its own content; while the pointer is over a box, the other boxes' labels (over its edge) fade */
 .orz-lg-stage:has(:is(.orz-lg-box, .orz-lg-float):hover) :is(.orz-lg-box, .orz-lg-float):not(:hover) > :is(.orz-lg-tag, .orz-lg-badge) { opacity: .15; }
@@ -164,13 +210,16 @@ const GUI_CSS = `
 .orz-lg-div { position: absolute; pointer-events: auto; touch-action: none; display: flex; align-items: center; justify-content: center; }
 .orz-lg-div[aria-orientation="vertical"] { cursor: col-resize; }
 .orz-lg-div[aria-orientation="horizontal"] { cursor: row-resize; }
-.orz-lg-div::before { content: ""; position: absolute; background: var(--lg-accent); opacity: 0; border-radius: 2px; transition: opacity .12s; }
+.orz-lg-div::before { content: ""; position: absolute; background: var(--lg-ink); opacity: 0; border-radius: 2px; transition: opacity .12s; }
 .orz-lg-div[aria-orientation="vertical"]::before { top: 0; bottom: 0; left: 50%; width: 3px; transform: translateX(-50%); }
 .orz-lg-div[aria-orientation="horizontal"]::before { left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%); }
 .orz-lg-div:hover::before, .orz-lg-div:focus-visible::before, .orz-lg-div.is-dragging::before { opacity: .9; }
-.orz-lg-div::after { content: ""; position: relative; width: 8px; height: 22px; border-radius: 4px; background: var(--orz-chrome-surface, #fff); box-shadow: 0 0 0 1.5px var(--lg-accent); opacity: 0; transition: opacity .12s; }
+.orz-lg-div::after { content: ""; position: relative; width: 8px; height: 22px; border-radius: 4px; background: var(--orz-chrome-surface, #fff); box-shadow: 0 0 0 1.5px var(--lg-ink); opacity: .55; transition: opacity .12s; }
 .orz-lg-div[aria-orientation="horizontal"]::after { width: 22px; height: 8px; }
 .orz-lg-div:hover::after, .orz-lg-div:focus-visible::after, .orz-lg-div.is-dragging::after { opacity: 1; }
+/* a touch screen has no hover: the grip and its line are drawn at rest, so a divider is found (round B, GUI-5) */
+@media (hover: none) { .orz-lg-div::after { opacity: .95; width: 12px; height: 30px; } .orz-lg-div[aria-orientation="horizontal"]::after { width: 30px; height: 12px; } .orz-lg-div::before { opacity: .5; } }
+.orz-lg.is-readonly :is(.orz-lg-div, .orz-lg-h) { display: none; }
 .orz-lg-float { position: absolute; pointer-events: auto; box-sizing: border-box; border: 1.5px dashed oklch(62% 0.16 300); border-radius: 2px; cursor: move; touch-action: none; }
 .orz-lg-float.is-selected { border: 2px solid oklch(55% 0.19 300); }
 .orz-lg-float .orz-lg-tag { background: oklch(55% 0.19 300); cursor: move; }
@@ -201,12 +250,18 @@ const GUI_CSS = `
 .orz-lg-catch[hidden] { display: none; }
 .orz-lg-float.is-selected { z-index: 1; }
 .orz-lg-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.orz-lg-fit { font-weight: 600; }
+.orz-lg-fit[data-fit="cut"] { color: var(--orz-chrome-danger, #c22); }
+.orz-lg-full { margin: 0; max-width: 46ch; font-size: 12.5px; line-height: 1.45; white-space: normal; }
 `;
 
 /* ───────────────────────── small helpers ───────────────────────── */
 
-/** A value for an attribute selector (names are [A-Za-z0-9_-], keys add : and .). */
-const esc = (v: string): string => v.replace(/["\\]/g, '\\$&');
+/** A value for an attribute selector, CSS-safe whatever it holds (round B, ISO-B2: a newline threw in querySelector). */
+const esc = (v: string): string => {
+  const C = (globalThis as unknown as { CSS?: { escape?(s: string): string } }).CSS;
+  return C?.escape ? C.escape(v) : v.replace(/[^\w-]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `);
+};
 
 const isMac = (w: Window): boolean => /Mac|iPhone|iPad/.test(w.navigator?.platform ?? '');
 
@@ -267,7 +322,7 @@ function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls?: 
 /** The test handle of an attached GUI (`editor.slides.layoutGui()`). */
 export interface LayoutGuiApi {
   /** What the GUI shows now. */
-  state(): { slide: number; total: number; selection: Sel; boxes: string[]; floats: number; dividers: number; stage: Rect & { scale: number }; insets: StageInsets; status: string; template: string | null; blocked: string | null; stale: boolean; strip: number[]; dragging: boolean; pending: boolean };
+  state(): { slide: number; total: number; selection: Sel; boxes: string[]; floats: number; dividers: number; stage: Rect & { scale: number }; insets: StageInsets; status: string; template: string | null; blocked: string | null; stale: boolean; strip: number[]; stripAxis: 'x' | 'y' | null; dragging: boolean; pending: boolean };
   /** Apply an op through the GUI's own path (tests of the path; the reader's input goes through the trusted handlers). */
   run(op: LayoutOp): boolean;
 }
@@ -277,7 +332,7 @@ export function createLayoutGui(): SlideLayoutGui {
   return { attach: (host: StageHost) => mountLayoutGui(host) };
 }
 
-function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; api: LayoutGuiApi } {
+function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; stale(): void; api: LayoutGuiApi } {
   const shell: EditorShell = host.shell;
   const root = shell.root as unknown as ShadowRoot;
   let pane = host.pane();
@@ -307,7 +362,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   /** During a drag: a layer over the whole pane holding the pointer (the frame never gets it; a redraw never loses it). */
   const catcher = el(doc, 'div', 'orz-lg-catch', { 'aria-hidden': 'true' });
   catcher.hidden = true;
-  ui.append(strip, stage, bar, status, bubble, catcher);
+  // the toolbar first: the tab order is the reading order (round B, GUI-12); the layers stack by position
+  ui.append(bar, strip, stage, status, bubble, catcher);
 
   /**
    * Hold a pointer for a drag: the catcher captures it, so moves over the frame and redraws of the
@@ -358,6 +414,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   }
   const custom = el(doc, 'span', 'orz-lg-note');
   gPresets.append(custom);
+  /** The fit of every box, in words, at rest (round B, GUI-1: a cut box is said in the toolbar too). */
+  const fitNote = el(doc, 'span', 'orz-lg-note orz-lg-fit', { 'aria-live': 'polite' });
   const gBox = el(doc, 'span', 'orz-lg-group', { role: 'group' });
   const bCols = btn('Columns', SVG.col, { title: 'Split the box into two columns (C)', data: 'split-col' });
   const bRows = btn('Rows', SVG.row, { title: 'Split the box into two rows (R)', data: 'split-row' });
@@ -368,7 +426,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   const boxLabel = el(doc, 'span', 'orz-lg-note');
   gBox.append(boxLabel, bCols, bRows, bRename, bSwap, bMove, bDel);
   const gFloat = el(doc, 'span', 'orz-lg-group', { role: 'group' });
-  const bAddFloat = btn('Float', SVG.float, { title: 'Add a float: a free box on top of the layout, placed where it overlaps no other float', data: 'float-add' });
+  const bAddFloat = btn('Add a float', SVG.float, { title: 'Add a float: a free box on top of the layout, placed where it covers no text and no other float', data: 'float-add', iconOnly: true });
+  bAddFloat.append(doc.createTextNode('Float'));
   const bFwd = btn('Bring forward', SVG.up, { title: 'Bring the float forward (])', iconOnly: true, data: 'float-forward' });
   const bBack = btn('Send backward', SVG.down, { title: 'Send the float backward ([)', iconOnly: true, data: 'float-backward' });
   const bFDel = btn('Delete float', SVG.del, { title: 'Delete the float and its text (Delete)', iconOnly: true, data: 'float-delete', danger: true });
@@ -381,14 +440,15 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   const bNotes = btn('Notes', '', { title: 'Edit the speaker notes (adds them when the slide has none)', data: 'notes' });
   const bFooter = btn('Footer', '', { title: 'Edit the slide\'s footer (adds one when the slide has none)', data: 'footer' });
   gSlideOpts.append(bOpts, bNotes, bFooter);
-  bar.append(gSlide, gPresets, gTemplate, gBox, gFloat, gSlideOpts);
+  bar.append(gSlide, gPresets, gTemplate, gBox, gFloat, gSlideOpts, fitNote);
 
   // the filmstrip
   const stripHead = el(doc, 'div', 'orz-lg-strip-head');
   const sAdd = btn('Add slide', SVG.add, { title: 'Add a slide after this one', iconOnly: true, data: 'slide-add' });
   const sDup = btn('Duplicate slide', SVG.dup, { title: 'Duplicate this slide', iconOnly: true, data: 'slide-duplicate' });
   const sDel = btn('Delete slide', SVG.del, { title: 'Delete this slide', iconOnly: true, data: 'slide-delete', danger: true });
-  stripHead.append(sAdd, sDup, sDel);
+  const sHide = btn('Hide the filmstrip', SVG.strip, { title: 'Hide the filmstrip (the Slides button shows it again)', iconOnly: true, data: 'strip-hide' });
+  stripHead.append(sAdd, sDup, sDel, sHide);
   const stripScroll = el(doc, 'div', 'orz-lg-strip-scroll', { role: 'listbox', 'aria-label': 'Slides — Up and Down go to a slide, Alt+Up and Alt+Down move it', tabindex: '0' });
   const stripInner = el(doc, 'div', 'orz-lg-strip-inner');
   stripScroll.append(stripInner);
@@ -419,14 +479,23 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   let insets: StageInsets = { top: 0, right: 0, bottom: 0, left: 0 };
   let current: { text: string; deck: Deck; index: number; slide: Slide; map: SlideMap; blocked: string | null } | null = null;
   let geom: StageGeometry | null = null;
+  /** The stage's boxes as drawn: the frame's rectangles, named from the text (in the text's order). */
+  let regionRects: Array<Rect & { name: string; empty: boolean }> = [];
+  /** Typed since the last redraw: the stage is stale until the typing pause (round B, B-ED-4). */
+  let textDirty = false;
   let pop: HTMLElement | null = null;
   let drag: { cancel(): void } | null = null;
-  let pending: { key: string; timer: number | null; commit(): void; cancel(): void } | null = null;
+  /**
+   * A run of keys not written yet (round B, OPS-2: bound to the slide and the text it started on — written
+   * there, or not at all when the text changed under it; flushed before any navigation, undo or mode switch).
+   */
+  let pending: { key: string; slide: number; base: string; timer: number | null; commit(): void; cancel(): void } | null = null;
   let lastStatus = '';
 
   const say = (text: string, tone: 'ok' | 'warn' | 'info' = 'info'): void => {
     lastStatus = text;
     msg.textContent = text;
+    msg.title = text;
     msg.setAttribute('data-tone', tone);
   };
 
@@ -439,6 +508,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     const map = slideMap(text, s.index);
     if (!map) { current = null; return; }
     const b = blockingProblem(text, s.index);
+    // another slide: a popover opened for the last one closes (its choices were that slide's)
+    if (current && current.index !== s.index) closePop();
     current = { text, deck, index: s.index, slide: s.slide, map, blocked: b ? b.message : null };
     // the selection follows the text: a renamed or deleted box is no longer selected
     if (sel?.kind === 'box' && !(s.slide.kind === 'template' ? ['body'] : leaves(s.slide.layout)).includes(sel.name)) sel = null;
@@ -446,38 +517,56 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   }
 
   /* ── ops ── */
-  /** Apply an op to a slide (default: the caret's) — ONE undo step, the changed lines flashed. */
-  function run(op: LayoutOp, index?: number): boolean {
+  /**
+   * Apply an op to a slide (default: the caret's) — ONE undo step, the changed lines flashed. `base`: the
+   * text a drag or a run of keys started from; when the text is no longer that, nothing is written.
+   * A refusal puts the stage back as the text says (a drag's preview goes: round B, OPS-5).
+   */
+  function run(op: LayoutOp, index?: number, base?: string): OpResult | null {
     flushPending();
     const text = shell.getText();
     const s = host.slide();
     const i = index ?? s?.index;
-    if (i === undefined) return false;
-    if (shell.isReadOnly()) { say('The document is read-only.', 'warn'); return false; }
+    const refused = (m: string, tone: 'warn' | 'info' = 'warn'): null => {
+      say(m, tone);
+      host.preview({ reset: true });
+      if (!drag) later(() => { if (!drag && !pending) drawStage(); }, 0);
+      return null;
+    };
+    if (i === undefined) return null;
+    if (shell.isReadOnly()) return refused('The document is read-only.');
+    if (base !== undefined && text !== base) return refused('The text changed meanwhile: that change was not written.');
     let r: OpResult;
     try {
       r = applyOp(text, i, op);
     } catch (e) {
-      say(e instanceof LayoutOpError ? capital(e.message) : `Could not change the layout: ${String((e as Error)?.message ?? e)}`, 'warn');
-      return false;
+      return refused(e instanceof LayoutOpError ? capital(e.message) : `Could not change the layout: ${String((e as Error)?.message ?? e)}`, e instanceof LayoutOpError && e.code === 'no-change' ? 'info' : 'warn');
     }
     let ok = false;
-    try { ok = shell.applyEdits(r.edits, { label: r.label }); } catch (e) { say(`Could not change the text: ${String((e as Error)?.message ?? e)}`, 'warn'); return false; }
-    if (!ok) { say('The document is read-only.', 'warn'); return false; }
+    try { ok = shell.applyEdits(r.edits, { label: r.label }); } catch (e) { return refused(`Could not change the text: ${String((e as Error)?.message ?? e)}`); }
+    if (!ok) return refused('The document is read-only.');
     const after = shell.getText();
     try { (shell as unknown as { flash?(r: Array<{ from: number; to: number }>): void }).flash?.(r.changed.map((c) => ({ from: Math.min(c.from, after.length), to: Math.min(c.to, after.length) }))); } catch { /* an older kit */ }
     if (r.slide !== i || op.type.startsWith('slide-')) host.goTo(r.slide);
     if (r.select) shell.select(r.select.from, r.select.to, { scroll: true });
-    // the caret stays on the op's slide (a deleted last block leaves it at the next slide's start)
-    else if (host.slide()?.index !== r.slide) host.goTo(r.slide);
-    say(`${r.label} — ${op.type === 'slide-move' ? `${r.edits.reduce((n, e) => n + (e.insert.match(/\r\n|\r|\n/g)?.length ?? 0), 0)} lines moved` : diffSummary(text, r)}`, 'ok');
+    // the caret stays on the op's slide (a deleted last block, an empty box at the next slide's marker: round B, B-ED-1)
+    if (host.slide()?.index !== r.slide) host.goTo(r.slide);
+    say(`${r.label} — ${op.type === 'slide-move' ? `${r.edits.reduce((n, e) => n + (e.insert.match(/\r\n|\r|\n/g)?.length ?? 0), 0)} lines moved` : diffSummary(text, r)}`, /no free place/.test(r.label) ? 'warn' : 'ok');
     host.syncNow();
     refresh();
-    return true;
+    return r;
   }
   const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+  /** Go to a slide: what is pending is written first, a drag is cancelled (round B, OPS-2). */
+  function go(i: number): void {
+    flushPending();
+    drag?.cancel();
+    host.goTo(i);
+  }
 
   function history(dir: 'undo' | 'redo'): void {
+    // a drag in progress is cancelled first: its drop must not land on what the undo puts at its number (round B, OPS-7)
+    drag?.cancel();
     flushPending();
     const before = shell.getText();
     const ok = dir === 'undo' ? shell.undo() : shell.redo();
@@ -513,18 +602,32 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     Object.assign(stage.style, { left: `${stageRect.x}px`, top: `${stageRect.y}px`, width: `${stageRect.w}px`, height: `${stageRect.h}px` });
   }
 
+  /** Where the filmstrip is: beside the slide ('y', a column) or under it ('x', a row). */
+  let stripAxis: 'x' | 'y' = 'y';
+  strip.setAttribute('data-axis', stripAxis);
+  const stripH = (): number => (coarse() ? STRIP_H_COARSE : STRIP_H);
   function measureInsets(): void {
     const frame = host.frame();
     pane = host.pane();
     if (!frame || !pane) return;
-    const narrow = pane.clientWidth < 520;
-    if (narrow && stripOn && !userStrip) setStrip(false, false);
+    // a pane too low for a slide and a filmstrip: the filmstrip goes (the Slides button brings it back)
+    if (pane.clientHeight < 360 && stripOn && !userStrip) setStrip(false, false);
     const top = bar.offsetHeight;
     const bottom = status.offsetHeight;
-    strip.style.top = `${top}px`;
-    strip.style.bottom = `${bottom}px`;
-    const left = stripOn ? strip.offsetWidth : 0;
-    const next = { top, right: 0, bottom, left };
+    // the filmstrip beside the slide or under it, whichever leaves the slide larger (round B, GUI-4: a width-bound
+    // slide in a tall pane gained a quarter of its size under it); a 2 % margin keeps it from flapping
+    if (stripOn) {
+      const fr = frame.getBoundingClientRect();
+      const size = host.slideSize();
+      const nv = current?.slide.kind === 'template' && current.slide.template ? TEMPLATES[current.slide.template] : 0;
+      const beside = stageLayout(fr.width, fr.height, { top, right: 0, bottom, left: STRIP_W }, size.width, size.height, nv).port.scale;
+      const under = stageLayout(fr.width, fr.height, { top, right: 0, bottom: bottom + stripH(), left: 0 }, size.width, size.height, nv).port.scale;
+      const axis = under > beside * 1.02 ? 'x' : beside > under * 1.02 ? 'y' : stripAxis;
+      if (axis !== stripAxis) { stripAxis = axis; strip.setAttribute('data-axis', axis); stripDrawn = ''; }
+    }
+    if (stripAxis === 'y') Object.assign(strip.style, { top: `${top}px`, bottom: `${bottom}px`, height: '', width: `${STRIP_W}px` });
+    else Object.assign(strip.style, { top: '', bottom: `${bottom}px`, height: `${stripH()}px`, width: '' });
+    const next = stripOn ? (stripAxis === 'y' ? { top, right: 0, bottom, left: strip.offsetWidth } : { top, right: 0, bottom: bottom + strip.offsetHeight, left: 0 }) : { top, right: 0, bottom, left: 0 };
     const tpl = current?.slide.kind === 'template';
     if (JSON.stringify(next) !== JSON.stringify(insets) || tpl !== lastTpl) {
       insets = next;
@@ -543,6 +646,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     measureInsets();
     drawStage();
     if (on) drawStrip(true);
+    if (!on && byUser) say('The filmstrip is hidden: the Slides button shows it again.');
   }
 
   /** A rectangle of the slide (logical px) in the stage's px. */
@@ -595,6 +699,11 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     for (const b of [bOpts, bNotes, bFooter]) b.disabled = !c || !!blocked;
     bNotes.setAttribute('aria-label', c?.slide.notes !== undefined ? 'Speaker notes' : 'Add speaker notes');
     bFooter.setAttribute('aria-label', c?.slide.footer !== undefined ? 'Slide footer' : 'Add a slide footer');
+    // read-only (a quiet update running): nothing on the stage or the toolbar changes the text (round B, OPS-5)
+    const ro = shell.isReadOnly();
+    ui.classList.toggle('is-readonly', ro);
+    if (ro) for (const b of Array.from(bar.querySelectorAll<HTMLButtonElement>('button:not([data-act="strip"])'))) b.disabled = true;
+    ui.setAttribute('data-scheme', host.scheme?.() === 'dark' ? 'dark' : 'light');
     if (blocked) say(`This slide's layout cannot change until its text is fixed: ${blocked}`, 'warn');
   }
 
@@ -607,14 +716,21 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     const c = current;
     geom = host.geometry();
     if (!c || !geom || geom.index !== c.index || !geom.parts) { stage.classList.add('is-stale'); return; }
-    stage.classList.toggle('is-stale', !geom.current);
+    stage.classList.toggle('is-stale', !geom.current || textDirty);
     const parts = geom.parts;
     const tpl = c.slide.kind === 'template';
+    // the boxes are named from the TEXT, the frame's rectangles taken in document order (round B, ISO-B1: a name the
+    // frame reports is never an op's input); a report that does not match the text's boxes draws a stale stage
+    const names = tpl ? [] : leaves(c.slide.layout);
+    if (!tpl && parts.regions.length !== names.length) { stage.classList.add('is-stale'); regionRects = []; return; }
+    regionRects = parts.regions.map((r, k) => ({ ...r, name: names[k] }));
+    const regionFits = geom.boxes.filter((b) => b.kind === 'region');
     const fitOf = (kind: string, name: string, k = 0): { scale: number; clipped: boolean } | null => {
-      const list = geom!.boxes.filter((b) => b.kind === kind && (kind !== 'region' || b.name === name));
-      const b = list[kind === 'float' ? k : 0];
+      const b = kind === 'region' ? (regionFits.length === names.length ? regionFits[names.indexOf(name)] : undefined) : geom!.boxes.filter((x) => x.kind === kind)[kind === 'float' ? k : 0];
       return b ? { scale: b.scale, clipped: b.clipped } : null;
     };
+    const fitWord = (f: { scale: number; clipped: boolean }): 'cut' | 'shrunk' | 'fits' => (f.clipped ? 'cut' : f.scale < 0.995 ? 'shrunk' : 'fits');
+    const notFit: Array<{ name: string; f: { scale: number; clipped: boolean } }> = [];
     const badge = (f: { scale: number; clipped: boolean } | null): HTMLElement | null => {
       if (!f) return null;
       const b = el(doc, 'span', 'orz-lg-badge', { 'data-fit': f.clipped ? 'cut' : f.scale < 0.995 ? 'shrunk' : 'fits', 'aria-hidden': 'true' });
@@ -622,9 +738,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       return b;
     };
     const fitWords = (f: { scale: number; clipped: boolean } | null): string => (!f ? '' : f.clipped ? ', its text is cut even at the smallest size' : f.scale < 0.995 ? `, shrunk to ${Math.round(f.scale * 100)}%` : ', fits');
-    const cursor = partAt(c.map, (shell as unknown as { adapter: { getSelection?(): { from: number } } }).adapter.getSelection?.()?.from ?? -1);
+    const cursor = partAt(c.map, (shell as unknown as { getSelection?(): { from: number } | null }).getSelection?.()?.from ?? -1);
     const addBox = (kind: 'region' | 'title' | 'footer' | 'template', name: string, r: Rect, label: string, f: { scale: number; clipped: boolean } | null, empty: boolean): HTMLElement => {
       const b = el(doc, 'div', `orz-lg-box orz-lg-box--${kind}`, { tabindex: '0', role: 'button', 'data-key': `${kind}:${name}`, 'data-box': name, 'data-kind': kind });
+      if (f) { b.setAttribute('data-fit', fitWord(f)); if (fitWord(f) !== 'fits' && kind !== 'footer') notFit.push({ name: kind === 'title' ? 'title' : kind === 'template' ? 'the page' : name, f }); }
       place(b, toStage(r));
       const tag = el(doc, 'span', 'orz-lg-tag', { 'aria-hidden': 'true' });
       tag.textContent = label;
@@ -651,7 +768,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
         addBox('template', 'body', parts.template, `${c.slide.template ?? 'template'}${c.slide.templateVariant ? ` · look ${c.slide.templateVariant}` : ''}`, fitOf('template', 'template'), !!m?.empty);
       }
     } else {
-      for (const r of parts.regions) {
+      for (const r of regionRects) {
         const m = c.map.boxes.find((x) => x.name === r.name);
         addBox('region', r.name, r, r.name, fitOf('region', r.name), m ? m.empty : r.empty);
       }
@@ -669,8 +786,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       const tag = el(doc, 'span', 'orz-lg-tag', { 'aria-hidden': 'true' });
       tag.textContent = `float ${k + 1}${m?.z !== undefined ? ` · z ${m.z}` : ''}`;
       f.append(tag);
-      const bd = badge(fitOf('float', 'float', k));
+      const ff = fitOf('float', 'float', k);
+      const bd = badge(ff);
       if (bd) f.append(bd);
+      if (ff && fitWord(ff) !== 'fits') notFit.push({ name: `float ${k + 1}`, f: ff });
       for (const h of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) f.append(el(doc, 'span', 'orz-lg-h', { 'data-h': h, 'aria-hidden': 'true' }));
       if (m?.empty) { const e = el(doc, 'span', 'orz-lg-empty', { 'aria-hidden': 'true' }); e.textContent = 'empty float — double-click to write'; f.append(e); }
       f.setAttribute('aria-label', `Float ${k + 1} of ${parts.floats.length}${m ? `, at ${Math.round(m.box.left)} %, ${Math.round(m.box.top)} %, ${Math.round(m.box.w)} by ${Math.round(m.box.h)} %` : ''}${m?.empty ? ', empty' : ''}. Arrows move it, Alt+Arrows resize, ] and [ bring it forward or send it back, Delete deletes it, Enter edits its text.`);
@@ -692,7 +811,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       });
       stage.append(group);
     }
-    tuckLabels();
+    fitNote.textContent = notFit.length ? `Fit: ${notFit.map((x) => `${x.name} ${x.f.clipped ? 'cut' : `shrunk to ${Math.round(x.f.scale * 100)}%`}`).join(' · ')}` : '';
+    fitNote.setAttribute('data-fit', notFit.some((x) => x.f.clipped) ? 'cut' : notFit.length ? 'shrunk' : 'fits');
+    fitNote.hidden = notFit.length === 0;
+    placeLabels();
     if (focusTo) {
       const t = stage.querySelector(`[data-key="${esc(focusTo)}"]`) as HTMLElement | null;
       if (t) { t.focus({ preventScroll: true }); if (focusTo === wantFocus) wantFocus = null; }
@@ -700,21 +822,45 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   }
 
   /**
-   * A label (name tag, badge) sits above its box's top edge; where that reaches more than a pixel
-   * into ANOTHER box (a small stage, a title band close above), it is tucked away until its own box is
-   * hovered, focused or selected — so at rest no label lies over another box's content.
+   * The labels (name tags, fit badges) at rest (round B, GUI-1): each takes the first place that lies on no
+   * text or picture of the slide (the frame's ink) and on no other label — above its box (as before), inside
+   * its top corners, under it, inside its bottom corners; a label with no such place is tucked away until its
+   * box is hovered, focused or selected — but a "cut" badge is never tucked (it then sits inside the box's
+   * bottom right corner, over the text that is cut anyway).
    */
-  function tuckLabels(): void {
-    const boxes = Array.from(stage.querySelectorAll<HTMLElement>('.orz-lg-box, .orz-lg-float'));
-    const rects = boxes.map((b) => b.getBoundingClientRect());
-    boxes.forEach((b, k) => {
-      for (const l of Array.from(b.querySelectorAll<HTMLElement>(':scope > .orz-lg-tag, :scope > .orz-lg-badge'))) {
-        l.classList.remove('is-tucked');
-        const r = l.getBoundingClientRect();
-        const into = rects.some((o, j) => j !== k && !boxes[j].contains(b) && Math.min(r.right, o.right) - Math.max(r.left, o.left) > 2 && Math.min(r.bottom, o.bottom) - Math.max(r.top, o.top) > 1);
-        if (into) l.classList.add('is-tucked');
+  function placeLabels(): void {
+    const sr = stage.getBoundingClientRect();
+    const k = stageRect.scale;
+    type Q = { l: number; t: number; r: number; b: number };
+    const ink: Q[] = (geom?.parts?.ink ?? []).map((x) => ({ l: sr.left + x.x * k, t: sr.top + x.y * k, r: sr.left + (x.x + x.w) * k, b: sr.top + (x.y + x.h) * k }));
+    const over = (a: Q, b: Q, m: number): boolean => Math.min(a.r, b.r) - Math.max(a.l, b.l) > m && Math.min(a.b, b.b) - Math.max(a.t, b.t) > m;
+    const area: Q = { l: sr.left - STAGE_PAD + 1, t: sr.top - STAGE_PAD + 1, r: sr.right + STAGE_PAD - 1, b: sr.bottom + STAGE_PAD - 1 };
+    const inside = (q: Q): boolean => q.l >= area.l && q.t >= area.t && q.r <= area.r && q.b <= area.b;
+    const placed: Q[] = [];
+    for (const box of Array.from(stage.querySelectorAll<HTMLElement>('.orz-lg-box, .orz-lg-float'))) {
+      const br = box.getBoundingClientRect();
+      for (const lab of Array.from(box.querySelectorAll<HTMLElement>(':scope > .orz-lg-tag, :scope > .orz-lg-badge'))) {
+        lab.classList.remove('is-tucked');
+        lab.removeAttribute('data-at');
+        Object.assign(lab.style, { top: '', left: '', right: '', bottom: '' });
+        const w = lab.offsetWidth;
+        const h = lab.offsetHeight;
+        const badge = lab.classList.contains('orz-lg-badge');
+        const cut = lab.getAttribute('data-fit') === 'cut';
+        const xl = br.left + 6;
+        const xr = br.right - 6 - w;
+        const xs = badge ? [xr, xl] : [xl, xr];
+        const ys: Array<[string, number]> = [['above', br.top - h - 1], ['top', br.top + 2], ['below', br.bottom + 1], ['bottom', br.bottom - h - 2]];
+        const cands: Array<{ at: string; q: Q }> = [];
+        for (const [at, y] of ys) for (const x of xs) cands.push({ at: `${at}-${x === xl ? 'left' : 'right'}`, q: { l: x, t: y, r: x + w, b: y + h } });
+        let pick = cands.find((c) => inside(c.q) && !ink.some((i) => over(c.q, i, 1)) && !placed.some((p) => over(c.q, p, 0.5)));
+        if (!pick && cut) pick = cands.find((c) => c.at === 'bottom-right') ?? cands[0];
+        if (!pick) { lab.classList.add('is-tucked'); continue; }
+        lab.setAttribute('data-at', pick.at);
+        Object.assign(lab.style, { top: `${pick.q.t - br.top}px`, left: `${pick.q.l - br.left}px`, right: 'auto', bottom: 'auto' });
+        placed.push(pick.q);
       }
-    });
+    }
   }
 
   /** The dividers: one between each two children of each split (the frame's rectangles, matched to the tree's splits). */
@@ -750,20 +896,25 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     });
   }
 
-  /* ── the filmstrip (virtualised) ── */
+  /* ── the filmstrip (virtualised; a column beside the slide or a row under it) ── */
   const rowH = (): number => (coarse() ? ROW_COARSE : ROW);
+  /** An item's size along the filmstrip. */
+  const stepOf = (): number => (stripAxis === 'x' ? (coarse() ? ITEM_W_COARSE : ITEM_W) : rowH());
+  const scrollPos = (): number => (stripAxis === 'x' ? stripScroll.scrollLeft : stripScroll.scrollTop);
+  const setScrollPos = (v: number): void => { if (stripAxis === 'x') stripScroll.scrollLeft = v; else stripScroll.scrollTop = v; };
+  const viewLen = (): number => (stripAxis === 'x' ? stripScroll.clientWidth : stripScroll.clientHeight);
   let stripDrawn = '';
   function drawStrip(force = false): void {
     if (!stripOn) return;
     const c = current;
     const n = c?.deck.slides.length ?? 0;
-    const h = rowH();
-    stripInner.style.height = `${n * h + 8}px`;
-    const top = stripScroll.scrollTop;
-    const view = stripScroll.clientHeight || 400;
+    const h = stepOf();
+    if (stripAxis === 'x') { stripInner.style.width = `${n * h + 8}px`; stripInner.style.height = ''; } else { stripInner.style.height = `${n * h + 8}px`; stripInner.style.width = ''; }
+    const top = scrollPos();
+    const view = viewLen() || 400;
     const first = Math.max(0, Math.floor(top / h) - 3);
     const last = Math.min(n - 1, Math.ceil((top + view) / h) + 3);
-    const key = `${c?.text.length}|${c?.text === undefined ? '' : hashText(c.text)}|${c?.index}|${first}|${last}|${h}`;
+    const key = `${stripAxis}|${c?.text.length}|${c?.text === undefined ? '' : hashText(c.text)}|${c?.index}|${first}|${last}|${h}`;
     if (!force && key === stripDrawn) return;
     stripDrawn = key;
     const keep = stripInner.querySelector('.orz-lg-drop, .orz-lg-ghost');
@@ -783,15 +934,19 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   function stripItem(deck: Deck, i: number, h: number, selected: boolean): HTMLElement {
     const s = deck.slides[i];
     const it = el(doc, 'div', 'orz-lg-item', { role: 'option', id: `orz-lg-slide-${i}`, 'aria-selected': String(selected), 'data-slide': String(i) });
-    it.style.top = `${4 + i * h}px`;
-    it.style.height = `${h - 6}px`;
+    if (stripAxis === 'x') Object.assign(it.style, { left: `${4 + i * h}px`, right: 'auto', top: '4px', bottom: '4px', width: `${h - 6}px`, height: '' });
+    else Object.assign(it.style, { top: `${4 + i * h}px`, height: `${h - 6}px` });
     const num = el(doc, 'span', 'orz-lg-item-n');
     num.textContent = String(i + 1);
     const thumb = el(doc, 'span', 'orz-lg-item-thumb');
     const kind = el(doc, 'span', 'orz-lg-item-kind');
     if (s.kind === 'template') {
-      const m = el(doc, 'span', 'orz-lg-mini');
-      m.append(doc.createElement('i'));
+      // a schematic of its kind: a title page, a section page, an outline, a closing page look apart (round B, GUI-10)
+      const m = el(doc, 'span', 'orz-lg-mini', { 'aria-hidden': 'true', 'data-template': s.template ?? '' });
+      const t = el(doc, 'span', `orz-lg-tpl orz-lg-tpl--${s.template ?? 'title'}`);
+      const parts = { title: 2, section: 2, outline: 4, closing: 2 }[s.template ?? 'title'] ?? 1;
+      for (let k = 0; k < parts; k++) t.append(doc.createElement('i'));
+      m.append(t);
       thumb.append(m);
       kind.textContent = `${TEMPLATE_LABEL[s.template ?? ''] ?? 'template'}${s.templateVariant ? ` ${s.templateVariant}` : ''}`;
     } else {
@@ -803,25 +958,27 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       const dot = el(doc, 'span', 'orz-lg-dot', { 'data-fit': f.clipped ? 'cut' : f.scale < 0.995 ? 'shrunk' : 'fits', title: f.clipped ? 'cut on paper' : f.scale < 0.995 ? `shrunk to ${Math.round(f.scale * 100)}%` : 'fits' });
       thumb.append(dot);
     }
-    thumb.append(kind);
     const grip = el(doc, 'span', 'orz-lg-item-grip', { 'aria-hidden': 'true', title: 'Drag to move the slide' });
     grip.innerHTML = SVG.grip;
     const t = el(doc, 'span', 'orz-lg-item-t');
     const title = s.title ?? (s.kind === 'template' ? firstLine(s.regions[0]?.markdown ?? '') : firstLine(s.regions[0]?.markdown ?? '')) ?? '';
     t.textContent = plain(title) || '(no title)';
-    it.setAttribute('aria-label', `Slide ${i + 1}: ${t.textContent}${s.kind === 'template' ? ` (${kind.textContent})` : ''}`);
-    it.append(num, thumb, grip, t);
+    // the kind on the second line, whole, before the title (round B, GUI-10: it was cut to "Ti…")
+    const line = el(doc, 'span', 'orz-lg-item-line');
+    line.append(kind, t);
+    it.setAttribute('aria-label', `Slide ${i + 1}: ${t.textContent}${kind.textContent ? ` (${kind.textContent})` : ''}`);
+    it.append(num, thumb, grip, line);
     return it;
   }
   const firstLine = (md: string): string => md.split('\n').find((l) => l.trim() !== '') ?? '';
   const plain = (s: string): string => s.replace(/^#+\s*/, '').replace(/[*_`~[\]]/g, '').replace(/\]\([^)]*\)/g, '').trim().slice(0, 120);
 
-  /** Bring a slide's row into view. */
+  /** Bring a slide's item into view. */
   function revealRow(i: number): void {
-    const h = rowH();
+    const h = stepOf();
     const top = i * h;
-    if (top < stripScroll.scrollTop) stripScroll.scrollTop = top;
-    else if (top + h > stripScroll.scrollTop + stripScroll.clientHeight) stripScroll.scrollTop = top + h - stripScroll.clientHeight;
+    if (top < scrollPos()) setScrollPos(top);
+    else if (top + h > scrollPos() + viewLen()) setScrollPos(top + h - viewLen());
   }
 
   /* ── refresh ── */
@@ -833,6 +990,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       pane.append(ui);
     }
     if (drag) { redrawLater = true; return; }
+    // the text changed under a run of keys (typing, an undo from the editor): the run is dropped, never written elsewhere
+    if (pending && shell.getText() !== pending.base) cancelPending('The text changed: the size or place being set was not written.');
+    textDirty = false;
     read();
     drawBar();
     measureInsets();
@@ -852,7 +1012,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     if (m?.range) shell.select(m.range.from, m.range.to, { scroll: true });
     else if (m && !m.range && c) say(`${name} is empty and has no place in the text yet — double-click it (or press Enter) to give it one.`);
     if (focusEditor) {
-      if (m && !m.range) { if (!run({ type: 'ensure-region', name })) return; }
+      // the editor gets the focus only where the op put the caret (round B, OPS-1: typing landed in the title)
+      if (m && !m.range) { const r = run({ type: 'ensure-region', name }); if (!r?.select) return; }
       shell.focus();
     }
     drawBar();
@@ -862,7 +1023,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     sel = { kind: 'box', name: 'body' };
     const m = current?.map.boxes[0];
     if (m?.range) shell.select(m.range.from, m.range.to, { scroll: true });
-    else if (focusEditor && !run({ type: 'ensure-region', name: 'body' })) return;
+    else if (focusEditor && !run({ type: 'ensure-region', name: 'body' })?.select) return;
     if (focusEditor) shell.focus();
     drawBar();
     markSelection();
@@ -1038,17 +1199,24 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
 
   /* ── pending keyboard changes (one undo step for a run of keys) ── */
   function flushPending(): void { const p = pending; pending = null; p?.commit(); }
+  function cancelPending(why?: string): void { const p = pending; pending = null; p?.cancel(); if (p && why) say(why, 'warn'); }
   /**
    * A run of keys on one element (`key`): each key extends the run (its preview shown) and restarts the
-   * wait; the run is written once, when the keys pause, the focus leaves or another op starts.
+   * wait; the run is written once — when the keys pause, the focus leaves, another op starts or the reader
+   * goes to another slide — to the slide it STARTED on, and only if the text is still the one it started
+   * from (round B, OPS-2).
    */
-  function pend(key: string, commit: () => void, cancelFn: () => void): void {
+  function pend(key: string, commit: (slide: number, base: string) => void, cancelFn: () => void): void {
     if (pending && pending.key !== key) flushPending();
     if (pending) cancel(pending.timer);
-    const p: { key: string; timer: number | null; commit(): void; cancel(): void } = {
+    const slide = pending?.slide ?? current?.index ?? -1;
+    const base = pending?.base ?? shell.getText();
+    const p: { key: string; slide: number; base: string; timer: number | null; commit(): void; cancel(): void } = {
       key,
+      slide,
+      base,
       timer: null,
-      commit: () => { cancel(p.timer); commit(); if (redrawLater) { redrawLater = false; refresh(); } },
+      commit: () => { cancel(p.timer); commit(slide, base); if (redrawLater) { redrawLater = false; refresh(); } },
       cancel: () => { cancel(p.timer); cancelFn(); if (redrawLater) { redrawLater = false; refresh(); } },
     };
     pending = p;
@@ -1068,6 +1236,11 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     return { k, i, path: s.path, node: s.node, rect };
   }
   const trackCss = (tracks: readonly string[]): string => tracks.map((t) => (/^\d+(\.\d+)?$/.test(t.trim()) ? `${t}fr` : t)).join(' ');
+  /** The bubble's words for a divider's tracks: the pair's ratio, and the whole split when it has more tracks. */
+  const ratioWords = (tracks: readonly string[], i: number): [string, string] => {
+    const r = pairRatio(tracks, i);
+    return [r ? `${r[0]} : ${r[1]}` : `${tracks[i]} / ${tracks[i + 1]}`, tracks.length > 2 ? tracks.join(' / ') : ''];
+  };
   function showBubble(text: string, sub: string, x: number, y: number): void {
     bubble.replaceChildren(doc.createTextNode(text));
     if (sub) { const s = el(doc, 'small'); s.textContent = sub; bubble.append(s); }
@@ -1077,18 +1250,21 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   }
   function dragDivider(d: HTMLElement, e: PointerEvent): void {
     const info = dividerInfo(d);
-    if (!info) return;
+    if (!info || !current) return;
+    if (shell.isReadOnly()) { say('The document is read-only.', 'warn'); return; }
     e.preventDefault();
     d.classList.add('is-dragging');
     d.focus({ preventScroll: true });
+    // bound to this slide and this text: written there, or not at all (round B, OPS-2)
+    const slide = current.index;
+    const base = shell.getText();
     const vertical = info.node.dir === 'col';
     const a = info.rect.kids[info.i];
     const b = info.rect.kids[info.i + 1];
     const start = vertical ? a.x : a.y;
     const end = vertical ? b.x + b.w : b.y + b.h;
-    const base = d.style[vertical ? 'left' : 'top'];
+    const baseStyle = d.style[vertical ? 'left' : 'top'];
     let tracks: string[] | null = null;
-    let ratio: readonly [number, number] | null = null;
     let raf = 0;
     let lastEv: PointerEvent | null = null;
     const stageBox = (): DOMRect => stage.getBoundingClientRect();
@@ -1099,13 +1275,16 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       const sr = stageBox();
       const p = ((vertical ? ev.clientX - sr.left : ev.clientY - sr.top) / stageRect.scale);
       const f = Math.min(0.95, Math.max(0.05, (p - start) / Math.max(1, end - start)));
-      ratio = nearestRatio(f);
-      tracks = tracksForRatio(info.node.tracks, info.i, ratio);
-      const share = ratio[0] / (ratio[0] + ratio[1]);
+      // two tracks: a simple ratio; three or more: the whole split in small whole numbers, the other dividers kept (round B, OPS-4)
+      const next = snapTracks(info.node.tracks, info.i, f);
+      const pr = pairRatio(next, info.i);
+      const share = pr ? pr[0] / (pr[0] + pr[1]) : 0.5;
       const hit = parseFloat(d.style[vertical ? 'width' : 'height']) || 10;
       d.style[vertical ? 'left' : 'top'] = `${(start + share * (end - start)) * stageRect.scale - hit / 2}px`;
-      showBubble(`${ratio[0]} : ${ratio[1]}`, tracks.length > 2 ? tracks.join(' / ') : '', ev.clientX, ev.clientY);
-      host.preview({ splits: [{ index: info.k, dir: info.node.dir, css: trackCss(tracks) }] });
+      const [w1, w2] = ratioWords(next, info.i);
+      showBubble(w1, w2, ev.clientX, ev.clientY);
+      if (!tracks || tracks.join('/') !== next.join('/')) host.preview({ splits: [{ index: info.k, dir: info.node.dir, css: trackCss(next) }] });
+      tracks = next;
     };
     const move = (ev: PointerEvent): void => { lastEv = ev; if (!raf) raf = win.requestAnimationFrame(frame); };
     const end_ = (_ev: PointerEvent, commit: boolean): void => {
@@ -1113,10 +1292,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       d.classList.remove('is-dragging');
       bubble.hidden = true;
       if (commit && tracks && tracks.join('/') !== info.node.tracks.join('/')) {
-        run({ type: 'tracks', path: info.path, tracks });
-        focusKey(`div:${info.path.join('.')}:${info.i}`);
+        if (run({ type: 'tracks', path: info.path, tracks }, slide, base)) focusKey(`div:${info.path.join('.')}:${info.i}`);
       } else {
-        d.style[vertical ? 'left' : 'top'] = base;
+        d.style[vertical ? 'left' : 'top'] = baseStyle;
         host.preview({ reset: true });
       }
     };
@@ -1133,32 +1311,48 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     if (e.key !== back && e.key !== fwd) return false;
     // from the pending tracks (a run of keys), else the text's
     const cur = (d as HTMLElement & { __tracks?: string[] }).__tracks ?? info.node.tracks;
-    const ratio = stepRatio(cur, info.i, e.key === fwd ? 1 : -1);
-    const tracks = tracksForRatio(cur, info.i, ratio);
+    const tracks = stepTracks(cur, info.i, e.key === fwd ? 1 : -1);
     (d as HTMLElement & { __tracks?: string[] }).__tracks = tracks;
     host.preview({ splits: [{ index: info.k, dir: info.node.dir, css: trackCss(tracks) }] });
     const r = d.getBoundingClientRect();
-    showBubble(`${ratio[0]} : ${ratio[1]}`, tracks.length > 2 ? tracks.join(' / ') : '', r.left + r.width / 2, r.top + r.height / 2);
-    d.setAttribute('aria-valuetext', `${ratio[0]} to ${ratio[1]}`);
-    d.setAttribute('aria-valuenow', String(Math.round((100 * ratio[0]) / (ratio[0] + ratio[1]))));
+    const [w1, w2] = ratioWords(tracks, info.i);
+    showBubble(w1, w2, r.left + r.width / 2, r.top + r.height / 2);
+    const pr = pairRatio(tracks, info.i);
+    d.setAttribute('aria-valuetext', pr ? `${pr[0]} to ${pr[1]}` : tracks.join(' / '));
+    if (pr) d.setAttribute('aria-valuenow', String(Math.round((100 * pr[0]) / (pr[0] + pr[1]))));
     const path = info.path;
-    pend(`div:${path.join('.')}:${info.i}`, () => {
+    pend(`div:${path.join('.')}:${info.i}`, (slide, base) => {
       bubble.hidden = true;
       delete (d as HTMLElement & { __tracks?: string[] }).__tracks;
-      if (tracks.join('/') !== info.node.tracks.join('/')) { run({ type: 'tracks', path, tracks }); focusKey(`div:${path.join('.')}:${info.i}`); }
+      if (tracks.join('/') !== info.node.tracks.join('/') && run({ type: 'tracks', path, tracks }, slide, base)) focusKey(`div:${path.join('.')}:${info.i}`);
     }, () => { bubble.hidden = true; delete (d as HTMLElement & { __tracks?: string[] }).__tracks; host.preview({ reset: true }); });
     return true;
   }
 
   /* ── floats: drag, handles, keys ── */
-  function floatText(k: number): FloatBox | null {
-    const f = current?.map.floats[k];
-    return f ? { ...f.box } : null;
+  /** A float's box as the stage draws it (the frame's rectangle, in % of the slide) — data, the seed of an em axis only. */
+  function floatShown(k: number): FloatBox | null {
+    const r = geom?.parts?.floats[k];
+    const size = host.slideSize();
+    return r && size.width > 0 && size.height > 0 ? { left: (r.x / size.width) * 100, top: (r.y / size.height) * 100, w: (r.w / size.width) * 100, h: (r.h / size.height) * 100 } : null;
   }
+  /** Where a move or resize starts: the TEXT's values where they are in % or px, the stage's for the rest (round B, OPS-3). */
+  function floatText(k: number): FloatBox | null {
+    const f = current?.slide.floats[k];
+    return f && current ? floatStart(f.geom, current.deck.config.ratio, floatShown(k)) : null;
+  }
+  /** On the slide, at least 1 % of a 1 % box; a move's steps are whole % (a float written in whole % stays so). */
   const clampBox = (b: FloatBox): FloatBox => {
-    const w = Math.max(4, Math.min(100, Math.round(b.w)));
-    const h = Math.max(4, Math.min(100, Math.round(b.h)));
-    return { left: Math.max(-w + 4, Math.min(96, Math.round(b.left))), top: Math.max(-h + 4, Math.min(96, Math.round(b.top))), w, h };
+    const w = Math.max(1, Math.min(100, b.w));
+    const h = Math.max(1, Math.min(100, b.h));
+    return { left: Math.max(-w + 4, Math.min(96, b.left)), top: Math.max(-h + 4, Math.min(96, b.top)), w, h };
+  };
+  const r1 = (x: number): number => Math.round(x * 10) / 10;
+  /** The keys of a box that changed (only those are written: a horizontal move writes left, never top). */
+  const changedKeys = (a: FloatBox, b: FloatBox): Partial<FloatBox> => {
+    const out: Partial<FloatBox> = {};
+    for (const key of ['left', 'top', 'w', 'h'] as const) if (Math.abs(a[key] - b[key]) > 1e-6) out[key] = r1(b[key]);
+    return out;
   };
   function showFloatGhost(fEl: HTMLElement, b: FloatBox): void {
     place(fEl, { x: (b.left / 100) * stageRect.w, y: (b.top / 100) * stageRect.h, w: (b.w / 100) * stageRect.w, h: (b.h / 100) * stageRect.h });
@@ -1167,10 +1361,14 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   function dragFloat(fEl: HTMLElement, e: PointerEvent, handle: string | null): void {
     const k = Number(fEl.getAttribute('data-float'));
     const b0 = floatText(k);
-    if (!b0) return;
+    if (!b0 || !current) return;
     e.preventDefault();
     selectFloat(k);
     fEl.focus({ preventScroll: true });
+    if (shell.isReadOnly()) { say('The document is read-only.', 'warn'); return; }
+    const slide = current.index;
+    const base = shell.getText();
+    const from = floatShown(k) ?? undefined;
     const x0 = e.clientX;
     const y0 = e.clientY;
     const style = fEl.getAttribute('style');
@@ -1182,8 +1380,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       raf = 0;
       const ev = lastEv;
       if (!ev) return;
-      const dx = ((ev.clientX - x0) / stageRect.w) * 100;
-      const dy = ((ev.clientY - y0) / stageRect.h) * 100;
+      // whole-% steps from where it starts
+      const dx = Math.round(((ev.clientX - x0) / stageRect.w) * 100);
+      const dy = Math.round(((ev.clientY - y0) / stageRect.h) * 100);
       if (!moved && Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 3) return;
       moved = true;
       const b = { ...b0 };
@@ -1196,7 +1395,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       }
       box = clampBox(b);
       showFloatGhost(fEl, box);
-      showBubble(handle ? `${box.w} % × ${box.h} %` : `${box.left} %, ${box.top} %`, handle ? '' : 'left, top', ev.clientX, ev.clientY);
+      showBubble(handle ? `${r1(box.w)} % × ${r1(box.h)} %` : `${r1(box.left)} %, ${r1(box.top)} %`, handle ? '' : 'left, top', ev.clientX, ev.clientY);
       host.preview({ floats: [{ index: k, ...box }] });
     };
     const move = (ev: PointerEvent): void => { lastEv = ev; if (!raf) raf = win.requestAnimationFrame(frame); };
@@ -1209,10 +1408,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
         const now = Date.now();
         if (lastTap && lastTap.k === k && now - lastTap.t < 450) { lastTap = null; selectFloat(k, true); } else lastTap = { k, t: now };
       }
-      if (commit && moved) {
-        const changed = handle ? box : { left: box.left, top: box.top };
-        run({ type: 'float-geom', index: k, box: changed });
-        focusKey(`float:${k}`);
+      const changed = changedKeys(b0, box);
+      if (commit && moved && Object.keys(changed).length > 0) {
+        if (run({ type: 'float-geom', index: k, box: changed, ...(from ? { from } : {}) }, slide, base)) focusKey(`float:${k}`);
+        else if (style === null) fEl.removeAttribute('style'); else fEl.setAttribute('style', style);
       } else {
         if (style === null) fEl.removeAttribute('style'); else fEl.setAttribute('style', style);
         if (moved) host.preview({ reset: true });
@@ -1223,6 +1422,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   function keyFloat(fEl: HTMLElement, e: KeyboardEvent): boolean {
     const k = Number(fEl.getAttribute('data-float'));
     if (e.key === 'Enter') { flushPending(); selectFloat(k, true); return true; }
+    if (e.key === ' ') { flushPending(); selectFloat(k); return true; }
     if (e.key === 'Delete' || e.key === 'Backspace') { if (run({ type: 'float-delete', index: k })) { sel = null; drawBar(); } return true; }
     if (e.key === ']') { if (run({ type: 'float-z', index: k, dir: 'forward' })) focusKey(`float:${k}`); return true; }
     if (e.key === '[') { if (run({ type: 'float-z', index: k, dir: 'backward' })) focusKey(`float:${k}`); return true; }
@@ -1230,24 +1430,23 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
     if (!dx && !dy) return false;
     const step = e.shiftKey ? 5 : 1;
-    const cur = (fEl as HTMLElement & { __box?: FloatBox }).__box ?? floatText(k);
-    if (!cur) return true;
+    type Run = { b0: FloatBox; box: FloatBox; from?: FloatBox };
+    const own = fEl as HTMLElement & { __run?: Run };
+    if (!own.__run) { const b0 = floatText(k); if (!b0) return true; const from = floatShown(k); own.__run = { b0, box: b0, ...(from ? { from } : {}) }; }
+    const run0 = own.__run;
+    const cur = run0.box;
     const resize = e.altKey;
     const b = clampBox(resize ? { ...cur, w: cur.w + dx * step, h: cur.h + dy * step } : { ...cur, left: cur.left + dx * step, top: cur.top + dy * step });
-    (fEl as HTMLElement & { __box?: FloatBox }).__box = b;
+    run0.box = b;
     showFloatGhost(fEl, b);
     host.preview({ floats: [{ index: k, ...b }] });
-    say(resize ? `Float ${k + 1}: ${b.w} % × ${b.h} %` : `Float ${k + 1}: ${b.left} %, ${b.top} %`);
-    const resized = resize || ((fEl as HTMLElement & { __resized?: boolean }).__resized === true);
-    (fEl as HTMLElement & { __resized?: boolean }).__resized = resized;
-    pend(`float:${k}`, () => {
-      delete (fEl as HTMLElement & { __box?: FloatBox }).__box;
-      delete (fEl as HTMLElement & { __resized?: boolean }).__resized;
-      run({ type: 'float-geom', index: k, box: resized ? b : { left: b.left, top: b.top } });
-      focusKey(`float:${k}`);
+    say(resize ? `Float ${k + 1}: ${r1(b.w)} % × ${r1(b.h)} %` : `Float ${k + 1}: ${r1(b.left)} %, ${r1(b.top)} %`);
+    pend(`float:${k}`, (slide, base) => {
+      delete own.__run;
+      const changed = changedKeys(run0.b0, run0.box);
+      if (Object.keys(changed).length > 0 && run({ type: 'float-geom', index: k, box: changed, ...(run0.from ? { from: run0.from } : {}) }, slide, base)) focusKey(`float:${k}`);
     }, () => {
-      delete (fEl as HTMLElement & { __box?: FloatBox }).__box;
-      delete (fEl as HTMLElement & { __resized?: boolean }).__resized;
+      delete own.__run;
       host.preview({ reset: true });
       drawStage();
     });
@@ -1257,7 +1456,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   /* ── boxes: keys, swap by drag ── */
   /** The box next to a box on one side (the nearest whose span overlaps on the other axis). */
   function neighbour(name: string, dir: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown'): string | null {
-    const regions = geom?.parts?.regions ?? [];
+    const regions = regionRects;
     const a = regions.find((r) => r.name === name);
     if (!a) return null;
     let best: string | null = null;
@@ -1312,6 +1511,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   function dragTag(b: HTMLElement, e: PointerEvent): void {
     const name = b.getAttribute('data-box') ?? '';
     e.preventDefault();
+    const slide = current?.index;
+    const base = shell.getText();
     let target: string | null = null;
     let moved = false;
     const x0 = e.clientX;
@@ -1336,7 +1537,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       bubble.hidden = true;
       stage.querySelectorAll('.is-target').forEach((x) => x.classList.remove('is-target'));
       if (!moved) { if (commit) selectBox(name); return; }
-      if (commit && target) run(ev.altKey ? { type: 'move-content', from: name, to: target } : { type: 'swap', a: name, b: target });
+      if (commit && target) run(ev.altKey ? { type: 'move-content', from: name, to: target } : { type: 'swap', a: name, b: target }, slide, base);
     };
     hold(e, 'grabbing', { move, end: finish });
   }
@@ -1347,7 +1548,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     const n = current?.deck.slides.length ?? 0;
     if (!(n > 1)) return;
     e.preventDefault();
-    const h = rowH();
+    const base = shell.getText();
+    const horiz = stripAxis === 'x';
+    const pos = (ev: { clientX: number; clientY: number }): number => (horiz ? ev.clientX : ev.clientY);
+    const h = stepOf();
     const ghost = item.cloneNode(true) as HTMLElement;
     ghost.classList.add('orz-lg-ghost');
     ghost.removeAttribute('id');
@@ -1355,20 +1559,17 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     const drop = el(doc, 'div', 'orz-lg-drop', { 'aria-hidden': 'true' });
     let slot = from;
     let started = false;
-    const y0 = e.clientY;
-    let lastY = e.clientY;
+    const p0 = pos(e);
+    let lastP = p0;
     let scrollRaf = 0;
-    const slotAt = (clientY: number): number => {
-      const r = stripScroll.getBoundingClientRect();
-      const y = clientY - r.top + stripScroll.scrollTop - 4;
-      return Math.max(0, Math.min(n, Math.round(y / h)));
-    };
+    const edgeStart = (): number => { const r = stripScroll.getBoundingClientRect(); return horiz ? r.left : r.top; };
+    const edgeEnd = (): number => { const r = stripScroll.getBoundingClientRect(); return horiz ? r.right : r.bottom; };
+    const slotAt = (p: number): number => Math.max(0, Math.min(n, Math.round((p - edgeStart() + scrollPos() - 4) / h)));
     const show = (): void => {
-      const r = stripScroll.getBoundingClientRect();
-      const y = lastY - r.top + stripScroll.scrollTop;
-      ghost.style.top = `${y - (h - 6) / 2}px`;
-      slot = slotAt(lastY);
-      drop.style.top = `${4 + slot * h - 2}px`;
+      const y = lastP - edgeStart() + scrollPos();
+      ghost.style[horiz ? 'left' : 'top'] = `${y - (h - 6) / 2}px`;
+      slot = slotAt(lastP);
+      drop.style[horiz ? 'left' : 'top'] = `${4 + slot * h - 2}px`;
       if (!ghost.isConnected) stripInner.append(ghost);
       if (!drop.isConnected) stripInner.append(drop);
     };
@@ -1379,19 +1580,20 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       if (!started) return;
       const dt = lastT ? Math.min(250, now - lastT) : 16;
       lastT = now;
-      const r = stripScroll.getBoundingClientRect();
       const edge = 40;
-      const depth = lastY < r.top + edge ? -(r.top + edge - lastY) : lastY > r.bottom - edge ? lastY - (r.bottom - edge) : 0;
+      const a = edgeStart();
+      const b = edgeEnd();
+      const depth = lastP < a + edge ? -(a + edge - lastP) : lastP > b - edge ? lastP - (b - edge) : 0;
       if (depth === 0) { lastT = 0; return; }
       const speed = Math.sign(depth) * Math.min(1.6, 0.15 + Math.abs(depth) / 30); // px per ms
-      stripScroll.scrollTop += speed * dt;
+      setScrollPos(scrollPos() + speed * dt);
       drawStrip();
       show();
       scrollRaf = win.requestAnimationFrame(autoscroll);
     };
     const move = (ev: PointerEvent): void => {
-      lastY = ev.clientY;
-      if (!started && Math.abs(ev.clientY - y0) < 4) return;
+      lastP = pos(ev);
+      if (!started && Math.abs(lastP - p0) < 4) return;
       started = true;
       show();
       if (!scrollRaf) scrollRaf = win.requestAnimationFrame(autoscroll);
@@ -1400,9 +1602,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       if (scrollRaf) win.cancelAnimationFrame(scrollRaf);
       ghost.remove();
       drop.remove();
-      if (!started) { if (commit) host.goTo(from); return; }
+      if (!started) { if (commit) go(from); return; }
       const to = slot > from ? slot - 1 : slot;
-      if (commit && to !== from) run({ type: 'slide-move', to }, from);
+      if (commit && to !== from) run({ type: 'slide-move', to }, from, base);
       else drawStrip(true);
     };
     hold(e, 'grabbing', { move, end: finish });
@@ -1425,8 +1627,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     if (act === 'move' && box) { boxMenu('move', box, b); return; }
     if (act === 'delete-box' && box) { if (run({ type: 'delete-box', box })) { sel = null; drawBar(); } return; }
     if (act === 'float-add') {
-      const n = current?.slide.floats.length ?? 0;
-      if (run({ type: 'float-add' })) { sel = { kind: 'float', index: n }; drawBar(); focusKey(`float:${n}`); }
+      const r = run(newFloat());
+      // the float the op made (its number from the op: notes or a footer may come first — round B, OPS-6)
+      const n = r?.target && 'float' in r.target ? r.target.float : null;
+      if (n !== null) { sel = { kind: 'float', index: n }; drawBar(); focusKey(`float:${n}`); }
       return;
     }
     if (act === 'float-forward' && fl !== null) { if (run({ type: 'float-z', index: fl, dir: 'forward' })) focusKey(`float:${fl}`); return; }
@@ -1444,12 +1648,30 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   });
   listen<MouseEvent>(status, 'click', (e) => {
     if (!e.isTrusted) return;
+    // a refusal cut to two lines: the whole of it, a click away (round B, GUI-8)
+    if ((e.target as HTMLElement).closest('.orz-lg-msg') && msg.getAttribute('data-tone') === 'warn' && msg.scrollHeight > msg.clientHeight + 1) {
+      openPop(msg, (p) => { const t = el(doc, 'p', 'orz-lg-full'); t.textContent = lastStatus; const close = btn('Close', '', { data: 'msg-close' }); close.addEventListener('click', () => closePop()); p.append(t, close); }, 'The whole message');
+      return;
+    }
     const b = (e.target as HTMLElement).closest('button');
     const act = b?.getAttribute('data-act');
     if (act === 'undo') history('undo');
     if (act === 'redo') history('redo');
     if (act === 'keys' && b) keysPop(b);
   });
+  /**
+   * A new float's place (round B, GUI-2): where it covers none of the slide's text and pictures (the stage's
+   * ink) and no other float — the emptiest place, bottom right first; with no free place, offset and said.
+   * Data from the frame only SEEDS the place the reader then sees (and moves).
+   */
+  function newFloat(): LayoutOp {
+    const parts = geom?.current ? geom.parts : null;
+    const size = host.slideSize();
+    if (!parts || !(size.width > 0)) return { type: 'float-add' };
+    const pc = (r: Rect): FloatBox => ({ left: (r.x / size.width) * 100, top: (r.y / size.height) * 100, w: (r.w / size.width) * 100, h: (r.h / size.height) * 100 });
+    const placed = placeFloat(parts.floats.map(pc), { w: 30, h: 22 }, parts.ink.map(pc));
+    return { type: 'float-add', box: { left: placed.left, top: placed.top, w: placed.w, h: placed.h }, covers: placed.covers };
+  }
   listen<MouseEvent>(strip, 'click', (e) => {
     if (!e.isTrusted) return;
     const b = (e.target as HTMLElement).closest('button');
@@ -1457,6 +1679,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     if (act === 'slide-add') run({ type: 'slide-add' });
     if (act === 'slide-duplicate') run({ type: 'slide-duplicate' });
     if (act === 'slide-delete') run({ type: 'slide-delete' });
+    if (act === 'strip-hide') { setStrip(false); stripBtn.focus(); }
   });
   listen<PointerEvent>(stripScroll, 'pointerdown', (e) => {
     if (!e.isTrusted || e.button !== 0) return;
@@ -1464,8 +1687,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     if (!item) return;
     const onGrip = !!(e.target as HTMLElement).closest('.orz-lg-item-grip');
     // a mouse drags a row from anywhere; a finger from the grip (elsewhere it scrolls)
-    if (onGrip || e.pointerType === 'mouse') dragSlide(item, e);
-    else listenOnce(item, 'click', () => host.goTo(Number(item.getAttribute('data-slide'))));
+    if (onGrip || e.pointerType === 'mouse') { flushPending(); dragSlide(item, e); }
+    else listenOnce(item, 'click', () => go(Number(item.getAttribute('data-slide'))));
   });
   const listenOnce = (t: HTMLElement, type: string, fn: () => void): void => {
     const h = (ev: Event): void => { t.removeEventListener(type, h); if (ev.isTrusted) fn(); };
@@ -1476,17 +1699,20 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     const i = current.index;
     const n = current.deck.slides.length;
     let to = -1;
-    if (e.key === 'ArrowUp' && e.altKey) { e.preventDefault(); if (i > 0) run({ type: 'slide-move', to: i - 1 }, i); return; }
-    if (e.key === 'ArrowDown' && e.altKey) { e.preventDefault(); if (i < n - 1) run({ type: 'slide-move', to: i + 1 }, i); return; }
-    if (e.key === 'ArrowUp') to = i - 1;
-    if (e.key === 'ArrowDown') to = i + 1;
+    // a row under the slide: Left / Right too
+    const prev = e.key === 'ArrowUp' || (stripAxis === 'x' && e.key === 'ArrowLeft');
+    const next = e.key === 'ArrowDown' || (stripAxis === 'x' && e.key === 'ArrowRight');
+    if (prev && e.altKey) { e.preventDefault(); if (i > 0) run({ type: 'slide-move', to: i - 1 }, i); return; }
+    if (next && e.altKey) { e.preventDefault(); if (i < n - 1) run({ type: 'slide-move', to: i + 1 }, i); return; }
+    if (prev) to = i - 1;
+    if (next) to = i + 1;
     if (e.key === 'Home') to = 0;
     if (e.key === 'End') to = n - 1;
-    if (e.key === 'PageUp') to = i - Math.max(1, Math.floor(stripScroll.clientHeight / rowH()));
-    if (e.key === 'PageDown') to = i + Math.max(1, Math.floor(stripScroll.clientHeight / rowH()));
+    if (e.key === 'PageUp') to = i - Math.max(1, Math.floor(viewLen() / stepOf()));
+    if (e.key === 'PageDown') to = i + Math.max(1, Math.floor(viewLen() / stepOf()));
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); run({ type: 'slide-delete' }, i); return; }
     if (e.key === 'Enter') { e.preventDefault(); (stage.querySelector('.orz-lg-box, .orz-lg-float') as HTMLElement | null)?.focus(); return; }
-    if (to !== -1) { e.preventDefault(); host.goTo(Math.max(0, Math.min(n - 1, to))); }
+    if (to !== -1) { e.preventDefault(); go(Math.max(0, Math.min(n - 1, to))); }
   });
   listen<Event>(stripScroll, 'scroll', () => drawStrip(), { passive: true });
 
@@ -1538,13 +1764,13 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); history('redo'); return; }
     if (e.key === 'Escape') {
       if (drag) { e.preventDefault(); drag.cancel(); return; }
-      if (pending) { e.preventDefault(); const p = pending; pending = null; p.cancel(); return; }
+      if (pending) { e.preventDefault(); cancelPending(); return; }
       if (pop) { e.preventDefault(); closePop(); return; }
       if (sel) { e.preventDefault(); sel = null; drawBar(); markSelection(); return; }
       return;
     }
     if (e.key === '?' && !mod) { e.preventDefault(); keysPop(bKeys); return; }
-    if ((e.key === 'PageUp' || e.key === 'PageDown') && current && !t.closest('.orz-lg-strip')) { e.preventDefault(); host.goTo(current.index + (e.key === 'PageUp' ? -1 : 1)); return; }
+    if ((e.key === 'PageUp' || e.key === 'PageDown') && current && !t.closest('.orz-lg-strip')) { e.preventDefault(); go(current.index + (e.key === 'PageUp' ? -1 : 1)); return; }
     if (mod) return;
     let handled = false;
     if (t.classList.contains('orz-lg-div')) handled = keyDivider(t, e);
@@ -1565,11 +1791,13 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   // a click outside a popover closes it
   listen<PointerEvent>(root as unknown as EventTarget, 'pointerdown', (e) => { if (pop && !e.composedPath().includes(pop)) closePop(); }, { capture: true });
   // the caret moves: the box it is in is marked
-  offs.push(shell.on('selection', () => {
+  offs.push(shell.on('selection', (ev) => {
+    // the caret went to another slide: a run of keys is written to ITS slide now (round B, OPS-2)
+    if (pending && host.slide()?.index !== pending.slide) flushPending();
     const c = current;
-    if (!c) return;
-    const at = shell.adapter.getSelection?.()?.from;
-    if (at === undefined) return;
+    if (!c || textDirty) return;
+    const at = (ev as { from?: number } | undefined)?.from;
+    if (typeof at !== 'number') return;
     const p = partAt(c.map, at);
     stage.querySelectorAll('.is-cursor').forEach((x) => x.classList.remove('is-cursor'));
     if (p && 'box' in p) stage.querySelector(`.orz-lg-box--region[data-box="${esc(p.box)}"], .orz-lg-box--template`)?.classList.add('is-cursor');
@@ -1585,7 +1813,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
   }
   offs.push(() => ro?.disconnect());
 
-  say('Click a box to select its text; drag a divider, a float or a slide; ? lists the keys.');
+  say(host.engine?.() === 'textarea'
+    ? 'Basic editing (the code editor did not load): the rest of the deck is not dimmed — the slide\'s text is brought into view. Click a box to select its text; ? lists the keys.'
+    : 'Click a box to select its text; drag a divider, a float or a slide; ? lists the keys.');
   refresh();
   // the frame may not exist yet (first render): try again shortly
   if (!ui.isConnected) later(refresh, 200);
@@ -1604,16 +1834,22 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; ap
       template: current?.slide.kind === 'template' ? current.slide.template ?? null : null,
       blocked: current?.blocked ?? null,
       stale: stage.classList.contains('is-stale'),
-      strip: Array.from(stripInner.querySelectorAll<HTMLElement>('.orz-lg-item')).map((x) => Number(x.getAttribute('data-slide'))),
+      strip: stripOn ? Array.from(stripInner.querySelectorAll<HTMLElement>('.orz-lg-item:not(.orz-lg-ghost)')).map((x) => Number(x.getAttribute('data-slide'))) : [],
+      stripAxis: stripOn ? stripAxis : null,
       dragging: drag !== null,
       pending: pending !== null,
     }),
-    run: (op) => run(op),
+    run: (op) => run(op) !== null,
   };
 
   return {
     refresh,
     api,
+    stale() {
+      if (destroyed) return;
+      textDirty = true;
+      stage.classList.add('is-stale');
+    },
     destroy() {
       if (destroyed) return;
       flushPending();
