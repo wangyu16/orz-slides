@@ -44,7 +44,7 @@ async function context(b: Browser, o: { viewport?: { width: number; height: numb
 }
 
 /** An app's page with the editor mounted (hooks.save), the caret at `at`, This slide on; the GUI attached and drawn. */
-async function openApp(text: string, at: string, o: { viewport?: { width: number; height: number }; touch?: boolean } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[] }> {
+async function openApp(text: string, at: string, o: { viewport?: { width: number; height: number }; touch?: boolean; noWait?: boolean } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[] }> {
   if (!staged) {
     copyFileSync('dist/orz-slides.browser.js', join(dir, 'orz-slides.browser.js'));
     writeFileSync(join(dir, 'app.html'), '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%}#host{height:100vh}</style></head><body><div id="host"></div><script src="orz-slides.browser.js"></script></body></html>');
@@ -57,7 +57,8 @@ async function openApp(text: string, at: string, o: { viewport?: { width: number
   await page.goto(`file://${join(dir, 'app.html')}`);
   const engine = await page.evaluate(async (t) => {
     const C = (globalThis as unknown as { OrzCarrier: { mountEditor(el: Element, o: unknown): { ready: Promise<{ engine: string }> } } }).OrzCarrier;
-    const e = C.mountEditor(document.getElementById('host')!, { text: t, hooks: { save: async () => undefined } });
+    // saves are recorded (round B2, B2-ED-1: what a save wrote)
+    const e = C.mountEditor(document.getElementById('host')!, { text: t, hooks: { save: async (x: unknown) => { const g = globalThis as unknown as { __saved?: unknown[] }; g.__saved = [...(g.__saved ?? []), x]; } } });
     (globalThis as unknown as { __ed: unknown }).__ed = e;
     return (await e.ready).engine;
   }, text);
@@ -66,6 +67,7 @@ async function openApp(text: string, at: string, o: { viewport?: { width: number
   const frame = await previewFrame(page);
   // the single-slide view: the live card enlarged (owner decision 2026-10-14)
   await page.locator('[data-orz-slides-enlarge]').click();
+  if (o.noWait) { await page.waitForTimeout(1500); return { page, ctx, frame, errors }; }
   await waitGui(page, (s) => !s.stale && s.boxes.length > 0);
   // the card's move into the stage (a 160 ms transition) is over
   await page.waitForTimeout(400);
@@ -379,7 +381,7 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     await waitGui(page, (s) => s.slide === 0 && s.template === 'title' && !s.stale);
     expect(await page.locator('[data-act="preset-2col"]').isVisible()).toBe(false);
     await expect.poll(() => page.locator('.orz-lg-variant').count(), { timeout: 5000 }).toBe(6);
-    expect(await page.locator('.orz-lg-bar').textContent()).toMatch(/Title page: its own layout — choose its look/);
+    expect(await page.locator('.orz-lg-bar').textContent()).toMatch(/Title page: choose a look/);
     await page.locator('.orz-lg-variant[data-variant="4"]').click();
     t = await changed(page, t);
     expect(slideOf(t, 0).templateVariant).toBe(4);
@@ -984,4 +986,235 @@ chrome('closed-loop round B probes (the layout GUI, real Chrome, offline)', () =
     expect(errors).toEqual([]);
     await ctx.close();
   }, 120_000);
+});
+
+/* ───────────────────────── closed-loop round B2 (rebuild/1.0@15c9719): the probes of the closing pass ───────────────────────── */
+
+chrome('closed-loop round B2 probes (the layout GUI, real Chrome, offline)', () => {
+  const lum = ([r, g, b]: number[]): number => { const f = (v: number): number => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+  const ratio = (a: number[], b: number[]): number => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const savedTexts = (page: Page): Promise<string[]> => page.evaluate(() => ((globalThis as unknown as { __saved?: unknown[] }).__saved ?? []).map((x) => (typeof x === 'string' ? x : String((x as { text?: unknown })?.text ?? ''))));
+  const inShadow = <T>(page: Page, fn: string): Promise<T> => page.evaluate(`(function () { var host = document.querySelector('#host').firstElementChild; var root = host.shadowRoot; return ${fn}; })()`) as Promise<T>;
+
+  it('[L.12] round B2, B2-ED-1: a run of arrow keys is written before any command reads the text — Ctrl/Cmd+S saves the nudged text, the enlarge key and a click on the editor\'s toolbar write it first; Escape still cancels a run', async () => {
+    const deck = `${HB}<!-- slide -->\n## Slide A\nBody A.\n\n<!-- @float left=60% top=10% w=30% h=20% -->\nFloat on A\n\n<!-- slide -->\n## Slide B\nBody B.\n`;
+    const { page, ctx, errors } = await openApp(deck, '## Slide A');
+    // three nudges, then Save at once: the saved text has them
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    for (let k = 0; k < 3; k++) await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ControlOrMeta+s');
+    await expect.poll(async () => (await savedTexts(page)).length, { timeout: 5000 }).toBeGreaterThan(0);
+    const saved = (await savedTexts(page)).at(-1)!;
+    expect(saved.match(/@float left=\d+%/)?.[0]).toBe('@float left=63%');
+    // two more, then the enlarge key (back to the whole deck): written first
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    for (let k = 0; k < 2; k++) await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ControlOrMeta+Shift+Enter');
+    await expect.poll(() => ed<boolean>(page, 'e.slides.isPerSlide()')).toBe(false);
+    expect((await text(page)).match(/@float left=\d+%/)?.[0]).toBe('@float left=65%');
+    // in again; a run, then a pointer press on the editor's own toolbar (outside the stage): written first
+    await page.locator('[data-orz-slides-enlarge]').click();
+    await waitGui(page, (s) => !s.stale && s.floats === 1);
+    await page.waitForTimeout(400);
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    await page.keyboard.press('ArrowDown');
+    await page.locator('[data-orz-slides-lint]').click();
+    expect((await text(page)).match(/@float left=\d+% top=\d+%/)?.[0]).toBe('@float left=65% top=11%');
+    // Escape cancels a run (it is not written)
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(900);
+    expect((await text(page)).match(/@float left=\d+% top=\d+%/)?.[0]).toBe('@float left=65% top=11%');
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.12] round B2, B2-ED-4: a select() from code to another slide while a key run is pending writes the run on its slide and leaves the caret where the code put it', async () => {
+    const deck = `${HB}<!-- slide 2col -->\n## A\nLeft A\n<!-- @right -->\nRight A\n\n<!-- slide 2col -->\n## B\nLeft B\n<!-- @right -->\nRight B\n`;
+    const { page, ctx, errors } = await openApp(deck, '## A');
+    await page.locator('.orz-lg-div').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await page.evaluate(() => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number): void } }).__ed; const i = e.getText().indexOf('Left B'); e.select(i, i); });
+    await page.waitForTimeout(1200);
+    const t = await text(page);
+    expect(slideOf(t, 0).layoutSpec).toBe('2col 2/1');
+    expect(slideOf(t, 1).layoutSpec).toBe('2col');
+    const sel = await page.evaluate(() => (globalThis as unknown as { __ed: { getSelection(): { from: number } } }).__ed.getSelection().from);
+    expect(t.slice(sel, sel + 6)).toBe('Left B');
+    expect(await ed<number>(page, 'e.slides.caretSlide()')).toBe(1);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.7] round B2, GUI2-3: a filmstrip hidden because the pane was too low comes back when the pane grows (unless the reader hid it)', async () => {
+    const { page, ctx, errors } = await openApp(TWO, '## Two boxes', { viewport: { width: 1280, height: 380 } });
+    expect((await state(page)).stripAxis).toBeNull();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await waitGui(page, (s) => s.stripAxis !== null);
+    // the reader hides it: it stays hidden through a resize
+    await page.locator('[data-act="strip"]').click();
+    await waitGui(page, (s) => s.stripAxis === null);
+    await page.setViewportSize({ width: 1280, height: 380 });
+    await page.waitForTimeout(300);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.waitForTimeout(800);
+    expect((await state(page)).stripAxis).toBeNull();
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.7] round B2, GUI2-4: a template\'s look captions reach 4.5 : 1 against the page around the slide in every dark theme (the soft-dark surround)', async () => {
+    for (const th of ['chalk', 'copper', 'inscription', 'neon', 'nocturne']) {
+      const src = SAMPLE.replace(/^theme: .*$/m, `theme: ${th}`);
+      const { page, ctx, frame } = await openApp(src, '<!-- slide template=section');
+      await page.waitForTimeout(600);
+      const cols = await inShadow<string[]>(page, "Array.from(root.querySelectorAll('.orz-lg-variant > span')).map(function (e) { return getComputedStyle(e).color; })");
+      expect(cols.length, th).toBeGreaterThan(1);
+      const bg = await frame.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+      const rgb = await page.evaluate((list) => list.map((c) => { const x = document.createElement('canvas').getContext('2d')!; x.fillStyle = c; x.fillRect(0, 0, 1, 1); return Array.from(x.getImageData(0, 0, 1, 1).data.slice(0, 3)); }), [bg, ...cols]);
+      for (const c of rgb.slice(1)) expect(ratio(c, rgb[0]), `${th}: ${JSON.stringify(c)} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      await ctx.close();
+    }
+  }, 240_000);
+
+  it('[L.12] round B2, GUI2-6: the Keys panel breaks a key name only after a + or a / and lists redo (Ctrl/Cmd+Y); a template\'s note is not cut', async () => {
+    const { page, ctx, errors } = await openApp(TWO, '# A title page');
+    expect(await inShadow<string>(page, "(function (n) { return n.scrollWidth <= n.clientWidth + 1 ? n.textContent : 'cut: ' + n.textContent; })(Array.from(root.querySelectorAll('.orz-lg-note')).find(function (n) { return /look/.test(n.textContent); }))")).toBe('Title page: choose a look');
+    await page.locator('[data-act="keys"]').click();
+    const keys = await page.locator('.orz-lg-pop dt').allTextContents();
+    expect(keys.some((k) => /Ctrl\/Cmd\+Y/.test(k))).toBe(true);
+    // a key name breaks at a space or after a + or a /, never inside a word ("Ent|er")
+    const split = await page.evaluate(() => {
+      const root = (document.querySelector('#host')!.firstElementChild as HTMLElement).shadowRoot!;
+      const out: string[] = [];
+      for (const dt of Array.from(root.querySelectorAll('.orz-lg-pop dt'))) {
+        let prevTop: number | null = null;
+        let prevCh = '';
+        for (const n of Array.from(dt.childNodes)) {
+          if (n.nodeType !== 3) continue;
+          const t = n as Text;
+          for (let i = 0; i < t.length; i++) {
+            const r = document.createRange();
+            r.setStart(t, i);
+            r.setEnd(t, i + 1);
+            const q = r.getClientRects()[0];
+            if (!q) continue;
+            const ch = t.data[i];
+            if (prevTop !== null && Math.abs(q.top - prevTop) > 2 && !/[\s+/]/.test(prevCh) && !/\s/.test(ch)) out.push(`${dt.textContent} @${i}`);
+            prevTop = q.top;
+            prevCh = ch;
+          }
+        }
+      }
+      return out;
+    });
+    expect(split).toEqual([]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.7] round B2, GUI2-7: a box\'s name tag stays on its own side of the box (the sample\'s two columns in Notebook at 1500 × 900: \'left\' is never drawn beside \'right\')', async () => {
+    const src = SAMPLE.replace(/^theme: .*$/m, 'theme: notebook');
+    const { page, ctx, errors } = await openApp(src, '## The RAFT equilibrium');
+    await page.waitForTimeout(600);
+    // the 'left' tag ends at least two tag widths before the right box begins (where 'right' sits)
+    const g = await inShadow<{ tagR: number; tagW: number; tucked: boolean; rightL: number }>(page, "(function () { var l = root.querySelector('.orz-lg-box--region[data-box=left]'); var r = root.querySelector('.orz-lg-box--region[data-box=right]'); var t = l.querySelector(':scope > .orz-lg-tag'); var tr = t.getBoundingClientRect(); return { tagR: tr.right, tagW: tr.width, tucked: t.classList.contains('is-tucked'), rightL: r.getBoundingClientRect().left }; })()");
+    if (!g.tucked) expect(g.rightL - g.tagR, JSON.stringify(g)).toBeGreaterThanOrEqual(2 * g.tagW);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[L.13] round B2, ISO-B2-1, ISO-B2-2: a document script that forges fit reports (a region name of its own, HTML and a newline in it) and clones a float in the live slide — the Issues name boxes from the TEXT, and no float the text does not have is drawn or selected', async () => {
+    const FORGE = "var W=window;if(!W.__x){W.__x=1;var ks=[];var prev=W.__orzPreviewMessage;W.__orzPreviewMessage=function(m){try{if(m&&m.slide&&m.slide.key)ks.push({key:m.slide.key,index:m.slide.index});if(m&&m.type==='orz-slides-check')ks.push({key:m.key,index:m.index});}catch(e){}return prev(m)};var NAME='EVIL<b>x</b>&lt;'+String.fromCharCode(10)+'NL';setInterval(function(){ks.forEach(function(k){parent.postMessage({type:'orz-slides-fit',key:k.key,index:k.index,boxes:[{kind:'region',name:NAME,scale:0.3,clipped:true,x:0,y:0,w:10,h:10}],footerCut:false,scrolls:false,parts:null},'*')})},200);setInterval(function(){var s=document.querySelector('#orz-live .orz-page > section');if(!s)return;var f=s.querySelectorAll('.orz-float');if(f.length===1){var c=f[0].cloneNode(true);c.style.left='5%';c.style.top='55%';f[0].parentNode.appendChild(c);}},30)}";
+    const deck = `${HB}<!-- slide -->\n## Forged\nBody <img src="x" onerror="${FORGE}">\n<!-- @float left=60% top=10% w=30% h=20% -->\nThe float\n\n<!-- slide -->\n## Two\nx\n`;
+    const { page, ctx } = await openApp(deck, '## Forged', { noWait: true });
+    await page.evaluate(() => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number): void; focus(): void } }).__ed; const i = e.getText().indexOf('The float') + 9; e.select(i, i); e.focus(); });
+    await page.keyboard.type(' x');
+    await page.waitForTimeout(3000);
+    const msgs = await page.evaluate(() => (globalThis as unknown as { __ed: { slides: { refreshLints(): Array<{ code: string; message: string }> } } }).__ed.slides.refreshLints().filter((l) => l.code === 'cut-on-paper').map((l) => l.message));
+    expect(msgs.length).toBeGreaterThan(0);
+    for (const m of msgs) { expect(m).not.toMatch(/EVIL|<b>|NL/); expect(m).toMatch(/its (body|box) /); }
+    const s = await state(page);
+    // the frame reports two floats, the text has one: the stage is stale (nothing on it acts), no second float is drawn
+    expect(s.floats).toBeLessThanOrEqual(1);
+    expect(await inShadow<number>(page, "root.querySelectorAll('.orz-lg-float[data-float=\"1\"]').length")).toBe(0);
+    await ctx.close();
+    // the clone alone (no forged report): the frame truthfully reports two floats, the text has one — none is drawn as float 2
+    const DUP = "var W=window;if(!W.__d){W.__d=1;setInterval(function(){var s=document.querySelector('#orz-live .orz-page > section');if(!s)return;var f=s.querySelectorAll('.orz-float');if(f.length===1){var c=f[0].cloneNode(true);c.style.left='5%';c.style.top='55%';f[0].parentNode.appendChild(c);}},30)}";
+    const deck2 = `${HB}<!-- slide -->\n## Cloned\nBody <img src="x" onerror="${DUP}">\n<!-- @float left=60% top=10% w=30% h=20% -->\nThe float\n`;
+    const o2 = await openApp(deck2, '## Cloned', { noWait: true });
+    await o2.page.evaluate(() => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number): void; focus(): void } }).__ed; const i = e.getText().indexOf('The float') + 9; e.select(i, i); e.focus(); });
+    await o2.page.keyboard.type(' y');
+    await o2.page.waitForTimeout(2500);
+    expect(await inShadow<number>(o2.page, "root.querySelectorAll('.orz-lg-float[data-float=\"1\"]').length")).toBe(0);
+    expect(o2.errors).toEqual([]);
+    await o2.ctx.close();
+  }, 120_000);
+
+  it('[W.10] round B2, the owner\'s intermittent card bug: enlarge → shrink 45 times at a quarter of the CPU — by click, by key, rapid double clicks, a click right after the other, while typing, across theme changes, and while the frame\'s document is rebuilt between the enlarge and the shrink (the cause: a message the frame could not take was resent after a later one), with fit reports and idle checks running — always ends with the card in the bottom-right corner, its slide drawn, and the flattened preview back (no stage left in the pane)', async () => {
+    const many = Array.from({ length: 14 }, (_, i) => `<!-- slide ${i % 2 ? '2col' : ''} -->\n## Slide ${i + 1}\nText of slide ${i + 1}${i % 2 ? '\n<!-- @right -->\nRight' : ''}\n`).join('\n');
+    const deck = `${HB}${many}`;
+    const { page, ctx, frame, errors } = await openApp(deck, '## Slide 3');
+    await page.locator('[data-orz-slides-shrink]').click();
+    await expect.poll(() => ed<boolean>(page, 'e.slides.isPerSlide()')).toBe(false);
+    await page.waitForTimeout(800);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const bad: string[] = [];
+    const settledCard = async (k: number, how: string): Promise<void> => {
+      await page.waitForTimeout(1600);
+      const f = await frame.evaluate(() => {
+        const c = document.getElementById('orz-live')!;
+        const r = c.getBoundingClientRect();
+        const port = c.querySelector<HTMLElement>('.orz-live-port')!.getBoundingClientRect();
+        const sec = c.querySelector<HTMLElement>('.orz-page > section');
+        const sr = sec?.getBoundingClientRect();
+        return { stage: document.body.classList.contains('orz-stage'), hidden: c.hidden, x: r.right, y: r.bottom, w: r.width, vw: innerWidth, vh: innerHeight, portH: port.height, secW: sr?.width ?? 0, doc: getComputedStyle(document.getElementById('orz-doc')!).display };
+      });
+      const perSlide = await ed<boolean>(page, 'e.slides.isPerSlide()');
+      const btn = await page.locator('[data-orz-slides-enlarge]').boundingBox();
+      if (perSlide) bad.push(`${k} ${how}: still in single-slide view`);
+      if (f.stage) bad.push(`${k} ${how}: the frame still draws the stage`);
+      if (f.hidden) bad.push(`${k} ${how}: the card is hidden`);
+      if (f.doc === 'none') bad.push(`${k} ${how}: the flattened preview is hidden`);
+      if (f.vw - f.x > 40 || f.vh - f.y > 40 || f.w > f.vw * 0.5) bad.push(`${k} ${how}: the card is not in the corner (${Math.round(f.x)},${Math.round(f.y)} w ${Math.round(f.w)} of ${f.vw}×${f.vh})`);
+      if (f.portH < 30 || f.secW < 30) bad.push(`${k} ${how}: the card's slide is not drawn (port ${f.portH}, slide ${f.secW})`);
+      if (!btn || Math.abs(btn.width - f.w) > 3) bad.push(`${k} ${how}: the page's card button does not lie on the card`);
+    };
+    const enlarged = async (): Promise<void> => { await expect.poll(() => ed<boolean>(page, 'e.slides.isPerSlide()'), { timeout: 10_000 }).toBe(true); };
+    for (let k = 0; k < 45; k++) {
+      const how = ['click', 'reload', 'key', 'double', 'reload', 'quick', 'typing', 'reload', 'theme'][k % 9];
+      // a theme change reloads the preview frame: the enlarge and the shrink are sent while it boots again
+      if (how === 'theme') await page.evaluate((t) => (globalThis as unknown as { __ed: { setHeader(h: Record<string, string>): void } }).__ed.setHeader({ theme: t }), ['nocturne', 'orchard', 'paper'][k % 3]);
+      if (how === 'reload') {
+        // the frame's document rebuilt (as a theme or header change does) while the slide enlarges and shrinks: the
+        // messages the frame could not take must not come back after the later ones (the owner's bug)
+        await page.evaluate(() => { const e = (globalThis as unknown as { __ed: { slides: { setPerSlide(on: boolean): void }; preview: { setOptions(o: object): void } } }).__ed; e.slides.setPerSlide(true); e.preview.setOptions({}); });
+        await page.waitForTimeout((k * 7) % 70);
+        await page.evaluate(() => (globalThis as unknown as { __ed: { slides: { setPerSlide(on: boolean): void } } }).__ed.slides.setPerSlide(false));
+        await settledCard(k, how);
+        continue;
+      }
+      try { await page.locator('[data-orz-slides-enlarge]').click({ timeout: 8000 }); } catch {
+        await page.screenshot({ path: `/tmp/card-bug-${k}.png` });
+        bad.push(`${k} ${how}: the card cannot be clicked after the last shrink (${JSON.stringify(await page.locator('[data-orz-slides-enlarge]').boundingBox())}, card ui hidden ${await page.evaluate(() => (document.querySelector('#host')!.firstElementChild as HTMLElement).shadowRoot!.querySelector<HTMLElement>('[data-orz-slides-card]')?.hidden)})`);
+        break;
+      }
+      await enlarged();
+      if (how === 'quick' || how === 'theme') await page.waitForTimeout(30 + (k * 53) % 120); else await page.waitForTimeout(80 + (k * 37) % 400);
+      if (how === 'key') { await page.locator('[data-orz-slides-shrink]').focus(); await page.keyboard.press('ControlOrMeta+Shift+Enter'); }
+      else if (how === 'double') await page.locator('[data-orz-slides-shrink]').dblclick();
+      else if (how === 'typing') {
+        await page.evaluate((n) => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number): void } }).__ed; const i = e.getText().indexOf(`Text of slide ${n}`); e.select(i, i); }, 3 + (k % 5));
+        await page.locator('[data-orz-slides-shrink]').click();
+      } else await page.locator('[data-orz-slides-shrink]').click();
+      await settledCard(k, how);
+    }
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    expect(bad).toEqual([]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 600_000);
 });

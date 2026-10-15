@@ -46,6 +46,7 @@ import { includeRecordEnv, rewriteAssetUrls, type EditorShell } from 'orz-markdo
 import { createPreferenceStore, showToast, type PreferenceSpec, type PreferenceStore } from 'orz-markdown/carrier/shell';
 import { readDocument } from '../../assemble.js';
 import { parseDeck, TEMPLATES } from '../../deck/parse.js';
+import { leaves } from '../../deck/layout-spec.js';
 import { planDeck } from '../../deck/plan.js';
 import { presentationOf, slideSize } from '../../presentation.js';
 import { renderSlide, type Renderer } from '../../render-slide.js';
@@ -219,14 +220,16 @@ const CARD_CSS = `
 .orz-slides-card button { pointer-events: auto; font: 600 12px/1 var(--orz-chrome-font, system-ui, sans-serif); cursor: pointer; }
 .orz-slides-card__enlarge { position: absolute; padding: 0; border: 0; border-radius: 8px; background: transparent; }
 .orz-slides-card__enlarge:hover, .orz-slides-card__enlarge:focus-visible { box-shadow: inset 0 0 0 2px var(--orz-chrome-accent, #2f6fde); background: color-mix(in oklch, var(--orz-chrome-accent, #2f6fde) 6%, transparent); outline: none; }
-.orz-slides-card__hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; background: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent-fg, #fff); white-space: nowrap; opacity: 0; transition: opacity .12s; }
-.orz-slides-card__enlarge:is(:hover, :focus-visible) .orz-slides-card__hint { opacity: 1; }
+/* the way into single-slide editing, drawn at rest in the card's head — on a touch screen too (round B2, GUI2-1: the card
+   gave no sign that it can be clicked); the whole card stays the target, the chip fills in on hover and focus */
+.orz-slides-card__hint { position: absolute; top: 3px; right: 32px; display: inline-flex; align-items: center; gap: 4px; height: 22px; box-sizing: border-box; padding: 0 8px 0 6px; border: 1px solid var(--orz-chrome-accent, #2f6fde); border-radius: 5px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-accent, #2f6fde); white-space: nowrap; transition: background .12s, color .12s; }
+.orz-slides-card__enlarge:is(:hover, :focus-visible) .orz-slides-card__hint { background: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent-fg, #fff); }
 .orz-slides-card__icon { position: absolute; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-fg, #333); }
 .orz-slides-card__icon:hover, .orz-slides-card__icon:focus-visible { border-color: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent, #2f6fde); }
 .orz-slides-card svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .orz-slides-card__pill { position: absolute; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--orz-chrome-border, #ccc); border-radius: 99px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-fg, #333); box-shadow: 0 2px 8px rgba(0,0,0,.14); }
 .orz-slides-card__pill[data-fit="cut"] { color: var(--orz-chrome-danger, #c22); }
-@media (pointer: coarse) { .orz-slides-card__icon { width: 36px; height: 32px; } .orz-slides-card__pill { height: 40px; } }
+@media (pointer: coarse) { .orz-slides-card__icon { width: 36px; height: 32px; } .orz-slides-card__pill { height: 40px; } .orz-slides-card__hint { right: 44px; } }
 `;
 const CARD_SVG = {
   enlarge: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/></svg>',
@@ -305,11 +308,18 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   let stageAsk: { insets: StageInsets; variants: boolean } = { insets: { top: 0, right: 0, bottom: 0, left: 0 }, variants: false };
   let variantHtml: Array<{ v: number; html: string }> = [];
   const message = (slide: unknown): Record<string, unknown> => ({ type: 'orz-slides-live', show: live, stage: perSlide, ...(perSlide ? { layout: { insets: stageAsk.insets, variants: stageAsk.variants ? variantHtml : [] } } : {}), ...(slide ? { slide } : {}) });
+  /**
+   * What the frame shows is a function of the page's CURRENT state (owner-reported bug, round B2): a message the
+   * frame could not take (not ready yet, or its document being rebuilt — a theme change) is never sent again as it
+   * was, because a later one (a shrink after an enlarge) may have got through meanwhile and the old one would undo
+   * it, leaving the stage in the pane; instead the current state is sent again, once, shortly.
+   */
+  let retryTimer: number | null = null;
   const post = (m: Record<string, unknown>): void => {
     if (destroyed) return;
     if (shell.preview.post(m)) { postTries = 0; return; }
-    // the frame is not ready yet (or is being rebuilt): again shortly
-    if (postTries++ < 100) later(() => post(m), 100);
+    posted = null;
+    if (retryTimer === null && postTries++ < 100) retryTimer = later(() => { retryTimer = null; void syncLive(true); }, 100);
   };
 
   async function syncLive(force = false): Promise<void> {
@@ -381,8 +391,13 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       if (checking?.key === d.key) { checking = null; scheduleCheck(CHECK_GAP_MS); }
       layout?.refresh();
       scheduleLints(150);
+      // the card's (or the pill's) word follows a check of the caret's slide (round B2, B2-ED-3)
+      drawCard();
       return;
     }
+    // a report without the parts (a document script's forgery: round B2) keeps the last good parts of the same slide text,
+    // so it cannot make the stage stale for good
+    if (!r.parts) { const prev = fits.get(at.fitKey) ?? (last?.fitKey === at.fitKey ? last : undefined); if (prev?.parts) r.parts = prev.parts; }
     fits.set(at.fitKey, r);
     last = { ...r, index: at.index, fitKey: at.fitKey };
     layout?.refresh();
@@ -451,7 +466,15 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       const at = { line: s.marker.line, from: s.marker.from, to: s.marker.to };
       const cut = r.boxes.filter((b) => b.clipped);
       if (cut.length > 0) {
-        const names = [...new Set(cut.map((b) => (b.kind === 'region' ? b.name : b.kind)))].join(', ');
+        // the boxes are named from the TEXT, the frame's region boxes in document order (round B2, ISO-B2-1: the
+        // name the frame reported reached the Issues panel); a count that does not match says "a box"
+        const textNames = s.kind === 'template' ? [] : leaves(s.layout);
+        const regionBoxes = r.boxes.filter((b) => b.kind === 'region');
+        const nameOf = (b: FitReport['boxes'][number]): string => {
+          if (b.kind !== 'region') return /^(?:title|float|template)$/.test(b.kind) ? b.kind : 'box';
+          return regionBoxes.length === textNames.length ? textNames[regionBoxes.indexOf(b)] : 'box';
+        };
+        const names = [...new Set(cut.map(nameOf))].join(', ');
         const off = s.options.fit === 'off';
         out.push({ level: 'warning', code: 'cut-on-paper', message: off
           ? `slide ${s.index + 1} is fit=off and its ${names} overflow${cut.length === 1 ? 's' : ''}: it is cut on screen and on paper — shorten it, split it, or let it fit`
@@ -634,7 +657,8 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       const hint = doc.createElement('span');
       hint.className = 'orz-slides-card__hint';
       hint.insertAdjacentHTML('beforeend', CARD_SVG.enlarge);
-      hint.append(doc.createTextNode('Edit this slide'));
+      hint.setAttribute('aria-hidden', 'true');
+      hint.append(doc.createTextNode('Edit'));
       enlargeBtn.append(hint);
       enlargeBtn.addEventListener('click', (e) => { if (e.isTrusted) setPerSlide(true); });
       foldBtn = doc.createElement('button');
@@ -677,7 +701,8 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       place(enlargeBtn!, ox + C.x, oy + C.y, C.w, C.h);
       enlargeBtn!.setAttribute('aria-label', `Edit slide ${i + 1} on its own — enlarge the card (${ENLARGE_KEY}); ${word}`);
       enlargeBtn!.title = `Edit slide ${i + 1} on its own (${ENLARGE_KEY})`;
-      place(foldBtn!, ox + C.x + C.w - 28, oy + C.y + 3);
+      // from its measured width (round B2, B2-ED-5: 36 px on touch, placed as if 24)
+      place(foldBtn!, ox + C.x + C.w - (foldBtn!.offsetWidth || 24) - 4, oy + C.y + 3);
     } else {
       pill!.replaceChildren();
       pill!.insertAdjacentHTML('beforeend', CARD_SVG.unfold);
@@ -701,7 +726,7 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       offs.push(() => { ro.disconnect(); win.clearInterval(t); });
     }
   }, 0);
-  // enlarge / shrink from the keyboard, anywhere in the editor (the reader's own key)
+  // enlarge / shrink from the keyboard, in the text and the editor's chrome (the reader's own key; not inside the preview frame, whose bridge forwards only the kit's keys: round B2, ISO-B2-3)
   {
     const onKey = (e: Event): void => {
       const k = e as KeyboardEvent;
@@ -795,12 +820,20 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   };
   function setPerSlide(on: boolean): void {
     if (destroyed || on === perSlide) return;
+    // no preview to draw the slide in (the Editor-only view): say so, rather than a slide 64 px wide (round B2, GUI2-2)
+    if (on) {
+      const fr = frameEl()?.getBoundingClientRect();
+      if (!fr || fr.width < 160 || fr.height < 120) { showToast(root as never, 'Show the preview (Split or Preview) to edit a slide on its own.', { tone: 'info' }); return; }
+    }
+    // enlarged from the card's own button (the keyboard's Enter or Space): the focus goes with the slide (round B2, B2-ED-2)
+    const fromCard = on && (root as unknown as { activeElement?: Element | null }).activeElement === enlargeBtn;
     perSlide = on;
     syncToggles();
     try { o.onPerSlide?.(perSlide); } catch { /* the carrier's */ }
     if (perSlide) {
       layout = o.layoutGui ? o.layoutGui.attach(stageHost) : null;
       layoutApi = (layout as { api?: unknown } | null)?.api ?? null;
+      if (fromCard) later(() => { (root as unknown as ParentNode).querySelector<HTMLElement>('[data-orz-slides-shrink]')?.focus(); }, 0);
     } else {
       const hadFocus = (root as unknown as { activeElement?: Element | null }).activeElement;
       const inGui = !!hadFocus && !!hadFocus.closest?.('.orz-lg');

@@ -90,8 +90,9 @@ export const LAYOUT_KEYS: ReadonlyArray<readonly [string, string]> = [
   ['Alt+Up / Alt+Down (filmstrip)', 'move the slide'],
   ['Delete (filmstrip)', 'delete the slide'],
   ['Page Up / Page Down', 'previous / next slide'],
-  ['Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z', 'undo / redo'],
-  ['Ctrl/Cmd+Shift+Enter', 'back to the whole deck: the slide shrinks into the card (again: enlarge the card)'],
+  ['Ctrl/Cmd+Z', 'undo'],
+  ['Shift+Ctrl/Cmd+Z, Ctrl/Cmd+Y', 'redo'],
+  ['Ctrl/Cmd+Shift+Enter', 'back to the whole deck: the slide shrinks into the card (again: enlarge the card) — in the text and on this toolbar and stage, not inside the preview'],
   ['?', 'this list'],
   ['Escape', 'cancel a drag or a run of keys; close a panel; clear the selection'],
 ];
@@ -236,6 +237,10 @@ const GUI_CSS = `
 .orz-lg-variant[aria-checked="true"] { border-color: var(--lg-accent); }
 .orz-lg-variant > span { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 3px); font-size: 11px; color: var(--orz-chrome-muted, #666); white-space: nowrap; }
 .orz-lg-variant[aria-checked="true"] > span { color: var(--lg-accent); font-weight: 600; }
+/* the captions sit on the page around the slide (a dark theme's soft-dark surround): they take the slide's scheme, as the outlines do (round B2, GUI2-4: 2.5–2.9 : 1) */
+.orz-lg[data-scheme="dark"] .orz-lg-variant > span { color: oklch(84% 0.02 260); }
+.orz-lg[data-scheme="dark"] .orz-lg-variant[aria-checked="true"] > span { color: var(--lg-ink); }
+.orz-lg[data-scheme="dark"] .orz-lg-variant[aria-checked="true"] { border-color: var(--lg-ink); }
 .orz-lg-bubble { position: absolute; z-index: 5; transform: translate(-50%, calc(-100% - 12px)); padding: 3px 8px; border-radius: 6px; font: 600 12px/1.3 var(--orz-chrome-font, system-ui, sans-serif); background: var(--orz-chrome-fg, #222); color: var(--orz-chrome-surface, #fff); white-space: nowrap; pointer-events: none; }
 .orz-lg-bubble small { font-weight: 400; opacity: .8; margin-left: 6px; }
 .orz-lg-pop { position: absolute; z-index: 6; min-width: 200px; max-width: min(380px, calc(100% - 8px)); max-height: calc(100% - 8px); overflow: auto; box-sizing: border-box; padding: 8px; border: 1px solid var(--orz-chrome-border, #ddd); border-radius: 8px; box-shadow: var(--orz-chrome-shadow, 0 8px 24px rgba(0,0,0,.18)); }
@@ -246,7 +251,7 @@ const GUI_CSS = `
 .orz-lg-pop .orz-lg-row { display: flex; gap: 4px; flex-wrap: wrap; }
 .orz-lg-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 12px; }
 .orz-lg-pop dl { grid-template-columns: minmax(0, 11em) minmax(0, 1fr); }
-.orz-lg-pop dt { font-family: var(--orz-chrome-mono, monospace); overflow-wrap: anywhere; }
+.orz-lg-pop dt { font-family: var(--orz-chrome-mono, monospace); overflow-wrap: normal; word-break: keep-all; }
 .orz-lg-pop dd { margin: 0; color: var(--orz-chrome-muted, #555); }
 .orz-lg-catch { position: absolute; inset: 0; z-index: 4; pointer-events: auto; touch-action: none; background: transparent; }
 .orz-lg-catch[hidden] { display: none; }
@@ -553,10 +558,15 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     if (!ok) return refused('The document is read-only.');
     const after = r.text;
     try { (shell as unknown as { flash?(r: Array<{ from: number; to: number }>): void }).flash?.(r.changed.map((c) => ({ from: Math.min(c.from, after.length), to: Math.min(c.to, after.length) }))); } catch { /* an older kit */ }
-    if (r.slide !== i || op.type.startsWith('slide-')) host.goTo(r.slide);
-    if (r.select) shell.select(r.select.from, r.select.to, { scroll: true });
-    // the caret stays on the op's slide (a deleted last block, an empty box at the next slide's marker: round B, B-ED-1)
-    if (host.slide()?.index !== r.slide) host.goTo(r.slide);
+    // a run of keys or a drag written late (base given) after the caret went to another slide — a go-to from code, an
+    // agent, a search — leaves the caret there (round B2, B2-ED-4: the pins below pulled it back to the run's slide)
+    const away = base !== undefined && host.slide()?.index !== i && !op.type.startsWith('slide-');
+    if (!away) {
+      if (r.slide !== i || op.type.startsWith('slide-')) host.goTo(r.slide);
+      if (r.select) shell.select(r.select.from, r.select.to, { scroll: true });
+      // the caret stays on the op's slide (a deleted last block, an empty box at the next slide's marker: round B, B-ED-1)
+      if (host.slide()?.index !== r.slide) host.goTo(r.slide);
+    }
     say(`${r.label} — ${op.type === 'slide-move' ? `${r.edits.reduce((n, e) => n + (e.insert.match(/\r\n|\r|\n/g)?.length ?? 0), 0)} lines moved` : diffSummary(text, r)}`, /no free place/.test(r.label) ? 'warn' : 'ok');
     host.syncNow();
     refresh();
@@ -617,7 +627,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     pane = host.pane();
     if (!frame || !pane) return;
     // a pane too low for a slide and a filmstrip: the filmstrip goes (the Slides button brings it back)
-    if (pane.clientHeight < 360 && stripOn && !userStrip) setStrip(false, false);
+    if (pane.clientHeight < 360 && stripOn && !userStrip) { stripAutoHidden = true; setStrip(false, false); }
+    // … and comes back when the pane grows again (round B2, GUI2-3; 40 px of hysteresis), unless the reader chose
+    else if (pane.clientHeight >= 400 && !stripOn && stripAutoHidden && !userStrip) { stripAutoHidden = false; setStrip(true, false); return; }
     const top = bar.offsetHeight;
     const bottom = status.offsetHeight;
     // the filmstrip beside the slide or under it, whichever leaves the slide larger (round B, GUI-4: a width-bound
@@ -644,6 +656,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
   }
   let lastTpl: boolean | undefined;
   let userStrip = false;
+  let stripAutoHidden = false;
   function setStrip(on: boolean, byUser = true): void {
     stripOn = on;
     if (byUser) userStrip = true;
@@ -681,7 +694,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     if (c && tpl && c.slide.template) {
       const n = TEMPLATES[c.slide.template];
       const v = c.slide.templateVariant ?? 1;
-      tplNote.textContent = `${TEMPLATE_LABEL[c.slide.template] ?? c.slide.template}: its own layout — choose its look`;
+      tplNote.textContent = `${TEMPLATE_LABEL[c.slide.template] ?? c.slide.template}: choose a look`;
+      tplNote.title = `A ${TEMPLATE_LABEL[c.slide.template] ?? 'template'} has its own layout: choose its look`;
       for (let k = 1; k <= n; k++) {
         const b = btn(`Look ${k}`, '', { title: `Look ${k} (v=${k})`, data: `variant-${k}`, role: 'radio' });
         b.textContent = String(k);
@@ -729,6 +743,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     // frame reports is never an op's input); a report that does not match the text's boxes draws a stale stage
     const names = tpl ? [] : leaves(c.slide.layout);
     if (!tpl && parts.regions.length !== names.length) { stage.classList.add('is-stale'); regionRects = []; return; }
+    // the floats too: a float the frame reports that the text does not have is never drawn or selected (round B2, ISO-B2-2)
+    if (parts.floats.length !== c.map.floats.length) { stage.classList.add('is-stale'); regionRects = []; return; }
     regionRects = parts.regions.map((r, k) => ({ ...r, name: names[k] }));
     const regionFits = geom.boxes.filter((b) => b.kind === 'region');
     const fitOf = (kind: string, name: string, k = 0): { scale: number; clipped: boolean } | null => {
@@ -843,8 +859,11 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     const area: Q = { l: sr.left - STAGE_PAD + 1, t: sr.top - STAGE_PAD + 1, r: sr.right + STAGE_PAD - 1, b: sr.bottom + STAGE_PAD - 1 };
     const inside = (q: Q): boolean => q.l >= area.l && q.t >= area.t && q.r <= area.r && q.b <= area.b;
     const placed: Q[] = [];
-    for (const box of Array.from(stage.querySelectorAll<HTMLElement>('.orz-lg-box, .orz-lg-float'))) {
-      const br = box.getBoundingClientRect();
+    const boxes = Array.from(stage.querySelectorAll<HTMLElement>('.orz-lg-box, .orz-lg-float'));
+    const others = Array.from(stage.querySelectorAll<HTMLElement>('.orz-lg-box--region')).map((b) => b.getBoundingClientRect());
+    for (const box of boxes) {
+      const br0 = box.getBoundingClientRect();
+      const br = box.classList.contains('orz-lg-box--region') ? others[Array.from(stage.querySelectorAll('.orz-lg-box--region')).indexOf(box)] : br0;
       for (const lab of Array.from(box.querySelectorAll<HTMLElement>(':scope > .orz-lg-tag, :scope > .orz-lg-badge'))) {
         lab.classList.remove('is-tucked');
         lab.removeAttribute('data-at');
@@ -858,8 +877,13 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
         const xs = badge ? [xr, xl] : [xl, xr];
         const ys: Array<[string, number]> = [['above', br.top - h - 1], ['top', br.top + 2], ['below', br.bottom + 1], ['bottom', br.bottom - h - 2]];
         const cands: Array<{ at: string; q: Q }> = [];
-        for (const [at, y] of ys) for (const x of xs) cands.push({ at: `${at}-${x === xl ? 'left' : 'right'}`, q: { l: x, t: y, r: x + w, b: y + h } });
-        let pick = cands.find((c) => inside(c.q) && !ink.some((i) => over(c.q, i, 1)) && !placed.some((p) => over(c.q, p, 0.5)));
+        // a name tag also tries the places along its edge between the corners (round B2, GUI2-7), a badge the corners only
+        const along = (): number[] => { const out: number[] = []; const step = Math.max(16, w / 2); for (let x = xl + step; x < xr - 1; x += step) out.push(x); return out; };
+        for (const [at, y] of ys) for (const x of badge ? xs : [xl, ...along(), xr]) cands.push({ at: `${at}-${x === xl ? 'left' : x === xr ? 'right' : 'mid'}`, q: { l: x, t: y, r: x + w, b: y + h } });
+        // a name tag never comes within two tag widths of a neighbouring box's left edge, where that box's own tag sits:
+        // it would read as the neighbour's (round B2, GUI2-7: 'left' drawn just left of 'right')
+        const nearNeighbour = (c: { at: string; q: Q }): boolean => !badge && others.some((o) => o !== br && Math.abs(o.top - br.top) < 2 * h + 4 && c.q.r + 2 * w + 8 > o.left && c.q.l < o.right);
+        let pick = cands.find((c) => inside(c.q) && !ink.some((i) => over(c.q, i, 1)) && !placed.some((p) => over(c.q, p, 0.5)) && !nearNeighbour(c));
         if (!pick && cut) pick = cands.find((c) => c.at === 'bottom-right') ?? cands[0];
         if (!pick) { lab.classList.add('is-tucked'); continue; }
         lab.setAttribute('data-at', pick.at);
@@ -1196,7 +1220,14 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
       const h = el(doc, 'h3');
       h.textContent = 'Keys';
       const dl = el(doc, 'dl');
-      for (const [k, v] of LAYOUT_KEYS) { const dt = el(doc, 'dt'); dt.textContent = k; const dd = el(doc, 'dd'); dd.textContent = v; dl.append(dt, dd); }
+      // a key name breaks only after a + or a / (round B2, GUI2-6: "Ctrl/Cmd+Shift+Ent|er")
+      for (const [k, v] of LAYOUT_KEYS) {
+        const dt = el(doc, 'dt');
+        for (const part of k.split(/(?<=[+/])/)) { dt.append(doc.createTextNode(part)); dt.append(el(doc, 'wbr')); }
+        const dd = el(doc, 'dd');
+        dd.textContent = v;
+        dl.append(dt, dd);
+      }
       const close = btn('Close', '', { data: 'keys-close' });
       close.addEventListener('click', () => { closePop(); bKeys.focus(); });
       p.append(h, dl, close);
@@ -1795,6 +1826,19 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     const to = e.relatedTarget as Node | null;
     if (pending && !(to && ui.contains(to) && ((to as HTMLElement).classList?.contains('orz-lg-float') || (to as HTMLElement).classList?.contains('orz-lg-div')))) flushPending();
   });
+  // a run of keys is written before ANY command reads the text (round B2, B2-ED-1, the class): every key that does not
+  // go on with the run — a shortcut (Save, Done, Print, undo, the enlarge key), Tab, Enter, any key elsewhere — and
+  // every press outside the stage are caught first, in the window's capture phase, ahead of the kit's handlers and
+  // the editor's own (Escape still cancels the run; a modifier pressed alone waits for its key)
+  const MODIFIER_ONLY = /^(?:Shift|Alt|AltGraph|Control|Meta|CapsLock|Fn|OS)$/;
+  listen<KeyboardEvent>(win, 'keydown', (e) => {
+    if (!pending || !e.isTrusted || e.key === 'Escape' || MODIFIER_ONLY.test(e.key)) return;
+    const t = e.composedPath()[0] as HTMLElement | undefined;
+    const onRun = !!t && stage.contains(t) && (t.classList?.contains('orz-lg-float') || t.classList?.contains('orz-lg-div'));
+    if (onRun && /^Arrow/.test(e.key) && !e.metaKey && !e.ctrlKey) return;
+    flushPending();
+  }, { capture: true });
+  listen<PointerEvent>(win, 'pointerdown', (e) => { if (pending && e.isTrusted && !e.composedPath().includes(stage)) flushPending(); }, { capture: true });
   // a click outside a popover closes it
   listen<PointerEvent>(root as unknown as EventTarget, 'pointerdown', (e) => { if (pop && !e.composedPath().includes(pop)) closePop(); }, { capture: true });
   // the caret moves: the box it is in is marked

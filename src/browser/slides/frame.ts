@@ -75,11 +75,13 @@ body.orz-live-on #orz-doc { padding-bottom: 46vh; }
   font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .orz-live[hidden] { display: none; }
-.orz-live-head { display: flex; align-items: center; gap: 8px; height: 28px; box-sizing: border-box; padding: 0 34px 0 8px; border-bottom: 1px solid var(--orz-live-line); }
+/* the head's right end holds the trusted page's Edit chip and fold button (round B2, GUI2-1) */
+.orz-live-head { display: flex; align-items: center; gap: 8px; height: 28px; box-sizing: border-box; padding: 0 100px 0 8px; border-bottom: 1px solid var(--orz-live-line); }
+@media (pointer: coarse) { .orz-live-head { padding-right: 116px; } }
 @media (prefers-reduced-motion: reduce) { .orz-live, .orz-live-port { transition: none; } }
 .orz-live-port { transition: height .16s ease-out; }
-.orz-live-n { font-weight: 600; font-variant-numeric: tabular-nums; }
-.orz-live-badge { margin-left: auto; padding: 0 7px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
+.orz-live-n { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.orz-live-badge { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 7px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
 .orz-live-badge:empty { display: none; }
 .orz-live-badge[data-state="ok"] { background: rgba(22,163,74,.14); color: #15803d; }
 .orz-live-badge[data-state="shrunk"] { background: rgba(37,99,235,.13); color: #1d4ed8; }

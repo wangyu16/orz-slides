@@ -38,8 +38,8 @@ const PICKER_INIT = `(() => {
 })();`;
 
 /** A context that serves CodeMirror (and the kit's other vendored files) from the installed orz-markdown; everything else off the machine is refused. */
-async function context(b: Browser, o: { picker?: boolean; viewport?: { width: number; height: number }; noCodeMirror?: boolean } = {}): Promise<BrowserContext> {
-  const ctx = await b.newContext({ viewport: o.viewport ?? { width: 1440, height: 900 } });
+async function context(b: Browser, o: { picker?: boolean; viewport?: { width: number; height: number }; noCodeMirror?: boolean; touch?: boolean } = {}): Promise<BrowserContext> {
+  const ctx = await b.newContext({ viewport: o.viewport ?? { width: 1440, height: 900 }, ...(o.touch ? { hasTouch: true } : {}) });
   if (o.picker) await ctx.addInitScript(PICKER_INIT);
   await ctx.route(/^https?:\/\//, (r) => {
     const m = /^https:\/\/cdn\.jsdelivr\.net\/npm\/orz-markdown@[^/]+\/(vendor\/.+)$/.exec(r.request().url());
@@ -58,10 +58,11 @@ type Ed = {
 };
 
 /** Open an assembled deck, enter edit mode and wait for CodeMirror and the preview's first render. */
-async function openEditor(name: string, text: string, o: { picker?: boolean; slide?: number; viewport?: { width: number; height: number }; noCodeMirror?: boolean } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[]; path: string }> {
+async function openEditor(name: string, text: string, o: { picker?: boolean; slide?: number; viewport?: { width: number; height: number }; noCodeMirror?: boolean; touch?: boolean; init?: string } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[]; path: string }> {
   const path = join(dir, name);
   writeFileSync(path, assemble(text), 'utf8');
   const ctx = await context(browser!, o);
+  if (o.init) await ctx.addInitScript(o.init);
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -547,6 +548,88 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     expect(ta.line * ta.lh).toBeLessThanOrEqual(ta.top + ta.h);
     const status = await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()! as unknown as { root: ShadowRoot }; return e.root.querySelector('.orz-lg-msg')?.textContent ?? ''; });
     expect(status).toMatch(/not dimmed/);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  /* ───────────────────────── closed-loop round B2 (rebuild/1.0@15c9719): the closing pass's probes ───────────────────────── */
+
+  const root = (page: Page, fn: string): Promise<unknown> => page.evaluate(`(function (root) { return ${fn}; })(globalThis.OrzCarrier.standalone.editor().root)`);
+  const rectOf = async (page: Page, sel: string): Promise<{ x: number; y: number; w: number; h: number; visible: boolean; opacity: number }> => (await root(page, `(function (e) { if (!e) return null; var r = e.getBoundingClientRect(); var cs = getComputedStyle(e); return { x: r.x, y: r.y, w: r.width, h: r.height, visible: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && !e.closest('[hidden]'), opacity: parseFloat(cs.opacity) }; })(root.querySelector(${JSON.stringify(sel)}))`)) as never;
+  const overlap = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 0.5 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 0.5;
+
+  it('[W.10] round B2, GUI2-1, B2-ED-5, B2-ED-2: the live card shows at rest that it opens single-slide editing — an "Edit" chip in its head, drawn without hover (on a touch screen too), clear of the head\'s number and fit and of the fold button, which lies inside the card; the card is a keyboard button, and Enter on it enlarges the card with the focus going to the single-slide view (its Whole deck button)', async () => {
+    for (const touch of [false, true]) {
+      const { page, ctx, frame, errors } = await openEditor(`rb2-card-${touch}.slides.html`, SIX, { slide: 2, touch });
+      await page.locator('[data-orz-slides-enlarge]').waitFor({ state: 'visible', timeout: 10_000 });
+      await frame.waitForFunction(() => !document.getElementById('orz-live')!.hidden && (document.querySelector('#orz-live .orz-live-n')?.textContent ?? '') !== '');
+      await page.waitForTimeout(600);
+      if (touch) expect(await page.evaluate(() => matchMedia('(hover: none)').matches || matchMedia('(pointer: coarse)').matches)).toBe(true);
+      const card = await rectOf(page, '[data-orz-slides-enlarge]');
+      const chip = await rectOf(page, '.orz-slides-card__hint');
+      const fold = await rectOf(page, '[data-orz-slides-fold]');
+      expect(chip.visible && chip.opacity === 1, `chip at rest (touch ${touch})`).toBe(true);
+      expect(await root(page, "root.querySelector('.orz-slides-card__hint').textContent")).toBe('Edit');
+      // in the head, inside the card, clear of the fold button
+      expect(chip.y).toBeGreaterThanOrEqual(card.y);
+      expect(chip.y + chip.h).toBeLessThanOrEqual(card.y + 30);
+      expect(chip.x).toBeGreaterThanOrEqual(card.x);
+      expect(overlap(chip, fold), `chip and fold (touch ${touch})`).toBe(false);
+      expect(fold.x + fold.w, `fold inside the card (touch ${touch})`).toBeLessThanOrEqual(card.x + card.w + 0.5);
+      // clear of the frame's head text (its number and fit badge)
+      const ifr = (await page.locator('iframe.orz-editor__frame').boundingBox())!;
+      const head = await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('#orz-live .orz-live-n, #orz-live .orz-live-badge')).filter((e) => e.textContent).map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }));
+      for (const h of head) expect(overlap(chip, { ...h, x: h.x + ifr.x, y: h.y + ifr.y }), `chip over the head's text (touch ${touch})`).toBe(false);
+      // the keyboard: the card is a button; Enter enlarges it and the focus goes into the single-slide view
+      await page.locator('[data-orz-slides-enlarge]').focus();
+      await page.keyboard.press('Enter');
+      await frame.waitForFunction(() => document.body.classList.contains('orz-stage'), undefined, { timeout: 10_000 });
+      await expect.poll(() => root(page, "root.activeElement && root.activeElement.hasAttribute('data-orz-slides-shrink')"), { timeout: 5000 }).toBe(true);
+      expect(errors).toEqual([]);
+      await ctx.close();
+    }
+  }, 180_000);
+
+  it('[W.10] round B2, B2-ED-3: the folded pill follows the idle checks — a slide found cut in idle time turns the pill to "cut on paper" without a caret move', async () => {
+    const uid = 'doc-roundb2pill0001';
+    const many = Array.from({ length: 45 }, (_, i) => `- bullet ${i + 1} with words enough for a line`).join('\n');
+    const text = `{{nyml\nkind: document\ncarrier: slides\nuid: ${uid}\ntitle: Pill\n}}\n\n<!-- slide -->\n## Too much\n${many}\n\n<!-- slide -->\n## Two\nx\n\n<!-- slide -->\n## Three\nx\n`;
+    const { page, ctx, errors } = await openEditor('rb2-pill.slides.html', text, { slide: 0, init: `localStorage.setItem('orz-pref:${uid}:slideCard', '"collapsed"')` });
+    const pill = page.locator('[data-orz-slides-unfold]');
+    await pill.waitFor({ state: 'visible', timeout: 10_000 });
+    await expect.poll(() => pill.textContent(), { timeout: 20_000 }).toBe('Slide 1 · cut on paper');
+    expect(await pill.getAttribute('data-fit')).toBe('cut');
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[W.10] round B2, GUI2-2: with the preview hidden (the Editor-only view) the enlarge key does not turn on an invisible single-slide view: it says to show the preview', async () => {
+    const { page, ctx, errors } = await openEditor('rb2-view.slides.html', SIX, { slide: 2 });
+    await page.getByRole('button', { name: 'Editor', exact: true }).first().click();
+    await page.waitForTimeout(600);
+    await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()!; const i = e.getText().indexOf('## Title 3'); e.select(i, i); e.focus(); });
+    await page.keyboard.press('ControlOrMeta+Shift+Enter');
+    await page.waitForTimeout(500);
+    expect(await ed(page, (e) => e.slides.isPerSlide())).toBe(false);
+    await expect.poll(() => root(page, "Array.from(root.querySelectorAll('.orz-toast')).map(function (t) { return t.textContent; }).join(' | ')"), { timeout: 5000 }).toMatch(/Show the preview/);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
+  it('[W.10] round B2, B2-ED-1: Ctrl/Cmd+E (Done) right after a run of arrow keys on a float keeps the nudge — the run is written before the editor is left', async () => {
+    const text = `{{nyml\nkind: document\ncarrier: slides\nuid: doc-roundb2done001\ntitle: Done\n}}\n\n<!-- slide -->\n## Slide A\nBody A.\n\n<!-- @float left=60% top=10% w=30% h=20% -->\nFloat on A\n\n<!-- slide -->\n## Slide B\nBody B.\n`;
+    const { page, ctx, errors } = await openEditor('rb2-done.slides.html', text, { slide: 0 });
+    await page.locator('[data-orz-slides-enlarge]').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(600);
+    await page.locator('[data-orz-slides-enlarge]').click();
+    await page.locator('.orz-lg-float[data-float="0"]').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(500);
+    await page.locator('.orz-lg-float[data-float="0"]').focus();
+    for (let k = 0; k < 3; k++) await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ControlOrMeta+e');
+    await page.waitForFunction(() => (globalThis as unknown as G).OrzCarrier.standalone.editor() === null, undefined, { timeout: 10_000 });
+    const after = await page.evaluate(async () => { const S = (globalThis as unknown as G).OrzCarrier.standalone; await S.edit().ready; return S.editor()!.getText(); });
+    expect(after.match(/@float left=\d+%/)?.[0]).toBe('@float left=63%');
     expect(errors).toEqual([]);
     await ctx.close();
   }, 120_000);
