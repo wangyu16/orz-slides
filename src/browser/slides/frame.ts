@@ -31,10 +31,10 @@ import { LIVE_RUNTIME } from './live-source.js';
 export const FRAME_CSS = `
 html { scroll-behavior: auto; background: var(--sl-bg, var(--bg-color, #fff)); }
 html[data-scheme="dark"] { color-scheme: dark; }
-:root { --orz-flat-accent: #2f6fde; --orz-flat-on-accent: #fff; --orz-live-chrome: #ffffff; --orz-live-ink: #33363d; --orz-live-line: rgba(0,0,0,.14); }
+:root { --orz-flat-accent: #2f6fde; --orz-flat-on-accent: #fff; --orz-live-chrome: var(--sl-surround, #ffffff); --orz-live-ink: #33363d; --orz-live-line: rgba(0,0,0,.14); }
 html[data-scheme="dark"] { --orz-flat-accent: #7aa7ff; --orz-flat-on-accent: #10131a; --orz-live-chrome: var(--sl-surround, #20232b); --orz-live-ink: #d9dce3; --orz-live-line: rgba(255,255,255,.16); }
-/* the single-slide stage stands on the theme's surround: a dark theme's soft dark (owner revision 2026-10-15); a light
-   theme's stage keeps the flattened preview's background (the slide's) */
+/* the single-slide stage stands on the theme's surround (owner revision and decision 2026-10-15): a dark theme's soft
+   dark, a light theme's designed tint; the flattened preview keeps the slide's background */
 html:has(> body.orz-stage) { background: var(--sl-surround, var(--sl-bg, var(--bg-color, #fff))); }
 body.orz-live-on #orz-doc { padding-bottom: 46vh; }
 .orz-flat .orz-flat-slide {

@@ -1530,7 +1530,7 @@
 .reveal :is(th, .orz-title-main, .orz-section-main, .orz-outline h2, .orz-footer) .katex { text-transform: none; }
 
 /* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
-   dark of the slide's own hue: the slide #13161f at OKLCH L 0.201 → #232630 at L 0.270; docs/dom-contract.md §5) ===== */
+   dark of the slide's own hue: the slide #13161f at OKLCH L 0.201 → #232630 at L 0.270; ΔE 7.9; docs/dom-contract.md §5) ===== */
 :root {
   --sl-viewport: #232630;
   --sl-surround: #232630;

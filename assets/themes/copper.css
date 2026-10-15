@@ -1576,7 +1576,7 @@
 .reveal .orz-template-closing:has(> .orz-qr-slot) { padding-right: calc(5em + 90px); min-height: calc(5em + 60px); }
 
 /* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
-   dark of the slide's own hue: the slide #071018 at OKLCH L 0.168 → #172029 at L 0.239; docs/dom-contract.md §5) ===== */
+   dark of the slide's own hue: the slide #071018 at OKLCH L 0.168 → #172029 at L 0.239; ΔE 7.6; docs/dom-contract.md §5) ===== */
 :root {
   --sl-viewport: #172029;
   --sl-surround: #172029;

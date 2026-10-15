@@ -1330,3 +1330,9 @@
 .reveal .orz-outline li.orz-here { background: var(--green); border-color: var(--green); color: var(--surface-light); }
 .reveal .orz-outline li.orz-here::before { background: var(--surface-light); color: var(--green); border-color: var(--surface-light); }
 .reveal .orz-outline li > strong { color: inherit; font-weight: 700; }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #e2d9c9 (OKLCH L 0.888) around the slide #eee6d8; ΔE 4.7; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #e2d9c9;
+}

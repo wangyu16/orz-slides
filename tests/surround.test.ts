@@ -1,8 +1,9 @@
 /**
- * The surround (owner revision 2026-10-15, claim T.15): the page around the
- * slide is a SOFT dark when the slide theme is dark — the slide's own hue at
- * low chroma, OKLCH L in the soft-dark band, a visible edge against the
- * slide — and the light themes keep their light surround. Real Chrome,
+ * The surround (owner revision and decision 2026-10-15, claim T.15): the
+ * page around the slide is drawn in every theme — a SOFT dark when the slide
+ * theme is dark (the slide's own hue at low chroma, OKLCH L in the soft-dark
+ * band), a light theme's designed tint (in the light band) — with a visible
+ * edge against the slide. Before, reveal.css's white viewport covered it. Real Chrome,
  * OFFLINE (D-63: no host resolves), every one of the 14 themes:
  *
  * - the read view with a 4:3 deck in a 16:9 window (the letterbox left and
@@ -10,12 +11,13 @@
  *   `#orz-view` background and the drawn letterbox pixels;
  * - the editor's single-slide stage (the live card enlarged): the drawn
  *   pixels between the stage's edge and the slide; the whole-deck view's
- *   flattened preview keeps its background (the slide's), and on a dark
- *   theme the live card's chrome is the surround;
- * - on the dark themes also overview, Present and the speaker view's panes.
+ *   flattened preview keeps its background (the slide's), and the live
+ *   card's chrome is the surround;
+ * - overview, Present and the speaker view's panes.
  *
- * The light themes are compared with the values measured before the
- * revision (`BEFORE`, measured on rebuild/1.0 @ 63c08c8 with this file).
+ * `BEFORE` holds the values measured before the revision (rebuild/1.0 @
+ * 63c08c8, this file): every flattened preview must keep its background, a
+ * light theme's surround is its designed tint (`DESIGNED`, else BEFORE.view).
  * `SURROUND_RECORD=1` prints the measurements instead of checking them.
  */
 import { describe, it, expect, afterAll } from 'vitest';
@@ -25,7 +27,7 @@ import { extname, join } from 'node:path';
 import { assemble } from '../src/lib.js';
 import { THEMES } from '../src/themes.js';
 import { launchChrome, openDeck, type PageGlobal } from './helpers.js';
-import { deltaE, oklchOf, SURROUND_BAND } from '../scripts/build-themes.js';
+import { deltaE, oklchOf, SURROUND_BAND, SURROUND_LIGHT_BAND } from '../scripts/build-themes.js';
 
 type Browser = NonNullable<Awaited<ReturnType<typeof launchChrome>>>;
 type Page = import('playwright-core').Page;
@@ -94,7 +96,7 @@ function colour(page: Page | import('playwright-core').Frame, css: string): Prom
 const hex = (c: RGB | null): string => (c ? `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}` : 'none');
 const near = (a: RGB, b: RGB, tol = 3): boolean => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 
-interface ReadView { view: string; letterbox: string; slide: string }
+interface ReadView { view: string; letterbox: string; slide: string; surround: string }
 
 /** The read view of a `ratio` deck in a window of `w` × `h`: the computed surround, a letterbox pixel, the slide's colour. */
 async function readView(theme: string, ratio: '16:9' | '4:3', w: number, h: number): Promise<ReadView & { page: Page; ctx: BrowserContext }> {
@@ -110,13 +112,13 @@ async function readView(theme: string, ratio: '16:9' | '4:3', w: number, h: numb
     // the slide's colour: the theme's slide token (a theme may paint the slide on a layer of its own)
     const root = getComputedStyle(document.documentElement);
     const tone = (root.getPropertyValue('--sl-tone') || root.getPropertyValue('--sl-bg')).trim();
-    return { view: getComputedStyle(v).backgroundColor, slide: tone, r: { x: r.x, y: r.y, w: r.width, h: r.height } };
+    return { view: getComputedStyle(v).backgroundColor, slide: tone, surround: root.getPropertyValue('--sl-surround').trim(), r: { x: r.x, y: r.y, w: r.width, h: r.height } };
   });
   // the letterbox: halfway between the window's edge and the slide's, on the side with room
   const at = info.r.x > info.r.y ? { x: info.r.x / 2, y: h / 2 } : { x: w / 2, y: info.r.y / 2 };
   expect(Math.max(info.r.x, info.r.y), `${theme} ${ratio}: a letterbox`).toBeGreaterThan(40);
   const letterbox = await pixel(page, at.x, at.y);
-  return { page, ctx, view: hex(await colour(page, info.view)), letterbox: hex(letterbox), slide: hex(await colour(page, info.slide)) };
+  return { page, ctx, view: hex(await colour(page, info.view)), letterbox: hex(letterbox), slide: hex(await colour(page, info.slide)), surround: hex(await colour(page, info.surround)) };
 }
 
 /* ---------- the editor (an app page, as tests/layout-gui.test.ts) ---------- */
@@ -208,6 +210,13 @@ const BEFORE: Record<string, { view: string; lb43: string; lb169: string; stage:
   neon: { view: '#060909', lb43: '#ffffff', lb169: '#ffffff', stage: '#0a0f10', flat: '#0a0f10' },
 };
 
+/**
+ * The light themes' designed tints (owner decision 2026-10-15: drawn now): the layers' --sl-viewport, three of them
+ * moved a step darker because they lay too close to their slide (orchard #f3f5ee ΔE 3.2, sky #eef3f8 ΔE 2.9,
+ * stationery #efeee6 ΔE 3.5); the others as before.
+ */
+const DESIGNED: Record<string, string> = { orchard: '#eef0e9', sky: '#e9eef3', stationery: '#ecebe3' };
+
 const parse = (h: string): RGB => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as RGB;
 const record: Record<string, unknown> = {};
 
@@ -229,34 +238,35 @@ chrome('the surround (owner revision 2026-10-15; real Chrome, offline)', () => {
       expect(before, `${t.id}: a BEFORE value`).toBeDefined();
       // the flattened preview keeps its background (the slide's: as designed)
       expect(e.flat, `${t.id}: the flattened preview's background`).toBe(before.flat);
-      if (t.scheme === 'light') {
-        expect({ view: a.view, lb43: a.letterbox, lb169: b.letterbox, stage: e.stage }, `${t.id}: a light theme keeps its surround`).toEqual({ view: before.view, lb43: before.lb43, lb169: before.lb169, stage: before.stage });
-        return;
+      // every theme: its generated surround drawn everywhere — the read view, the letterbox both ways round (it was
+      // reveal's white), the stage, the live card's chrome
+      expect(a.surround, `${t.id}: a generated --sl-surround`).toMatch(/^#[0-9a-f]{6}$/);
+      expect(a.view, `${t.id}: the read view's surround`).toBe(a.surround);
+      for (const [where, c, tol] of [['4:3 letterbox', a.letterbox, 3], ['16:9 letterbox', b.letterbox, 3], ['stage', e.stage, 3], ['live card', e.card, 1]] as const) {
+        expect(near(parse(c), parse(a.surround), tol), `${t.id}: ${where} ${c} is the surround ${a.surround}`).toBe(true);
       }
-      // a dark theme: the drawn letterbox is the computed surround, both ways round (it was reveal's white)
-      expect(near(parse(a.letterbox), parse(a.view)), `${t.id}: 4:3 letterbox ${a.letterbox} vs ${a.view}`).toBe(true);
-      expect(near(parse(b.letterbox), parse(a.view)), `${t.id}: 16:9 letterbox ${b.letterbox} vs ${a.view}`).toBe(true);
-      // the soft-dark band, never near black, the slide's edge visible, the same surround everywhere
+      // a light theme's is its designed tint (the layer's --sl-viewport, before the revision computed but never drawn)
+      if (t.scheme === 'light') expect(a.view, `${t.id}: a light theme's designed tint`).toBe(DESIGNED[t.id] ?? before.view);
+      // in its band, the slide's edge visible, low chroma
+      const band = t.scheme === 'dark' ? SURROUND_BAND : SURROUND_LIGHT_BAND;
       for (const [where, c] of [['read view', a.view], ['4:3 letterbox', a.letterbox], ['16:9 letterbox', b.letterbox], ['stage', e.stage], ['live card', e.card]] as const) {
         const [L] = oklchOf(parse(c));
-        expect(L, `${t.id} ${where} ${c}: OKLCH L in [${SURROUND_BAND.join(', ')}]`).toBeGreaterThanOrEqual(SURROUND_BAND[0]);
-        expect(L, `${t.id} ${where} ${c}: OKLCH L in [${SURROUND_BAND.join(', ')}]`).toBeLessThanOrEqual(SURROUND_BAND[1]);
-        expect(L, `${t.id} ${where}: never near black`).toBeGreaterThan(0.15);
+        expect(L, `${t.id} ${where} ${c}: OKLCH L in [${band.join(', ')}]`).toBeGreaterThanOrEqual(band[0]);
+        expect(L, `${t.id} ${where} ${c}: OKLCH L in [${band.join(', ')}]`).toBeLessThanOrEqual(band[1]);
+        if (t.scheme === 'dark') expect(L, `${t.id} ${where}: never near black`).toBeGreaterThan(0.15);
       }
-      expect(near(parse(e.stage), parse(a.view)), `${t.id}: the stage ${e.stage} is the read view's surround ${a.view}`).toBe(true);
-      expect(near(parse(e.card), parse(a.view), 1), `${t.id}: the live card's chrome ${e.card} is the surround ${a.view}`).toBe(true);
       expect(deltaE(parse(a.view), parse(a.slide)), `${t.id}: the slide's edge (${a.view} vs ${a.slide})`).toBeGreaterThanOrEqual(3);
       expect(deltaE(parse(e.stage), parse(a.slide)), `${t.id}: the slide's edge on the stage`).toBeGreaterThanOrEqual(3);
-      // tinted toward the slide's own hue (low chroma), and changed from the near-black of before
       const [, cs, hs] = oklchOf(parse(a.slide));
       const [, cv, hv] = oklchOf(parse(a.view));
       expect(cv, `${t.id}: low chroma`).toBeLessThanOrEqual(0.04);
-      if (cs > 0.01 && cv > 0.01) expect(Math.min(Math.abs(hs - hv), 360 - Math.abs(hs - hv)), `${t.id}: the slide's hue`).toBeLessThan(20);
+      // a dark theme's soft dark is tinted toward the slide's own hue
+      if (t.scheme === 'dark' && cs > 0.01 && cv > 0.01) expect(Math.min(Math.abs(hs - hv), 360 - Math.abs(hs - hv)), `${t.id}: the slide's hue`).toBeLessThan(20);
     });
   }
 
-  it('[T.15] a dark theme\'s surround in overview, Present and the speaker view\'s panes is the same soft dark', async () => {
-    for (const t of THEMES.filter((x) => x.scheme === 'dark')) {
+  for (const t of THEMES) {
+    it(`[T.15] ${t.id}: the surround in overview, Present and the speaker view's panes is the same`, async () => {
       const a = await readView(t.id, '4:3', 1280, 720);
       const { page, ctx } = a;
       const surround = parse(a.view);
@@ -287,6 +297,6 @@ chrome('the surround (owner revision 2026-10-15; real Chrome, offline)', () => {
       const c = await colour(sv, pane);
       expect(c && near(c, surround, 1), `${t.id} speaker pane ${hex(c)} vs ${a.view}`).toBe(true);
       await ctx.close();
-    }
-  });
+    });
+  }
 });

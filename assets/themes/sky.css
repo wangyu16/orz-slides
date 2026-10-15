@@ -1405,7 +1405,8 @@
     radial-gradient(circle at 0 0, rgba(98, 176, 232, 0.17), transparent 36%),
     radial-gradient(circle at 100% 0, rgba(72, 183, 168, 0.14), transparent 30%),
     linear-gradient(180deg, #fdfeff 0%, var(--bg) 100%);
-  --sl-viewport: #eef3f8;
+  --sl-tone: var(--bg);
+  --sl-viewport: #e9eef3;
   --sl-ink: var(--text);
   --sl-mono: var(--font-code);
   --sl-pad-t: 48px;
@@ -1616,3 +1617,9 @@
 
 /* breathing room between the content and the chrome line (fit scales into it) */
 .reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 14px; }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #e9eef3 (OKLCH L 0.947) around the slide #f7f9fb; ΔE 4.4; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #e9eef3;
+}

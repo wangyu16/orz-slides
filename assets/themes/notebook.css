@@ -1382,3 +1382,9 @@
 .reveal .orz-region .markdown-body li.task-list-item { padding-left: 1.35em; text-indent: -1.35em; }
 .reveal .orz-region .markdown-body li.task-list-item > * { text-indent: 0; }
 .reveal .orz-template-closing > .orz-qr-slot svg { width: 5.4em; }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #e9e3d6 (OKLCH L 0.917) around the slide #fcf9f2; ΔE 8.3; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #e9e3d6;
+}

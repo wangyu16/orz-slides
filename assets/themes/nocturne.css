@@ -1471,7 +1471,7 @@
 .reveal .orz-chrome > .orz-chrome-num { grid-column: 4; white-space: nowrap; }
 
 /* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT
-   dark of the slide's own hue: the slide #2a2b2f at OKLCH L 0.290 → #1c1d20 at L 0.231; docs/dom-contract.md §5) ===== */
+   dark of the slide's own hue: the slide #2a2b2f at OKLCH L 0.290 → #1c1d20 at L 0.231; ΔE 6.8; docs/dom-contract.md §5) ===== */
 :root {
   --sl-viewport: #1c1d20;
   --sl-surround: #1c1d20;

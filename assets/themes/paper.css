@@ -876,3 +876,9 @@
   --sl-qr: 3.9em;
 }
 .reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 0; background: none; }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #e9e1d2 (OKLCH L 0.912) around the slide #fbf7ef; ΔE 8.5; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #e9e1d2;
+}

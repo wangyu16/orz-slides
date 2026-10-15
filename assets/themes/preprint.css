@@ -1314,3 +1314,9 @@
   content: ''; position: absolute; right: 0.7em; top: 50%; width: 0.4em; height: 0.4em; margin-top: -0.2em; background: var(--navy);
 }
 .reveal .orz-outline li strong { font-weight: 700; color: var(--navy); }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #e9ecf0 (OKLCH L 0.942) around the slide #fdfdfc; ΔE 6.6; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #e9ecf0;
+}

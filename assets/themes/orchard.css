@@ -1327,7 +1327,7 @@
   --sl-size: 30px;
   --sl-lh: 1.45;
   --sl-bg: var(--bg);
-  --sl-viewport: #f3f5ee;
+  --sl-viewport: #eef0e9;
   --sl-ink: var(--text);
   --sl-mono: var(--font-code);
   --sl-pad-t: 50px;
@@ -1559,3 +1559,9 @@
 
 /* breathing room between the content and the chrome line (fit scales into it) */
 .reveal .orz-slide[data-kind="normal"] .orz-frame { box-sizing: border-box; padding-bottom: 14px; }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #eef0e9 (OKLCH L 0.952) around the slide #fbfbf8; ΔE 4.6; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #eef0e9;
+}

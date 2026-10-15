@@ -287,19 +287,20 @@ export function updatedTheme(id: string): string {
   ].join('\n\n') + '\n';
 }
 
-/** The stylesheet of any theme: its parts, then — for a dark theme — its generated surround ({@link surroundOf}). */
+/** The stylesheet of any theme: its parts, then its generated surround ({@link surroundOf}). */
 export function themeCss(id: string): string {
   const t = THEMES.find((x) => x.id === id);
   if (!t) throw new Error(`build-themes: unknown theme ${id}`);
   const css = t.derivedFrom ? derivedTheme(id) : updatedTheme(id);
-  if (t.scheme !== 'dark') return css;
-  const s = surroundOf(css);
-  if (!s) return css; // the contract reports it (no readable slide colour)
+  const s = surroundOf(css, t.scheme);
+  if (!s) return css; // the contract reports it (no readable slide colour or designed tint)
+  const why = t.scheme === 'dark'
+    ? `the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT\n   dark of the slide's own hue: the slide ${s.tone} at OKLCH L ${s.toneL.toFixed(3)} → ${s.hex} at L ${s.L.toFixed(3)}`
+    : `the theme's scheme is light — src/themes.ts — so the page around the slide is the\n   layer's designed tint --sl-viewport ${s.hex} (OKLCH L ${s.L.toFixed(3)}) around the slide ${s.tone}`;
   return css + '\n' + [
-    `/* ===== the surround (GENERATED: the theme's scheme is dark — src/themes.ts — so the page around the slide is a SOFT`,
-    `   dark of the slide's own hue: the slide ${s.tone} at OKLCH L ${s.toneL.toFixed(3)} → ${s.hex} at L ${s.L.toFixed(3)}; docs/dom-contract.md §5) ===== */`,
+    `/* ===== the surround (GENERATED: ${why}; ΔE ${s.dE.toFixed(1)}; docs/dom-contract.md §5) ===== */`,
     `:root {`,
-    `  --sl-viewport: ${s.hex};`,
+    ...(t.scheme === 'dark' ? [`  --sl-viewport: ${s.hex};`] : []),
     `  --sl-surround: ${s.hex};`,
     `}`,
   ].join('\n') + '\n';
@@ -326,14 +327,25 @@ export function surroundRule(tone: number[]): number[] {
 
 const hexOf = (rgb: number[]): string => `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 
-/** A theme's slide colour (`--sl-tone`, else `--sl-bg`, resolved) and the surround {@link surroundRule} makes of it; null when the slide colour is not a readable colour. */
-export function surroundOf(css: string): { tone: string; toneL: number; hex: string; L: number } | null {
+/**
+ * A theme's slide colour (`--sl-tone`, else `--sl-bg`, resolved) and its surround: a dark theme's made by
+ * {@link surroundRule}, a light theme's its layer's designed tint (`--sl-viewport`); null when either is not a
+ * readable colour.
+ */
+export function surroundOf(css: string, scheme: 'light' | 'dark'): { tone: string; toneL: number; hex: string; L: number; dE: number } | null {
   const value = tokenValues(rulesOf(css));
   const v = value('--sl-tone') ?? value('--sl-bg');
   const c = v === undefined ? null : colourOf(v);
   if (!Array.isArray(c)) return null;
-  const out = surroundRule(c);
-  return { tone: hexOf(c), toneL: oklchOf(c)[0], hex: hexOf(out), L: oklchOf(out)[0] };
+  let out: number[];
+  if (scheme === 'dark') out = surroundRule(c);
+  else {
+    const vp = value('--sl-viewport');
+    const x = vp === undefined ? null : colourOf(vp);
+    if (!Array.isArray(x)) return null;
+    out = x;
+  }
+  return { tone: hexOf(c), toneL: oklchOf(c)[0], hex: hexOf(out), L: oklchOf(out)[0], dE: deltaE(c, out) };
 }
 
 /** The themes built: every theme of src/themes.ts (a missing layer is an error). */
@@ -468,8 +480,8 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
   const framesSingle = rulesOf(css.layer).some((r) => splitTop(r.selector, ',').some((x) => /p\.orz-pic\b(?!s)/.test(own(x)) && !/::(before|after)/.test(x)) && r.decls.some((d) => FRAME.test(d.prop) && !/^(none|0|transparent)$/.test(d.value.trim())));
   const framesRow = rulesOf(css.layer).some((r) => splitTop(r.selector, ',').some((x) => /p\.orz-pics\b/.test(own(x)) && /\bimg\b/.test(x)) && r.decls.some((d) => /^(border(-[\w-]+)?|box-shadow|outline(-[\w-]+)?)$/.test(d.prop) && !/^(none|0)$/.test(d.value.trim())));
   if (framesSingle && !framesRow) problems.push(`${id}: a picture (p.orz-pic) is framed but the pictures of a row (p.orz-pics img) are not`);
-  // the surround (owner revision 2026-10-15): a dark theme's is generated from its slide colour, in the soft-dark band, its
-  // edge visible; a light one's is its layer's; the scheme of src/themes.ts agrees with the slide colour where it can be read
+  // the surround (owner revision and decision 2026-10-15): every theme has one --sl-surround, generated — a dark theme's from
+  // its slide colour, in the soft-dark band; a light one's its layer's designed tint, in the light band; the edge visible; the scheme of src/themes.ts agrees with the slide colour where it can be read
   const scheme = THEMES.find((x) => x.id === id)?.scheme;
   const layerSets = (name: string): boolean => rulesOf(css.layer).some((r) => r.decls.some((d) => d.prop === name));
   const toneV = value('--sl-tone') ?? value('--sl-bg');
@@ -479,25 +491,27 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
     if (scheme === 'dark' && L >= 0.5) problems.push(`${id}: the scheme is dark but the slide colour ${hexOf(tone)} is light (OKLCH L ${L.toFixed(3)})`);
     if (scheme === 'light' && L < 0.5) problems.push(`${id}: the scheme is light but the slide colour ${hexOf(tone)} is dark (OKLCH L ${L.toFixed(3)})`);
   }
-  if (scheme === 'dark') {
-    for (const n of ['--sl-viewport', '--sl-surround']) if (layerSets(n)) problems.push(`${id}: the layer sets ${n} (a dark theme's surround is generated from its slide colour)`);
-    if (!Array.isArray(tone)) problems.push(`${id}: a dark theme needs a readable slide colour for its surround (set --sl-tone to the slide's base colour)`);
+  if (layerSets('--sl-surround')) problems.push(`${id}: the layer sets --sl-surround (the surround is generated: a dark theme's from its slide colour, a light theme's from its --sl-viewport)`);
+  if (scheme === 'dark' && layerSets('--sl-viewport')) problems.push(`${id}: the layer sets --sl-viewport (a dark theme's surround is generated from its slide colour)`);
+  if (!Array.isArray(tone)) problems.push(`${id}: the surround needs a readable slide colour (set --sl-tone to the slide's base colour)`);
+  else {
+    const sv = value('--sl-surround');
+    const vv = value('--sl-viewport');
+    const s = sv === undefined ? null : colourOf(sv);
+    if (!Array.isArray(s)) problems.push(`${id}: no generated surround (--sl-surround)`);
     else {
-      const sv = value('--sl-surround');
-      const vv = value('--sl-viewport');
-      const s = sv === undefined ? null : colourOf(sv);
-      if (!Array.isArray(s)) problems.push(`${id}: no generated surround (--sl-surround)`);
-      else {
-        const [L, C] = oklchOf(s);
-        if (L < SURROUND_BAND[0] || L > SURROUND_BAND[1]) problems.push(`${id}: the surround ${hexOf(s)} is outside the soft-dark band (OKLCH L ${L.toFixed(3)}, not in [${SURROUND_BAND.join(', ')}])`);
-        if (C > 0.04) problems.push(`${id}: the surround ${hexOf(s)} is not a low-chroma dark (C ${C.toFixed(3)} > 0.04)`);
-        const d = deltaE(s, tone);
-        if (d < 3) problems.push(`${id}: the slide's edge does not show on the surround (ΔE ${d.toFixed(1)} < 3 between ${hexOf(tone)} and ${hexOf(s)})`);
-        if (hexOf(s) !== hexOf(surroundRule(tone))) problems.push(`${id}: the surround ${hexOf(s)} is not the rule's ${hexOf(surroundRule(tone))}`);
-        if (vv !== sv) problems.push(`${id}: --sl-viewport (${vv}) is not the surround (${sv})`);
-      }
+      const [L, C] = oklchOf(s);
+      const band = scheme === 'dark' ? SURROUND_BAND : SURROUND_LIGHT_BAND;
+      const kind = scheme === 'dark' ? 'soft-dark' : 'light';
+      if (L < band[0] || L > band[1]) problems.push(`${id}: the surround ${hexOf(s)} is outside the ${kind} band (OKLCH L ${L.toFixed(3)}, not in [${band.join(', ')}])`);
+      if (C > 0.04) problems.push(`${id}: the surround ${hexOf(s)} is not a low-chroma ${scheme === 'dark' ? 'dark' : 'tint'} (C ${C.toFixed(3)} > 0.04)`);
+      const d = deltaE(s, tone);
+      if (d < 3) problems.push(`${id}: the slide's edge does not show on the surround (ΔE ${d.toFixed(1)} < 3 between ${hexOf(tone)} and ${hexOf(s)})`);
+      if (scheme === 'dark' && hexOf(s) !== hexOf(surroundRule(tone))) problems.push(`${id}: the surround ${hexOf(s)} is not the rule's ${hexOf(surroundRule(tone))}`);
+      const vc = vv === undefined ? null : colourOf(vv);
+      if (!Array.isArray(vc) || hexOf(vc) !== hexOf(s)) problems.push(`${id}: --sl-viewport (${vv}) is not the surround (${sv})`);
     }
-  } else if (layerSets('--sl-surround') || value('--sl-surround') !== undefined) problems.push(`${id}: a light theme sets --sl-surround (it marks a dark theme's soft-dark surround)`);
+  }
   // round A4 (A4-TH-3): a section number drawn by ::after needs its own guard for section_numbers: none (deck.css
   // hides an empty ::before for every theme)
   const layerRules = rulesOf(css.layer);
@@ -568,6 +582,8 @@ export function rgbOfOklch([L, C, H]: number[]): number[] {
 }
 /** The soft-dark band a dark theme's surround must lie in (OKLCH L; owner revision 2026-10-15). */
 export const SURROUND_BAND: readonly [number, number] = Object.freeze([0.18, 0.32]) as unknown as readonly [number, number];
+/** The band a light theme's surround (its designed tint) must lie in (OKLCH L; owner decision 2026-10-15). */
+export const SURROUND_LIGHT_BAND: readonly [number, number] = Object.freeze([0.85, 0.99]) as unknown as readonly [number, number];
 /** Colour-vision deficiency simulation (Machado, Oliveira & Fernandes 2009, severity 1), in linear RGB. */
 export const CVD: Readonly<Record<'protan' | 'deutan' | 'tritan', number[][]>> = Object.freeze({
   protan: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],

@@ -1017,3 +1017,9 @@
 .reveal .orz-slide[data-template="title"][data-v="5"] .orz-title-meta { margin-top: 1.2em !important; }
 .reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title::after { border-color: var(--sl-cover-ink); background: repeating-linear-gradient(90deg, var(--sl-cover-ink) 0 50px, transparent 50px 100px); }
 .reveal .orz-slide[data-template="title"][data-v="5"] .orz-template-title::before { color: var(--sl-cover-ink); }
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #e6ebef (OKLCH L 0.937) around the slide #f8fafb; ΔE 5.7; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #e6ebef;
+}

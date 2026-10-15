@@ -1052,6 +1052,7 @@
   --sl-title-size: 1.5em;
   --sl-dots: radial-gradient(circle, #cbc5b8 2px, transparent 2.6px) 0 0 / 32px 32px;
   --sl-bg: var(--sl-dots), var(--bg-color);
+  --sl-tone: var(--bg-color);
   --sl-viewport: #efece4;
   --sl-ink: var(--text-main);
   --sl-mono: var(--code-font);
@@ -1458,3 +1459,9 @@
 }
 
 .reveal .orz-chrome-num { --sl-cover-chrome-ink: #111; } /* the number badge keeps its ink on a cover page (round A2) */
+
+/* ===== the surround (GENERATED: the theme's scheme is light — src/themes.ts — so the page around the slide is the
+   layer's designed tint --sl-viewport #efece4 (OKLCH L 0.943) around the slide #fdfcf9; ΔE 6.2; docs/dom-contract.md §5) ===== */
+:root {
+  --sl-surround: #efece4;
+}

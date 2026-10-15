@@ -80,7 +80,7 @@ const SPEAKER_CSS = [
   '.sv-stage>.reveal.orz-print{position:absolute;left:0;top:0;transform-origin:0 0}',
   '.sv-notes{background:#fbfbfa;color:#16161a;border-radius:7px;padding:16px 18px;overflow:auto;min-height:0;font-size:18px;line-height:1.5;flex:1 1 auto}',
   '.sv-notes>:first-child{margin-top:0}.sv-notes .sv-nonotes{color:#888}',
-  '.sv-end{display:flex;align-items:center;justify-content:center;height:100%;opacity:.45;font-size:18px}',
+  '.sv-end{display:flex;align-items:center;justify-content:center;height:100%;opacity:.55;font-size:18px;color:var(--sl-ink,#e8e8ea)}',
 ].join('\n');
 
 /** The speaker window (one per deck). */
