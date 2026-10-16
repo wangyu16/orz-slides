@@ -86,7 +86,7 @@ async function makeTarget(): Promise<CarrierTarget> {
     bundle: engine.bundle,
     release: engine.release,
     assemble: (text, o) => assemble(text, o),
-    create: () => newDocument(),
+    create: () => newDocument({ template: 'minimal' }),
     samples: SAMPLES,
     protocols: { ai: true, include: true },
     editor: EDITOR_DRIVER,

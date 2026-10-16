@@ -13,6 +13,8 @@ import { buildBrowser } from '../build/bundle.js';
 import { VERSION } from '../src/version.js';
 import { presentationOf } from '../src/presentation.js';
 import { corpus, HAZARDS, ENGINE } from './helpers.js';
+import { parseDeck } from '../src/deck/parse.js';
+import { DEFAULT_TEMPLATE, TEMPLATES } from '../src/starters.js';
 
 const CORPUS = corpus('slides');
 const TEXTS: Array<[string, string]> = [
@@ -149,8 +151,9 @@ describe('readDocument', () => {
 
 describe('newDocument', () => {
   it('[N.1] a header with carrier: slides and a fresh uid first, a title slide and a normal slide; lint-clean; the kit\'s conformance shape', () => {
-    const a = newDocument();
-    const b = newDocument();
+    const a = newDocument({ template: 'minimal' });
+    const b = newDocument({ template: 'minimal' });
+    expect(parseDeck(a).slides.map((s) => s.template ?? s.kind)).toEqual(['title', 'normal']);
     expect(a.startsWith('{{nyml\nkind: document\ncarrier: slides\nuid: doc-')).toBe(true);
     const ua = kit.readHeader(a)!.fields['uid'];
     expect(ua).toMatch(/^doc-[0-9a-z]{16}$/);
@@ -170,5 +173,31 @@ describe('newDocument', () => {
     expect(() => newDocument({ theme: 'executive' })).toThrow(/unknown theme/);
     expect(() => newDocument({ ratio: '21:9' })).toThrow(/unknown ratio/);
     expect(() => newDocument({ uid: 'nope' })).toThrow(/malformed uid/);
+  });
+
+  it('[N.3] the deck templates: `starter` (the default) holds every kind of slide — the four template pages, a plain slide, stepped points with notes, the presets, a float, a custom split, a slide footer — `talk` a talk\'s skeleton, `minimal` a title page and one slide; each lint-clean, needing no network library; an unknown template is refused', () => {
+    expect(TEMPLATES.map((t) => t.id)).toEqual(['starter', 'talk', 'minimal']);
+    expect(DEFAULT_TEMPLATE).toBe('starter');
+    expect(kit.readHeader(newDocument({ uid: 'doc-0123456789abcdef' }))).toEqual(kit.readHeader(newDocument({ template: 'starter', uid: 'doc-0123456789abcdef' })));
+    expect(newDocument({ uid: 'doc-0123456789abcdef' })).toBe(newDocument({ template: 'starter', uid: 'doc-0123456789abcdef' }));
+    for (const t of TEMPLATES) {
+      const text = newDocument({ template: t.id, title: 'A *deck*', uid: 'doc-0123456789abcdef' });
+      const info = readDocument(text);
+      expect(info.lint, t.id).toEqual([]);
+      expect(info.title, t.id).toBe('A *deck*');
+      const deck = parseDeck(text);
+      expect(deck.lint, t.id).toEqual([]);
+      expect(deck.slides[0].template, t.id).toBe('title');
+      // no construct that loads a library from the network when shown
+      expect(text, t.id).not.toMatch(/\$|\{\{(?:chart|mermaid|smiles|qr|youtube)\b/);
+    }
+    const starter = parseDeck(newDocument());
+    const kinds = new Set(starter.slides.map((s) => s.template ?? s.layoutSpec.split(' ')[0] ?? ''));
+    for (const k of ['title', 'outline', 'section', 'closing', '', '2col', 'main-side', 'row']) expect(kinds, k).toContain(k);
+    expect(starter.slides.some((s) => s.floats.length > 0)).toBe(true);
+    expect(starter.slides.some((s) => s.notes)).toBe(true);
+    expect(starter.slides.some((s) => s.footer)).toBe(true);
+    expect(starter.slides.some((s) => s.optionTokens.includes('step'))).toBe(true);
+    expect(() => newDocument({ template: 'lecture' })).toThrow(/unknown template "lecture" \(starter, talk, minimal\)/);
   });
 });

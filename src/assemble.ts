@@ -36,6 +36,7 @@ import { bundleUrl, isScriptSafe } from 'orz-markdown/carrier/shell';
 import { headerLint, RATIOS } from './deck/config.js';
 import { deckTokens, parseDeck } from './deck/parse.js';
 import { presentationOf, readViewMarkup, shellHead, type Presentation } from './presentation.js';
+import { DEFAULT_TEMPLATE, isTemplateId, starterBody, TEMPLATE_IDS } from './starters.js';
 import { isThemeId, THEME_VALUES } from './themes.js';
 import { VERSION } from './version.js';
 
@@ -173,23 +174,29 @@ export interface NewDocumentOptions {
   ratio?: string;
   /** The document id; minted with the kit's `mintUid` when absent (tests inject one). */
   uid?: string;
+  /** The deck template (src/starters.ts): `starter` (default), `talk`, `minimal`. */
+  template?: string;
 }
 
 /**
  * A new format-1 `slides` text (FC-18 §3, §7.2, §10): a header with
  * `carrier: slides` and a fresh `uid` (then the given `title` / `theme` /
- * `ratio`), a title slide and one normal slide. Lint-clean. Pure apart from
- * `mintUid` when no `uid` is given.
+ * `ratio`), then the template's starter slides (src/starters.ts; default
+ * `starter`, a tour of every kind of slide; `minimal`: a title slide and one
+ * normal slide). Lint-clean. Pure apart from `mintUid` when no `uid` is
+ * given.
  */
 export function newDocument(options: NewDocumentOptions = {}): string {
   const { title, theme, ratio } = options;
+  const template = options.template ?? DEFAULT_TEMPLATE;
+  if (!isTemplateId(template)) throw new Error(`orz-slides: unknown template ${JSON.stringify(template)} (${TEMPLATE_IDS.join(', ')})`);
   if (theme !== undefined && !isThemeId(theme)) throw new Error(`orz-slides: unknown theme ${JSON.stringify(theme)}`);
   if (ratio !== undefined && !(RATIOS as readonly string[]).includes(ratio)) throw new Error(`orz-slides: unknown ratio ${JSON.stringify(ratio)} (${RATIOS.join(' or ')})`);
   const uid = options.uid ?? mintUid();
   if (!UID_PATTERN.test(uid)) throw new Error(`orz-slides: malformed uid ${JSON.stringify(uid)} (doc- and 10 to 32 of [0-9a-z])`);
   const named = title !== undefined && title.trim() !== '';
   const heading = named ? markdownLiteral(title.trim()) : 'Untitled deck';
-  const body = `<!-- slide template=title -->\n# ${heading}\n## A subtitle\nYour name · the date\n\n<!-- slide -->\n## First slide\n\n- A point\n- Another point\n`;
+  const body = starterBody(template, heading);
   const changes: Record<string, HeaderChange> = { carrier: 'slides', uid };
   if (named) changes['title'] = title;
   if (theme !== undefined) changes['theme'] = theme;

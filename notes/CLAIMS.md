@@ -86,8 +86,9 @@ record is notes/closed-loop.md.
 
 | ID | Claim | Oracle |
 |---|---|---|
-| N.1 | `newDocument()` writes a header first with `carrier: slides` and a freshly minted `uid` (`doc-` + 16 base36), then a title slide and a normal slide; it is lint-clean (header and body). | unit |
+| N.1 | `newDocument({ template: 'minimal' })` (what the browser's "New document" writes) writes a header first with `carrier: slides` and a freshly minted `uid` (`doc-` + 16 base36), then a title slide and a normal slide; it is lint-clean (header and body). | unit |
 | N.2 | `newDocument({ title, theme, ratio, uid })` writes them (the title also as the title slide's heading, Markdown-escaped) and refuses an unknown theme or ratio and a malformed uid. | unit |
+| N.3 | The deck templates (rebuild step 7, src/starters.ts; `newDocument({ template })`, `orz-slides new --template`): `starter` (the default) holds every kind of slide — title, outline, section and closing pages, a plain slide, stepped points with speaker notes, the presets, a float, a custom split and a slide's own footer — `talk` a talk's skeleton and `minimal` a title page and one slide; each is lint-clean (header and body) and needs no network library; an unknown template is refused, naming the ids. | unit |
 
 ## U — 0.x files and texts (rebuild step 2; `upgrade`)
 

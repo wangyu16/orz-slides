@@ -70,7 +70,7 @@ export const SLIDES_KIND: StandaloneKind = {
   formats,
   brand: 'orz-slides',
   assemble: (text, options) => assemble(text, options ?? {}),
-  newDocument: () => newDocument(),
+  newDocument: () => newDocument({ template: 'minimal' }),
   mountEditor: (element, options, ctx) => mountEditor(element as unknown as HTMLElement, options as never, ctx),
   createReadView: (doc) => createReadView(doc as unknown as Document) as never,
   settings: SLIDES_SETTINGS,
