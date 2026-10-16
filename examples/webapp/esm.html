@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-orz-demo-nonce' 'strict-dynamic'; style-src 'self' 'nonce-orz-demo-nonce' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://cdn.jsdelivr.net; base-uri 'none'">
+<title>orz-slides — ESM embedding example</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="app-bar"><strong>ESM example</strong><span class="app-muted">import { mountEditor } from 'orz-slides-browser'</span></header>
+<main class="app-grid" style="grid-template-columns: 1fr">
+  <section class="pane"><div id="editor" class="editor"></div></section>
+</main>
+<script type="module" nonce="orz-demo-nonce">
+  // An app that bundles the component resolves 'orz-slides-browser' to esm/orz-slides.browser.mjs
+  // (package.json "exports" → "import"); this static page imports the file directly.
+  import { mountEditor, assemble, extract, version, newDocument, applyOp, parseDeck } from '../../browser/esm/orz-slides.browser.mjs';
+  const saved = [];
+  const text = newDocument({ template: 'minimal', title: 'ESM', uid: 'doc-esmexample0001' });
+  const editor = mountEditor(document.getElementById('editor'), {
+    text,
+    nonce: 'orz-demo-nonce',
+    mode: 'split',
+    hooks: { async save(t) { saved.push(t); } },
+  });
+  globalThis.demo = { editor, saved, assemble, extract, version, newDocument, applyOp, parseDeck, text, global: globalThis.OrzCarrier };
+</script>
+</body>
+</html>

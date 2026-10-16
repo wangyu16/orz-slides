@@ -12,8 +12,7 @@
  *   server or a page declares, and their bytes equal their text;
  * - `esm/orz-slides.browser.mjs` — the same API as ES module exports
  *   (src/browser/esm.ts), for apps that bundle it themselves;
- * - `docs/embedding.md` — a copy of the app author's guide (shipped; written
- *   in rebuild step 8 — copied when it exists);
+ * - `docs/embedding.md` — a copy of the app author's guide (shipped);
  * - `release.json` — the release manifest (kind, version, formats, notes,
  *   bundle path and the SHA-384 integrity of the IIFE's exact bytes, computed
  *   AFTER the rewrite).
@@ -37,7 +36,7 @@
  */
 import { build, type Plugin } from 'esbuild';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -178,17 +177,14 @@ export async function buildBrowser(o: { version?: string } = {}): Promise<Browse
 }
 
 /** Write a build into a package folder (default browser/), with the app author's guide (docs/embedding.md, shipped in the package). */
-export function writeBrowser(b: BrowserBuild, dir = join(ROOT, 'browser')): { bundle: string; esm: string; release: string; guide: string | null } {
+export function writeBrowser(b: BrowserBuild, dir = join(ROOT, 'browser')): { bundle: string; esm: string; release: string; guide: string } {
   mkdirSync(join(dir, 'esm'), { recursive: true });
-  const guideSource = join(ROOT, 'docs', 'embedding.md');
-  const paths = { bundle: join(dir, BUNDLE_FILE), esm: join(dir, ESM_FILE), release: join(dir, 'release.json'), guide: existsSync(guideSource) ? join(dir, 'docs', 'embedding.md') : null };
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  const paths = { bundle: join(dir, BUNDLE_FILE), esm: join(dir, ESM_FILE), release: join(dir, 'release.json'), guide: join(dir, 'docs', 'embedding.md') };
   writeFileSync(paths.bundle, b.iife, 'utf8');
   writeFileSync(paths.esm, b.esm, 'utf8');
   writeFileSync(paths.release, b.release, 'utf8');
-  if (paths.guide) {
-    mkdirSync(join(dir, 'docs'), { recursive: true });
-    writeFileSync(paths.guide, readFileSync(guideSource, 'utf8'), 'utf8');
-  }
+  writeFileSync(paths.guide, readFileSync(join(ROOT, 'docs', 'embedding.md'), 'utf8'), 'utf8');
   return paths;
 }
 
@@ -211,6 +207,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   console.log(`  ${paths.bundle}  ${kb(b.iife)}  ${b.integrity}`);
   console.log(`  ${paths.esm}  ${kb(b.esm)}`);
   console.log(`  ${paths.release}`);
-  if (paths.guide) console.log(`  ${paths.guide} (docs/embedding.md, shipped)`);
+  console.log(`  ${paths.guide} (docs/embedding.md, shipped)`);
   console.log(`  ${lib.bundle} + ${lib.release} (the Node library's engine, same bytes)`);
 }

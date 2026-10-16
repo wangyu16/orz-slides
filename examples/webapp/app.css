@@ -1,0 +1,16 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, sans-serif; color: #1d232b; background: #f4f5f7; }
+.app-bar { display: flex; gap: 12px; align-items: baseline; padding: 10px 16px; background: #fff; border-bottom: 1px solid #dde1e6; }
+.app-muted { color: #66707c; }
+.app-spacer { flex: 1; }
+/* the editors stacked (each wide enough for the split view: text beside the flattened preview and its live card), the library beside them */
+.app-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: calc(100vh - 70px) 70vh; gap: 12px; padding: 12px; }
+.pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; border: 1px solid #dde1e6; border-radius: 10px; padding: 10px; }
+.pane h2 { margin: 0 0 8px; font-size: 15px; }
+.pane h2 small { font-weight: 400; color: #66707c; }
+.editor { flex: 1; min-height: 0; }
+.app-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.side { grid-column: 2; grid-row: 1 / span 2; overflow: auto; }
+#thumb { width: 100%; height: 260px; border: 1px solid #dde1e6; border-radius: 6px; background: #fff; }
+.log { padding-left: 18px; font: 12px/1.4 ui-monospace, monospace; color: #44505c; }
+@media (max-width: 1000px) { .app-grid { grid-template-columns: 1fr; grid-template-rows: none; } .side { grid-column: auto; grid-row: auto; } .editor { height: 75vh; } }

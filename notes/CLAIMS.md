@@ -27,7 +27,7 @@ slides kind), `spec/conformance.md`; the family plan `../docs/REBUILD.md` §3c
 Rebuild status: steps 1 (base), 2 (format-1 parser + isomorphic
 assembler), 3 (the engine: the read view, present, print), 4 (the 14
 themes), 5 (editing mode (a), whole deck: area W) and 6 (editing mode
-(b), per slide: area L) and 7 (the CLI and library: areas V, I, S) on branch `rebuild/1.0`; closed-loop round A (rounds A–A4, after step 4) and round B (rounds B, B2, after step 6) closed — their
+(b), per slide: area L) and 7 (the CLI and library: areas V, I, S) and 8 (web apps, agents, docs: area X; S.3) on branch `rebuild/1.0`; closed-loop round A (rounds A–A4, after step 4) and round B (rounds B, B2, after step 6) closed — their
 record is notes/closed-loop.md.
 
 ## B — base (rebuild step 1)
@@ -267,6 +267,19 @@ kind: 'slides', readLegacy, storedText })`). Every test spawns the built
 |---|---|---|
 | S.1 | The built library (`dist/lib.js`) exports the format-1 API — `assemble`, `extract`, `readDocument`, `newDocument` with its deck templates, `upgrade`, `upgradeText`, `inspect`, `inspectLayout`, the upgrade report — plus `parseDeck`, `planDeck` and the layout ops of the per-slide editor (`applyOp`, `applyEdits`, `slideMap`, `partAt`, …, `LayoutOpError`) for apps and agents; `buildSlidesHtml` and the 0.x API are gone (FC-09); `package.json` `bin` is `orz-slides` → `dist/cli.js` (with its shebang). | scenario |
 | S.2 | The committed examples never go stale: every `examples/*.slides.md` has its `examples/*.slides.html`, which extracts to exactly that text, was made by this version and equals a fresh `assemble` with its delivery and includes (inline, and `demo` cdn for the web); the texts have a uid and no lint errors; `npm run examples` regenerates them. | scenario |
+
+## X — web apps (rebuild step 8; FC-19 app host, orz-paged's area X)
+
+The example app (`examples/webapp/`) and the app author's guide
+(`docs/embedding.md`, shipped in both packages); the `orz-slides-browser`
+package.
+
+| ID | Claim | Oracle |
+|---|---|---|
+| X.1 | The example app mounts two editors on one page under a nonce CSP with `'strict-dynamic'` (offline, CodeMirror from the installed kit): every hook is called (save with the exact text, resolveAsset in the flattened preview and the live slide card, fetchInclude, resolveLink, uploadAsset, ai, mintUid), undo stays per instance; the chrome-less editor is driven by the app's buttons — single-slide editing (`editor.slides.setPerSlide`) and a layout op (`OrzCarrier.layout.applyOp` → `editor.applyEdits`, marker lines only, one undo step); Cmd/Ctrl+P goes to the app's `print` listener, never the page's print; the library view uses `readDocument` and `renderPreview({ document: true, nonce })` (the flattened deck, themed) in a sandboxed frame; no CSP violation, no page error, no update check. | real |
+| X.2 | The ESM build mounts the same editor (flattened preview, live card), sets no global, exports the deck templates, the parser and the layout ops, and assembles the Node library's bytes (cdn, and inline with the engine given). | real |
+| X.3 | `docs/embedding.md` covers install and import (ESM and IIFE), every export, every hook, both editing modes, the layout ops, the CSP recipe, print in an app and versions; the example page carries the strict nonce policy; `browser/index.d.ts` matches the guide's hook table. | conformance |
+| X.4 | `orz-slides-browser` is publishable: `scripts/check-release.mjs` (its `prepublishOnly`) passes — `release.json` names this version, kind `slides`, the bundle and the SHA-384 of its exact bytes, the bundle rule holds, the shipped guide is the repository's —; its `exports`, `files` and types follow orz-paged-browser 1.0; `require()` throws with the way to load it; both packages have one version. | scenario |
 
 ## H — the carrier conformance harness (FC-19 §6)
 

@@ -19,6 +19,7 @@
     "dist",
     "assets/themes",
     "orz-slides-skills",
+    "docs/embedding.md",
     "PROTOCOL.md"
   ],
   "scripts": {

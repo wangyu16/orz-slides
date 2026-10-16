@@ -23,11 +23,11 @@ import { presentationOf, shellHead } from '../presentation.js';
 import { VERSION } from '../version.js';
 import { attachSlidesTools, type SlidesTools } from './slides/editor.js';
 import { createLayoutGui } from './slides/layout-gui.js';
-import { renderFlat } from './slides/flat.js';
-import { slidesFrameDocument, slidesPreviewPresentation, type FrameTheme } from './slides/frame.js';
+import { FLAT_ARTICLE_CLASS, renderFlat } from './slides/flat.js';
+import { FRAME_CSS, slidesFrameDocument, slidesPreviewPresentation, type FrameTheme } from './slides/frame.js';
+import { DECK_CSS, themeStylesheet } from '../present/styles.js';
 import type { SlideLayoutGui } from './slides/per-slide.js';
 import { activeReadView } from './slides/read-view.js';
-import { renderSlides } from './slides/render.js';
 import { SLIDES_SETTINGS } from './slides/settings.js';
 
 export const kind = 'slides' as const;
@@ -89,24 +89,37 @@ export interface RenderPreviewOptions {
   /** `false`: links as written; default `true` (links to text twins point at their `.html` form). */
   twinLinks?: boolean;
   /**
-   * `true`: a whole HTML document (theme, KaTeX and highlight.js stylesheets of
-   * the header's theme stylesheets, the flattened deck) for a sandboxed iframe's
-   * `srcdoc` — the engine adds no script, but the document's own raw HTML is
-   * kept as written (scripts included): show it only in a sandboxed frame.
-   * Default `false`: the article's inner HTML.
+   * `true`: a whole HTML document for a sandboxed iframe's `srcdoc` — the
+   * header's slide theme, the deck structure and the flattened preview's
+   * styles (slide dividers, region labels, notes) inline, KaTeX's and
+   * highlight.js's stylesheets linked, the flattened deck in
+   * `<article class="markdown-body orz-flat">`. The engine adds no script,
+   * but the document's own raw HTML is kept as written (scripts included):
+   * show it only in a sandboxed frame. Default `false`: the flattened deck's
+   * HTML (the article's inner HTML).
    */
   document?: boolean;
+  /**
+   * With `document: true`: a CSP nonce stamped on the document's `<style>`
+   * elements (a `srcdoc` frame inherits the app's policy). The engine adds no
+   * script; the document's own raw HTML is not stamped.
+   */
+  nonce?: string;
 }
 
 /**
- * Read-only HTML of a text for an app (thumbnails, read views): the article's
- * inner HTML (or, with `document: true`, a whole HTML document with the
- * header's stylesheets and no engine script). Either way the document's own
- * raw HTML is kept as written — scripts included (orz-markdown M.21:
- * documents come from trusted sources): show it in a sandboxed frame.
+ * Read-only HTML of a text for an app (thumbnails, read views): the deck
+ * FLATTENED as the editor's preview shows it (src/browser/slides/flat.ts:
+ * every slide's content in text order with a thin divider per slide — its
+ * number, title and layout —, regions labelled, notes and footers set apart;
+ * in-slide layout, fit and floats are not drawn), or with `document: true` a
+ * whole themed HTML document of it with no engine script. Either way the
+ * document's own raw HTML is kept as written — scripts included
+ * (orz-markdown M.21: documents come from trusted sources): show it in a
+ * sandboxed frame.
  */
 export async function renderPreview(text: string, options: RenderPreviewOptions = {}): Promise<string> {
-  const inner = await renderSlides(text, {
+  const inner = await renderFlat(text, {
     ...(options.fetchInclude ? { fetchInclude: options.fetchInclude } : {}),
     ...(options.includes ? { includes: options.includes } : {}),
     ...(options.twinLinks === false ? { twinLinks: false } : {}),
@@ -115,7 +128,12 @@ export async function renderPreview(text: string, options: RenderPreviewOptions 
   const p = presentationOf(text);
   const info = readDocument(text);
   const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  return `<!doctype html>\n<html lang="${esc(info.lang)}">\n<head>\n<meta charset="utf-8">\n<title>${esc(info.title)}</title>\n${shellHead(p)}\n</head>\n<body>\n<article class="markdown-body">${inner}</article>\n</body>\n</html>\n`;
+  const n = typeof options.nonce === 'string' && options.nonce !== '' ? ` nonce="${esc(options.nonce)}"` : '';
+  const css = (c: string): string => c.replace(/<\/(style)/gi, '<\\/$1');
+  const t = themeStylesheet(p.theme.id);
+  return `<!doctype html>\n<html lang="${esc(info.lang)}" data-scheme="${p.theme.scheme}">\n<head>\n<meta charset="utf-8">\n<title>${esc(info.title)}</title>\n${shellHead(p)}\n` +
+    `<style${n}>${css(DECK_CSS)}</style>\n<style${n} data-theme="${esc(t.id)}">${css(t.css)}</style>\n<style${n}>${css(FRAME_CSS)}</style>\n` +
+    `</head>\n<body>\n<article id="orz-doc" class="${FLAT_ARTICLE_CLASS}">${inner}</article>\n</body>\n</html>\n`;
 }
 
 // ── mountEditor ─────────────────────────────────────────────────────────────

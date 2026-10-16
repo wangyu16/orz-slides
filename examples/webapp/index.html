@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  The CSP recipe of FC-19 §8.4 with a nonce, for the slides editor. A real app
+  sends this as an HTTP header with a fresh nonce per response; a static
+  example has to fix one.
+  - script-src: the nonce (the bundle, this page's script; the component stamps
+    it on CodeMirror's script and on the preview frame's scripts — the kit's
+    bridge, the content libraries and the live slide's runtime, which inherit
+    this policy) and 'strict-dynamic'.
+  - style-src: this page, the nonce (CodeMirror's <style>, the preview frame's:
+    the deck structure and the slide theme), the KaTeX / highlight.js / Google
+    Fonts hosts; style-src-attr for the style attributes the editor's overlay,
+    fit, KaTeX and the diagram libraries write.
+  - font-src: the webfont hosts (Google Fonts for the slide themes, jsDelivr for KaTeX).
+  - connect-src: jsDelivr (inline assembly fetches the engine when the page
+    loaded it by URL; this page loads it from 'self').
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-orz-demo-nonce' 'strict-dynamic'; style-src 'self' 'nonce-orz-demo-nonce' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+<title>orz-slides — embedding example</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="app-bar">
+  <strong>Lecture app</strong>
+  <span class="app-muted">two orz-slides editors, one page (FC-19 app host)</span>
+  <span class="app-spacer"></span>
+  <span id="version" class="app-muted"></span>
+</header>
+<main class="app-grid">
+  <section class="pane">
+    <h2>Lecture <small>chrome: full · every hook · live slide card</small></h2>
+    <div id="editor-a" class="editor"></div>
+  </section>
+  <section class="pane">
+    <h2>Quiz deck <small>chrome: none · the app drives the API</small></h2>
+    <div class="app-tools">
+      <button type="button" id="b-save">Save</button>
+      <button type="button" id="b-undo">Undo</button>
+      <button type="button" id="b-mode">Mode</button>
+      <button type="button" id="b-slide">Single slide</button>
+      <button type="button" id="b-split">Split into columns</button>
+      <button type="button" id="b-ai">AI: shout selection</button>
+      <button type="button" id="b-download">Download .slides.html</button>
+    </div>
+    <div id="editor-b" class="editor"></div>
+  </section>
+  <aside class="pane side">
+    <h2>Library <small>readDocument · renderPreview</small></h2>
+    <ul id="library"></ul>
+    <iframe id="thumb" title="Read-only preview" sandbox=""></iframe>
+    <p id="note" class="app-muted" role="status"></p>
+    <h3>Hook calls</h3>
+    <ol id="log" class="log"></ol>
+  </aside>
+</main>
+<script nonce="orz-demo-nonce" src="../../browser/orz-slides.browser.js"></script>
+<script nonce="orz-demo-nonce" src="app.js"></script>
+</body>
+</html>
