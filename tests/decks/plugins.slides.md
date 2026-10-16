@@ -1,8 +1,11 @@
-<!-- deck
+{{nyml
+kind: document
+carrier: slides
+uid: doc-dknb5i1krj1hp00x
 title: Plugin tests
-theme: poppy
 footer: plugin tests · poppy
--->
+theme: sticker
+}}
 
 <!-- slide template=title -->
 # Plugin tests

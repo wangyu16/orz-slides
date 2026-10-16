@@ -39,12 +39,12 @@ describe('the package', () => {
     expect(pkg.scripts['examples']).toBe('tsx scripts/examples.ts');
   });
 
-  it('[S.2] the committed examples never go stale: every examples/*.slides.md has its examples/*.slides.html, which extracts to exactly that text, was made by this version, and equals a fresh assemble with its delivery and includes (inline, and one cdn deck for the web); the texts have a uid and no lint errors; `npm run examples` regenerates them', () => {
+  it('[S.2] the committed examples never go stale: every examples/*.slides.md has its examples/*.slides.html, which extracts to exactly that text, was made by this version, and equals a fresh assemble with its delivery and includes (one inline example, `starter`, the rest cdn decks for the web: the repository stays lean); the texts have a uid and no lint errors; `npm run examples` regenerates them', () => {
     const texts = readdirSync('examples').filter((f) => f.endsWith('.slides.md')).sort();
     const files = readdirSync('examples').filter((f) => f.endsWith('.slides.html')).sort();
     expect(texts.length).toBeGreaterThanOrEqual(4);
     expect(files).toEqual(texts.map((t) => twinName(t)));
-    const deliveries = new Set<string>();
+    const inline: string[] = [];
     const themes = new Set<string>();
     for (const name of texts) {
       const text = readFileSync(`examples/${name}`, 'utf8');
@@ -54,7 +54,8 @@ describe('the package', () => {
       expect(ex!.text === text, `${name}: the file's text is not its twin`).toBe(true);
       expect(ex!.shell, `${name}: made by another version`).toBe(VERSION);
       expect(ex!.kind, name).toBe('slides');
-      deliveries.add(ex!.delivery);
+      if (ex!.delivery === 'inline') inline.push(name);
+      else expect(ex!.delivery, name).toBe('cdn');
       const fresh = assemble(text, { delivery: ex!.delivery as 'inline' | 'cdn', ...(ex!.includes ? { includes: ex!.includes } : {}) });
       expect(fresh === html, `${twinName(name)} is stale: run \`npm run build && npm run examples\``).toBe(true);
       const r = inspect(text, { filename: name });
@@ -62,7 +63,23 @@ describe('the package', () => {
       expect(r.uid, name).not.toBeNull();
       themes.add(r.themeEffective!);
     }
-    expect([...deliveries].sort()).toEqual(['cdn', 'inline']);
+    expect(inline).toEqual(['starter.slides.md']);
     expect(themes.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('[S.3] the review decks never go stale (STATUS D-29): every tests/decks/*.slides.md is a format-1 slides text with a uid, no lint error or warning, and assembles to a file that extracts to exactly it; their .slides.html are not committed', () => {
+    const texts = readdirSync('tests/decks').filter((f) => f.endsWith('.slides.md')).sort();
+    expect(texts.length).toBeGreaterThanOrEqual(8);
+    expect(readdirSync('tests').filter((f) => /^test-.*\.(md|slides\.html)$/.test(f))).toEqual([]);
+    expect(readFileSync('.gitignore', 'utf8')).toMatch(/^tests\/decks\/\*\.slides\.html$/m);
+    for (const name of texts) {
+      const text = readFileSync(`tests/decks/${name}`, 'utf8');
+      const r = inspect(text, { filename: name });
+      expect(r.kind, name).toBe('slides');
+      expect(r.format, name).toBe(1);
+      expect(r.uid, name).not.toBeNull();
+      expect(r.lint.filter((l) => l.level !== 'info'), name).toEqual([]);
+      expect(extract(assemble(text, { delivery: 'cdn' }))!.text === text, name).toBe(true);
+    }
   });
 });

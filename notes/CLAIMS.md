@@ -261,12 +261,13 @@ kind: 'slides', readLegacy, storedText })`). Every test spawns the built
 | I.7 | `inspect --layout` (Q7) renders the deck — its text assembled with this release's engine, relative pictures from its folder — in the installed Chrome (headless, a fresh profile, the DevTools pipe; no new dependency), shows every slide, lets its fit settle, and reports per slide and box (`title`, a region's name, `template`, `float n`) the fit scale and clipping — the numbers the engine itself shows (within 0.02) — whether the footer is cut and whether it settled, a summary, advice for every clipped box and cut footer, and a human table; `--offline` blocks every host; an assembled file and a 0.x file (laid out as `upgrade` writes it, with a note) work too. | real |
 | I.8 | `inspect --layout` without Chrome (none at its usual places, or `ORZ_SLIDES_CHROME` naming no file) is refused with reason `no-browser` (orz-markdown 2.4.0's `REASONS`), exit 1, no `next`, nothing written; without `--layout` no browser is needed; `--layout` on another kind or on HTML that is no deck is `other-kind` / `not-orz`. | scenario |
 
-## S — the package surface (rebuild step 7)
+## S — the package surface (rebuild steps 7, 8)
 
 | ID | Claim | Oracle |
 |---|---|---|
 | S.1 | The built library (`dist/lib.js`) exports the format-1 API — `assemble`, `extract`, `readDocument`, `newDocument` with its deck templates, `upgrade`, `upgradeText`, `inspect`, `inspectLayout`, the upgrade report — plus `parseDeck`, `planDeck` and the layout ops of the per-slide editor (`applyOp`, `applyEdits`, `slideMap`, `partAt`, …, `LayoutOpError`) for apps and agents; `buildSlidesHtml` and the 0.x API are gone (FC-09); `package.json` `bin` is `orz-slides` → `dist/cli.js` (with its shebang). | scenario |
-| S.2 | The committed examples never go stale: every `examples/*.slides.md` has its `examples/*.slides.html`, which extracts to exactly that text, was made by this version and equals a fresh `assemble` with its delivery and includes (inline, and `demo` cdn for the web); the texts have a uid and no lint errors; `npm run examples` regenerates them. | scenario |
+| S.2 | The committed examples never go stale: every `examples/*.slides.md` has its `examples/*.slides.html`, which extracts to exactly that text, was made by this version and equals a fresh `assemble` with its delivery and includes (one inline example, `starter`; the others cdn decks for the web, keeping the repository lean); the texts have a uid and no lint errors; `npm run examples` regenerates them. | scenario |
+| S.3 | The review decks never go stale (STATUS D-29): every `tests/decks/*.slides.md` (the 0.x test decks, upgraded) is a format-1 slides text with a uid, no lint error or warning, and assembles to a file that extracts to exactly it; their `.slides.html` are git-ignored, the 0.x `tests/test-*.md` are gone. | scenario |
 
 ## X — web apps (rebuild step 8; FC-19 app host, orz-paged's area X)
 

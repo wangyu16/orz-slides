@@ -1,8 +1,11 @@
-<!-- deck
-theme: executive
+{{nyml
+kind: document
+carrier: slides
+uid: doc-sq9kxrwwejaeq650
 title: Presenter features
 ratio: 16:9
--->
+theme: sky
+}}
 
 <!-- slide template=title -->
 <!-- @body -->

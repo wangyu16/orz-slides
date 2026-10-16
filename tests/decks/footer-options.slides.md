@@ -1,9 +1,12 @@
-<!-- deck
+{{nyml
+kind: document
+carrier: slides
+uid: doc-rfyee00cbwhwa0w8
 title: Footer & options tests
-theme: neon
 footer: DECK FOOTER — should appear on every slide
 transition: fade
--->
+theme: neon
+}}
 
 <!-- slide template=title -->
 # Footer & options

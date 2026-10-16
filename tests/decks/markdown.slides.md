@@ -1,8 +1,11 @@
-<!-- deck
+{{nyml
+kind: document
+carrier: slides
+uid: doc-nr5e8x1grjlawdqb
 title: Markdown content tests
-theme: architect
 footer: markdown tests · architect
--->
+theme: architect
+}}
 
 <!-- slide template=title -->
 # Markdown content

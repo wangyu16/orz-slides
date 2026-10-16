@@ -1,9 +1,12 @@
-<!-- deck
+{{nyml
+kind: document
+carrier: slides
+uid: doc-l844ysd2w8n6vehg
 title: 4:3 ratio test
-theme: sage
-ratio: 4:3
 footer: 4:3 ratio · sage
--->
+ratio: 4:3
+theme: orchard
+}}
 
 <!-- slide template=title -->
 # 4:3 aspect ratio

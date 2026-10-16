@@ -1,8 +1,11 @@
-<!-- deck
+{{nyml
+kind: document
+carrier: slides
+uid: doc-94h5c6wi29y5ij92
 title: Layout tests
-theme: paper
 footer: layout tests · paper
--->
+theme: paper
+}}
 
 <!-- slide template=title -->
 # Layout tests

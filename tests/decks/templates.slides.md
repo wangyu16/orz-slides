@@ -1,8 +1,11 @@
-<!-- deck
+{{nyml
+kind: document
+carrier: slides
+uid: doc-wlos17e0dmlh09wt
 title: Template tests
-theme: chalk
 footer: template tests · chalk (dark)
--->
+theme: chalk
+}}
 
 <!-- slide template=title -->
 # Title — v1 (default)
