@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { twinName } from 'orz-markdown/carrier';
-import { assemble, extract, inspect, VERSION } from '../src/lib.js';
+import { assemble, extract, inspect, TEMPLATES, THEMES, VERSION } from '../src/lib.js';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { bin: Record<string, string>; files: string[]; main: string; types: string; scripts: Record<string, string> };
 
@@ -78,8 +78,20 @@ describe('the package', () => {
       expect(r.kind, name).toBe('slides');
       expect(r.format, name).toBe(1);
       expect(r.uid, name).not.toBeNull();
-      expect(r.lint.filter((l) => l.level !== 'info'), name).toEqual([]);
+      expect(r.lint, name).toEqual([]);
       expect(extract(assemble(text, { delivery: 'cdn' }))!.text === text, name).toBe(true);
     }
+  });
+
+  it('[S.4] the agent skill (orz-slides-skills/SKILL.md, mirrored by orz-claude-plugin) is the 1.x skill: format 1 and its header keys, both editing modes, the layout grammar and presets, template pages with their looks and here=, the 14 themes, the deck templates, capacity budgets with inspect --layout, upgrade of files and texts, recovery; nothing of 0.x is taught as current', () => {
+    const skill = readFileSync('orz-slides-skills/SKILL.md', 'utf8');
+    expect(skill.startsWith('---\nname: orz-slides\ndescription: ')).toBe(true);
+    for (const term of ['{{nyml', 'carrier: slides', 'slide_numbers', 'progress', 'section_numbers', 'ratio', 'deck-block', 'flattened', 'live slide card', 'single-slide editing', 'Cmd/Ctrl+Shift+Enter',
+      'main-side', 'quad', 'row auto/1', '@notes', '@footer', '@float', 'step', 'fit=', 'here=N', 'v=1`–`6', 'inspect x.slides.md --layout', 'no-browser', 'upgrade deck.md', 'upgrade old.slides.html', '--replaces', 'orz-src', 'orz-deck', 'starter', 'talk', 'minimal', 'applyOp', '1280 × 720']) {
+      expect(skill, term).toContain(term);
+    }
+    for (const t of THEMES) expect(skill, t.id).toContain(`\`${t.id}\``);
+    for (const t of TEMPLATES) expect(skill, t.id).toContain(`\`${t.id}\``);
+    expect(skill).not.toMatch(/BUDGETS|text\/orz-slides" id="orz-deck">\s*\n\s*\.\.\.deck config|buildSlidesHtml|seven themes|executive`?,? `?poppy`?,? (and )?`?sage`? (are|is) (themes|available)/);
   });
 });

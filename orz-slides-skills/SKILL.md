@@ -1,392 +1,477 @@
 ---
 name: orz-slides
-description: Author and edit single-file, self-editing .slides.html presentation decks (orz-slides). Use when a user wants to turn notes or markdown into a browser-based slide deck — one portable HTML file that presents in any browser (reveal.js), is written in orz-markdown with a layout syntax, and can be edited in-browser. Covers the deck source format, slide/layout/region markers, structure templates, and per-slide capacity budgets so slides do not overflow.
+description: Create, edit, inspect and upgrade orz-slides decks — a Markdown text twin (x.slides.md, orz text format 1, with a {{nyml kind document}} header) and its single-file, self-editing x.slides.html that presents in any browser (reveal.js: keys, overview, speaker view, timer, full screen), edits itself (the whole deck beside a flattened preview with a live slide card, or one slide at a time with a layout editor), saves itself and prints one slide per page. Use when a user wants a slide deck or presentation from notes or Markdown, when you meet a .slides.html (or a 0.x deck.md with a <!-- deck --> block) and need its text, when a deck must be changed, checked for overflow or moved to a newer version, or when a web app should embed the slides editor. Covers the header keys, the slide grammar (slide markers, options, regions, the split grammar and presets, floats, notes, footers, fragments), the template pages, the 14 themes, the deck templates, capacity budgets measured at 1280×720 and the overflow check `inspect --layout`. Edit the text, never the HTML; assemble with the orz-slides CLI.
 ---
 
-# orz-slides — author a `.slides.html` deck
+# orz-slides — Markdown that edits itself, as a slide deck
 
-`orz-slides` turns a **deck source** into **one `.slides.html` file** that:
+A deck has two forms:
 
-- presents in any modern browser (reveal.js: keyboard/touch nav, slide overview),
-- is authored entirely in **orz-markdown** (math, mermaid, smiles, qr, charts,
-  tabs, containers) with a small **layout syntax**,
-- can be **edited in the browser** (per-slide pop-out CodeMirror editor + live
-  preview) and **saves itself** back into the file.
+- the **text twin** `x.slides.md` — the deck itself: Markdown (orz-markdown
+  syntax) with a header block at the top, then slides started by
+  `<!-- slide … -->` lines and split into boxes by `<!-- @name -->` lines;
+- the **self-editing file** `x.slides.html` = `assemble(text)` — one HTML page
+  holding the exact text in a `#orz-src` island plus a regenerable shell: the
+  deck (reveal.js), the pencil with Present and Print, the editor, saves, the
+  quiet update.
 
-The deck source is the single source of truth, embedded in the file:
+**Rule: change the text, then assemble. Never edit, restructure or "fix" the
+HTML** — everything but the island is regenerated, and a save in the browser
+rewrites the whole file from the text. Never serialize the rendered deck.
 
-```html
-<script type="text/orz-slides" id="orz-deck">
-  ...deck config + slides (this is what you write)...
-</script>
+The CLI is `orz-slides` (Node ≥ 20.16; `npx orz-slides@1 …` needs no install;
+this skill is for 1.x). Use `--json` on any command for one machine-readable
+object on stdout. Exit codes: 0 done, 1 refused or failed, 2 usage error.
+Nothing that could hold other work is overwritten unless you pass `--force` —
+when a command refuses, read the error (with `--json`: `reason` and `next`,
+below), do not reach for `--force` by reflex.
+
+**The one robust idiom:** pass the `sha256` the last command printed as
+`--replaces`. `assemble`, `extract`, `upgrade` and `inspect` print the SHA-256
+of the text they wrote or read (`--json`: `sha256`; `inspect`: `twin.sha256`
+for the sibling); `assemble x.slides.md --replaces <that sha256>` replaces the
+file only while it still holds that text. It works with no cache, no git, in a
+shallow clone, in a fresh sandbox.
+
+## Create a deck
+
+```bash
+npx orz-slides@1 templates                                    # starter (every kind of slide), talk, minimal
+npx orz-slides@1 themes                                       # the 14 themes, light / dark
+npx orz-slides@1 new talk.slides.md --template talk --title "RAFT in five minutes" [--theme nocturne] [--ratio 4:3]
+# edit talk.slides.md (the grammar below)
+npx orz-slides@1 inspect talk.slides.md --layout             # does every box fit? (installed Chrome)
+npx orz-slides@1 assemble talk.slides.md                      # → talk.slides.html (inline engine, ~2.2 MB, works as a file)
+npx orz-slides@1 assemble talk.slides.md --cdn                # → a small file that loads the engine from jsDelivr (for web pages)
 ```
 
-You write only the **deck source**. Never hand-write the surrounding HTML
-(reveal scaffold, runtime, CDN links) — saving regenerates it. To change a deck,
-edit the deck source (in a `.md`-ish file fed to the CLI, or in-browser) and let
-the tool re-serialize.
+`new` writes the template's slides under a header with a fresh `uid`; keep
+the `uid` (it keys the reader's preferences and the save handle). `new --html`
+writes both files at once; without a file name the text goes to stdout. A
+slides text twin's name ends in `.slides.md`; a plain `x.md` that is a deck
+(slide markers) also assembles (to `x.slides.html`). `orz-slides x.slides.md`
+is short for `assemble`. Writing from scratch is fine too: a header and
+slides (below) — but `new` mints the uid for you.
 
-> Status: orz-slides is **published to npm** (v0.8.5) as two lockstep packages —
-> the `orz-slides` CLI and the `orz-slides-browser` engine. Generate decks with
-> the CLI (`npx orz-slides deck.md`, or install it globally). Speaker view
-> (**S**), step-reveal fragments, an on-deck timer (**T**), and slide numbers are
-> wired; **PDF export** is the remaining planned presenter feature.
+The 0.x form `orz-slides deck.md --theme <id> --title <T>` is gone: title and
+theme live in the header. The CLI refuses it and names `new` or the header.
 
-## When to use it
+## Edit an existing deck
 
-- A user wants a **single shareable file** that presents like a slide deck with
-  no install — email it, host it, open it offline-of-tooling in a browser.
-- The content is **markdown-native** (bullets, math, diagrams, chemistry, code)
-  and the author wants slides without a pixel-design tool.
-- Prefer `.md.html` (orz-mdhtml) when the output is a *document* to read/annotate;
-  prefer `.slides.html` (orz-slides) when it is a *deck* to present.
+The `.slides.html` can be edited and saved in a browser (its text, its
+layouts in the layout editor, its settings from the pencil's list), so it may
+hold work the text twin lacks — even when `x.slides.md` is the newer file.
+Always compare first.
 
----
+1. **Compare before you edit.** `npx orz-slides@1 inspect x.slides.md --json`
+   (works with only `x.slides.html` too) and read `sha256` and `twin`:
+   - no `x.slides.md` yet → `npx orz-slides@1 extract x.slides.html` (exact,
+     byte for byte);
+   - `twin.holds: "same"` → go on;
+   - `twin.holds: "different"` with `twin.earlier` set → the file holds an
+     earlier text of `x.slides.md`; go on (assemble replaces it);
+   - `twin.holds: "different"` otherwise → `x.slides.html` holds other
+     (browser) edits: `npx orz-slides@1 extract x.slides.html -o
+     x.browser.slides.md`, merge its changes into `x.slides.md` (or ask the
+     user which to keep), and **note `twin.sha256`**;
+   - if `x.slides.md` itself has nothing of its own to keep, `npx orz-slides@1
+     extract x.slides.html` replaces it when it is a known state (unchanged
+     since the CLI last synced the pair, or committed in git), or `extract
+     x.slides.html --replaces <sha256 of x.slides.md>`.
+2. Edit `x.slides.md`. Deck settings go in the header, not in the HTML and
+   not as CLI options (`assemble` refuses `--title`, `--theme`, `--ratio`,
+   `--footer`).
+3. Check the fit: `npx orz-slides@1 inspect x.slides.md --layout --json`
+   (below); shorten or split what it reports.
+4. `npx orz-slides@1 assemble x.slides.md` → `x.slides.html`. No `--force` is
+   needed when the file holds an earlier state of `x.slides.md` the CLI can
+   prove: what `orz-slides` itself last wrote into it or read out of it (for
+   the same pair, `-o` included), or a committed version of `x.slides.md` in
+   git (HEAD, staged, or one of its 20 most recent commits; a shallow
+   checkout knows only HEAD — use `--replaces` there). **In a fresh sandbox,
+   use the token:** `npx orz-slides@1 assemble x.slides.md --replaces
+   <twin.sha256>`. If assemble refuses (`twin-differs`), someone saved in the
+   browser: do step 1, then run the command the refusal names. Only when
+   `x.slides.md` has everything, `npx orz-slides@1 assemble x.slides.md
+   --force` (the replaced file is kept as `x.slides.html~`, or `~1`, `~2`…).
 
-## The deck source format
+Delivery: `assemble` keeps the existing file's delivery unless you pass
+`--cdn` or `--inline`; a new file is inline. Includes: `assemble` keeps the
+includes the old file recorded; `--resolve-includes` reads `{{md part.md}}`
+files from the text's folder; each include left unresolved is a warning
+(`--json` `unresolved`). Lints are reported as warnings with their lines and
+the file is still written — fix errors anyway (an error means something does
+not show as written).
 
-A deck source is plain text: an optional leading `<!-- deck … -->` config block,
-then a sequence of slides. **Every slide begins with a `<!-- slide … -->`
-marker** — that marker is also the slide separator. There is no bare `---`.
+## The header (FC-18, kind `slides`) — the deck's config
 
-```
-<!-- deck
-  title: Controlled Polymerization
-  theme: executive
-  ratio: 16:9
-  author: Dr. Yu Wang
-  footer: Internal · v3 · 2026
--->
-
-<!-- slide template=title -->
-# Controlled Polymerization
-## RAFT vs ATRP
-**Dr. Yu Wang** · Louisiana · 2026
-
-<!-- slide 2col 3/2 -->
-## Results
-<!-- @left -->
-- Accuracy **92%**
-<!-- @right -->
-{{smiles C(=S)(SC)SC}}
-```
-
-### Deck config (`<!-- deck … -->`, optional)
-
-YAML-ish `key: value` lines. `:` is for config values; it never appears in a
-layout. Keys: `title`, `theme`, `ratio` (`16:9` default, or `4:3`), `author`,
-`footer` (deck-wide footer shown on normal slides), `transition` (default reveal
-transition).
-
-`title` and `author` also seed the generated document's portable metadata in
-standard `<head>` tags and the `#orz-meta` JSON island. Programmatic hosts may
-pass richer `metadata` (license, canonical source, date, description, keywords)
-to `buildSlidesHtml`; host values win field by field. This metadata affects the
-document head only and does not replace the visible footer or deck content.
-
-Theme ids: `paper`, `architect`, `executive`, `sage`, `poppy`, `neon`, `chalk`
-(plus a base). Readers can switch live in the editor.
-
-### Slide marker (`<!-- slide … -->`, mandatory)
-
-The marker carries the layout (a preset alias or a raw split) plus per-slide
-options:
-
-```
-<!-- slide -->                          single region (plain markdown slide)
-<!-- slide 2col 3/2 -->                 a preset with a track ratio
-<!-- slide col 3/2 { main; side } -->   a raw split (same grammar as presets)
-<!-- slide template=title -->           a structure-page template
-<!-- slide 2col bg=#0b3 t=fade -->      with options
+```markdown
+{{nyml
+kind: document
+carrier: slides
+uid: doc-7kq2m9x4p1r8s3t5
+title: Controlled Radical Polymerization
+author: Yu Wang
+theme: orchard
+ratio: 16:9
+footer: CHEM 512 · RAFT
+}}
 ```
 
-Per-slide options (all optional): `bg=` (color or image), `t=` (transition),
-`fit=` (`fit` | `scroll` | `off`, default `fit`), `class=`, `id=`, and the bare
-flag `step` (step-reveal — see below). Template variants use `v=` (e.g.
-`template=title v=2`).
+- `{{nyml` alone on the first line, `kind: document` next, `}}` alone on the
+  last — **at the very top**. It renders nothing. It is the deck's only
+  config: a `<!-- deck … -->` block (0.x) renders nothing in format 1 (lint
+  `deck-block`, error; `orz-slides upgrade` moves it into the header).
+- Deck keys (all optional): `title` (the page title; default the first
+  heading), `author`, `theme` (one of the 14 ids below; default `orchard`),
+  `ratio` (`16:9` default, or `4:3`), `footer` (inline Markdown on every
+  normal slide), `transition` (`none fade slide convex concave zoom`, default
+  none), `slide_numbers` (`yes`/`no`, default yes), `progress` (`yes`/`no`,
+  default yes), `section_numbers` (`plain` 1 2 3, `roman` I II III, `01`,
+  `none`; default the theme's). The theme draws numbers and progress.
+- Common keys: `carrier` (`slides`), `uid` (`doc-` + 10–32 of `[0-9a-z]`; do
+  not invent or change one), `description`, `date`, `keywords`, `source`,
+  `license` / `license_name` / `license_url`, `lang`. Your own tool's keys:
+  prefix `x_<tool>_`; unknown keys are kept. A wrong value of a deck key is
+  the warning `invalid-value` (the default is used).
 
-### Step-reveal fragments
+## Slides
 
-Reveal a slide's content one piece at a time:
+Every slide starts with a `<!-- slide … -->` line; there is no `---`
+separator. **Markers count only as top-level lines** — a marker inside a code
+fence, a list, a blockquote, a `{{…}}` block or raw HTML is text (it splits
+nothing). Text before the first slide marker is kept but not shown (a lint
+notice).
 
-- **Whole slide** — add the bare `step` flag: `<!-- slide step -->` (or combined
-  with a layout, `<!-- slide step 2col -->`). Lists reveal **per item**; other
-  top-level blocks (paragraphs, images, tables) reveal **one at a time**, in
-  document order, across all regions.
-- **Individual block** — tag it with `{{attrs[.fragment]}}` (orz-markdown attrs),
-  e.g. `A revealed paragraph.{{attrs[.fragment]}}`. Note: attrs **cannot** tag a
-  list item — use the `step` flag for per-bullet reveal.
-
-### Presenting
-
-reveal.js keyboard nav, plus: **S** opens a dedicated **speaker view**
-(current + next slide, the slide's `@notes`, a wall clock and a start/pause/reset
-timer; arrows there drive the deck). **T** toggles an on-deck clock/timer
-overlay. Slide numbers (`c/t`) and a progress bar show during the presentation.
-
-> Track ratios always use `/` (CSS-aligned: `3/2`, `auto/1fr`, `30%/1fr`).
-> `:` is reserved for `key: value` config. One symbol, one meaning.
-
----
-
-## The slide frame & the heading rule
-
-Every **normal slide** has the same three-band vertical frame:
-
-```
-┌─────────────────────┐
-│   title band        │  ← the slide's leading h2 (auto-lifted)
-├─────────────────────┤
-│   content area      │  ← divided by the layout grammar
-├─────────────────────┤
-│   footer band       │  ← optional (deck footer and/or @footer)
-└─────────────────────┘
+```markdown
+<!-- slide -->                              one box (`body`)
+<!-- slide 2col 3/2 -->                     a preset with a ratio
+<!-- slide row auto/1 { head; col 1/1 { a; b } } -->   a split of your own
+<!-- slide template=section -->             a template page
+<!-- slide step fit=scroll bg=#0b3d2e t=fade -->      options
 ```
 
-Headings are **tightly scoped** — one rule per level, so a heading's role is
-never ambiguous:
+**Options** (`key=value`, values may be quoted: `class="a b"`; one bare flag):
+`step` (reveal the slide's blocks one at a time — each item of a top-level
+list, every other top-level block, in order across boxes), `fit=` (`fit`
+default: shrink to fit; `scroll`: scroll on screen, fitted on paper; `off`:
+no fitting, cut when too long), `bg=` (a colour or an image URL), `t=` (this
+slide's transition), `class=`, `id=`, `template=` and `v=` (template pages),
+`here=N` (outline pages, below). An unknown option is a lint error. A single
+block can be a fragment with `{{attrs[.fragment]}}` after it (not a list
+item: use `step`).
 
-| Level | Role |
+**The heading rule.** A normal slide begins with **one `##` title** — it is
+lifted into the slide's title band (it spans the slide above every box).
+`#` (h1) only on title / section / closing pages; an h1 or a second `##` on a
+normal slide is a lint error. `###`–`######` are ordinary headings inside
+boxes. A slide without a title is fine (a warning: an image-only slide).
+
+**Boxes** (regions). A layout has named boxes; `<!-- @name -->` (alone on its
+line) starts a box's Markdown, which runs to the next marker. Text right
+after the title (before any box marker) fills the layout's **first** box, so
+a one-box slide needs no box marker. A box name appears at most once (filling
+a box twice — leading text and its own marker — is an error); a marker for a
+box the layout lacks is an error (its content is not shown). Names are flat
+and unique per slide, whatever the nesting.
+
+**Reserved markers** (every slide, not boxes):
+
+| Marker | What |
 |---|---|
-| **h1** (`#`) | **Title pages only** (`template=title`) — the presentation title. **Not allowed on a normal slide.** |
-| **h2** (`##`) | The **slide title** of a normal slide. **Exactly one**, and it is the slide's first content. A second h2 (or any h1) on a normal slide is a **lint error**. |
-| **h3–h6** | In-slide sub-headings (ordinary markdown). |
+| `<!-- @notes -->` | speaker notes — never on the slide; in the speaker view (S) and on *Print with notes* |
+| `<!-- @footer -->` | this slide's footer, replacing the header's `footer` (which shows on every normal slide; title pages show none) |
+| `<!-- @float left=58% top=10% w=36% h=44% -->` | an overlay box over the layout: any of `left right top bottom w h` (`%` of the slide, or `px`, `em`…) and `z=` (stacking; default declaration order). Floats are unnamed: told apart by their order. Use them rarely (a badge, a callout, a logo). |
 
-The leading h2 is **auto-lifted** into the title band — never put it inside a
-region. A titled two-column slide is simply:
+### The layout grammar
 
-```
-<!-- slide 2col -->
-## Results          ← becomes the title band (spans the slide)
-<!-- @left -->  …
-<!-- @right --> …
-```
-
----
-
-## Regions (`<!-- @name -->`)
-
-The content area is split into **regions**, one per layout leaf. A region's body
-runs from its `<!-- @name -->` marker to the next marker and is rendered as
-orz-markdown. Content **before** the first region marker goes to the layout's
-**primary region** (the first leaf), so a single-region slide needs no markers
-at all.
-
-Region names are **flat and unique per slide**, regardless of nesting depth —
-the nesting lives in the layout, not the names. A marker is always just
-`<!-- @side -->`.
-
-### The three reserved regions
-
-These names have fixed meaning in **every** layout:
-
-| Marker | Meaning |
-|---|---|
-| `<!-- @notes -->` | Speaker notes → reveal's `<aside class="notes">`. **Never shown** on the slide; stored in the deck, round-tripped on save, and shown in the **speaker view** (press **S** while presenting). |
-| `<!-- @footer -->` | This slide's footer band — shows on that slide alone and overrides the deck-wide footer. The deck-wide footer (`<!-- deck footer: … -->`) appears on every slide **except** the opening `title` page; add an `@footer` to a title slide to force one. |
-| `<!-- @float … -->` | A **free-positioned overlay**, outside the grid (see below). |
-
-### Floats (`<!-- @float … -->`)
-
-A float is an overlay box layered on top of the layout at a fixed position and
-size — the one escape from the grid. Use it sparingly (a badge, callout,
-watermark, logo, pull-out figure): **typically zero per slide**, occasionally
-one or two.
-
-```
-<!-- @float left=58% top=10% w=36% h=44% -->
-> Key takeaway: **narrow PDI** across all methods.
-```
-
-Geometry attributes (percent of the slide, or `px`): any of `left` `right`
-`top` `bottom` `w` `h`; optional `z=` (default = declaration order, so a later
-float sits on top). The body is orz-markdown rendered inside the box. Each
-`<!-- @float … -->` is its own overlay (repeatable).
-
----
-
-## The layout grammar (recursive splits)
-
-The content area is divided by **one rule applied recursively**: split a box into
-**rows** or **columns**; each cell is a **named region** or **another split**.
+One rule, applied recursively: split a box into **rows** or **columns**;
+each cell is a named box or another split.
 
 ```
 split  := ("row" | "col") tracks "{" item (";" item)* "}"
-item   := region-name | split
-tracks := token ("/" token)*        // 2/1 · auto/1fr/auto · 30%/1fr · 200px/1fr
+item   := name | split
+tracks := track ("/" track)*        e.g. 2/1 · auto/1 · 30%/1 · 200px/1 · 1/2/1
 ```
 
-- `col 2/1 { left; right }` — two columns, 2:1.
-- `row auto/1 { head; col 1/1 { a; b } }` — a header row above two columns.
-- Leaves are **region names**, filled by `<!-- @name -->`.
+Tracks are fractions (`1`, `2`), `auto` (as tall/wide as its content), `%` or
+`px`; their count must match the items. `/` separates tracks; `:` never
+appears in a layout.
 
-Because the rule is recursive, **headers, footers, sidebars, quadrants, and
-arbitrary grids are all just splits** — nothing is special-cased:
+**Presets** (aliases of splits; an optional ratio in their track count):
 
-```
-<!-- slide row auto/1/auto { banner; col 3/2 { main; row 1/1 { fig; note } }; bar } -->
-```
+| Preset | Is | Boxes | Default ratio |
+|---|---|---|---|
+| *(none)* | one box | `body` | — |
+| `2col [a/b]` | `col a/b { left; right }` | left, right | 1/1 |
+| `3col [a/b/c]` | `col … { left; mid; right }` | left, mid, right | 1/1/1 |
+| `2row [a/b]` | `row a/b { top; bottom }` | top, bottom | 1/1 |
+| `main-side [a/b]` | `col a/b { main; side }` | main, side | 2/1 |
+| `quad` | `row 1/1 { col 1/1 { tl; tr }; col 1/1 { bl; br } }` | tl, tr, bl, br | — (no ratio) |
 
-### Presets (named layouts — aliases)
+Reach for a preset first; a raw split only for nesting. A layout that equals
+a preset is written as the preset by the layout editor.
 
-Presets are **aliases** that expand to the grammar, so the everyday case stays
-terse. They are sugar, not a separate system — use a preset, a raw split, or mix
-freely. An optional `[a/b]` sets the track ratio.
+### Template pages (`template=`)
 
-| Preset | Expands to | Regions |
+Structure pages with their own design in every theme; each has one box (its
+Markdown) plus notes, footer, floats. `v=N` picks a look.
+
+| Template | Write | Looks |
 |---|---|---|
-| *(none)* | single region | `body` |
-| `2col [a/b]` | `col a/b { left; right }` | left, right |
-| `3col` | `col 1/1/1 { left; mid; right }` | left, mid, right |
-| `2row [a/b]` | `row a/b { top; bottom }` | top, bottom |
-| `main-side [a/b]` | `col a/b { main; side }` (default `2/1`) | main, side |
-| `quad` | `row 1/1 { col 1/1 { tl; tr }; col 1/1 { bl; br } }` | tl, tr, bl, br |
+| `title` | `# title`, `## subtitle`, then a byline (name, date, place) | `v=1`–`6` |
+| `section` | `# section title`, then a line of meta; numbered automatically (`section_numbers`) | `v=1`–`4` |
+| `outline` | an optional `## heading`, then a list of the sections | `v=1`–`3` |
+| `closing` | `# thanks`, `## questions?`, contact lines; a lone `{{qr https://…}}` gets its own place | `v=1`–`3` |
 
----
+The **outline** marks its current item automatically — an outline placed
+before the *k*-th section page marks item *k* (an agenda you repeat between
+sections) — or `here=N` sets it (`here=0`: none). A layout on a template page
+is an error; a `v=` the template lacks too.
 
-## Structure-page templates (`template=`)
+### Everything inside a box is orz-markdown
 
-Templates are structure pages. A `template=` slide reads structured fields from
-its markdown — `# title`, `## subtitle`, then the rest as a meta/byline block —
-and lays them out with dedicated styling instead of the region grid. Pick a
-layout with `v=` (e.g. `template=title v=2`):
+Math (`$…$`, `$$…$$`, `\ce{…}`), code fences, tables, `::: info` callouts,
+`:::: cols`, tabs, `{{mermaid …}}`, `{{smiles …}}`, `{{chart …}}`
+(`type: bar|line|pie|doughnut`, `labels:`, `series: Name = 1, 2, 3`),
+`{{qr …}}`, `{{youtube …}}`, `{{attrs[#id .class]}}`, images
+(`![alt](pic.png)`, relative to the deck). Drawings render when their slide
+shows, at their box's size, in the theme's colours. The full syntax: the
+orz-markdown skill (`node_modules/orz-markdown/orz-markdown-skills/SKILL.md`).
 
-| Template | Write | Layouts (`v=`) |
+## Capacity — author within the slide
+
+Every box shrinks its content to fit, down to 60 %; past that the box is
+**clipped** (cut, marked). Shrinking is a safety net, not a licence: text at
+60 % is hard to read from the back of a room. Write within these budgets —
+the most that fits **unscaled** in a 1280 × 720 (16:9) slide with a title, in
+the tightest of the 14 themes (the roomiest in brackets), measured in Chrome
+with the themes' webfonts:
+
+| Box (16:9, a titled slide) | Fits unscaled (tightest theme · roomiest) | Cut only past |
 |---|---|---|
-| `title` | `#` title, `##` subtitle, author/date line | **v1** centered + accent rule (default) · **v2** left accent bar · **v3** uppercase kicker · **v4** split (bold accent band beside the title) · **v5** full-color cover (title bottom-left) · **v6** oversized editorial (huge type) |
-| `section` | `#` section title (rest = meta) | **v1** underline rule (default) · **v2** centered accent · **v3** surface band + left bar · **v4** outlined box |
-| `outline` | an agenda list | **v1** plain (default) · **v2** cards · **v3** two columns |
-| `closing` | thanks / contact / a `{{qr}}` | **v1** centered (default) · **v2** full-color cover · **v3** oversized |
+| One box (`body`): bullets of ~9 words | **8** (11) | 14 |
+| One box: a paragraph | **~110 words** (170) | ~220 words |
+| One box: code lines of ~40 characters | **10** (16) | 20 |
+| One box: table rows, 4 short columns | **7** (9) | 12 |
+| A `2col` column: bullets of ~7 words | **4** (6) | 12 |
+| A `2col` column: a paragraph | **~50 words** (80) | ~140 words |
+| A `3col` column: bullets of ~5 words | **4** (5) | 10 |
+| A `quad` cell: bullets of ~5 words | **3** (5) | 6 |
+| `main-side`: `main`, bullets of ~9 words | **4** (7) | 12 |
+| `main-side`: `side`, bullets of ~5 words | **4** (5) | 10 |
+| The slide title (`##`) | **~6 words** on one line in the tightest theme (Notebook; most take 10+) | wraps; cut past ~10 words in the tightest |
+| A title page's `#` | 20+ words (it wraps, never cut) | — |
 
-All template styling adapts to the active theme (via `--accent` / `--ink` /
-`--muted`), light or dark.
+Tightest themes: Inscription (large serif capitals) for bullets, Nocturne,
+Stationery and Copper for prose, Sky for code; the roomiest are the plain
+sans themes. Write to the bold number and the deck fits in every theme — a
+reader may switch themes.
 
----
+For `4:3` (960 × 720) the boxes are 25 % narrower and lines wrap sooner:
+one box ~4 bullets of ~9 words in the tightest theme (10 in the roomiest), a
+paragraph ~70 words, code and table rows as for 16:9 (10 and 7); a `2col`
+column ~2 bullets (5) or ~30 words; `3col`, `main-side` side ~2 short
+bullets; a `quad` cell barely one or two (Inscription shrinks even those);
+a slide title ~4 words on one line in Notebook. Prefer 16:9, or fewer and
+shorter points, for 4:3 decks.
+Rules of thumb: **prefer splitting a slide into two over crowding one**; one
+primary visual (figure, chart, diagram, table) per box; a bullet ≤ ~10 words,
+one level of nesting; a slide title ≤ ~8 words (a longer one wraps onto a
+second line and takes room from the boxes); a title page's `#` ≤ ~8 words.
 
-## Capacity budgets — author within the slide, don't overflow
+**Check, don't guess:** `npx orz-slides@1 inspect x.slides.md --layout --json`
+renders the deck in the installed Chrome (headless) and reports, per slide
+and box (`title`, a box's name, `template`, `float 1`…), `scale` (1 =
+unscaled; 0.6 = the floor) and `clipped`, whether the footer is cut, and
+`summary` (`scaled`, `clipped`, `minScale`) plus `advice` for every clipped
+box. Aim for `clipped: 0` and no scale below ~0.85. `--offline` blocks the
+network (fallback fonts: numbers shift a little); without Chrome it is
+refused (`no-browser`; set `ORZ_SLIDES_CHROME` to a Chrome binary).
 
-Scale-to-fit is a **safety net, not a licence to overflow.** These are
-per-container budgets for a **16:9 slide at the default theme font**. They
-**scale with a region's area**: a half-width column gets ~half a full body's
-budget; a quad cell ~a quarter.
+## Themes
 
-| Container | Budget (16:9, default font) |
+`theme:` takes one of 14 (`orz-slides themes`); dark themes draw charts and
+diagrams on dark:
+
+| id | Look |
 |---|---|
-| Slide title (h2) | ≤ ~10 words, 1 line |
-| Title-page title (h1) | ≤ ~8 words |
-| Full body (single region) | ≤ ~6 bullets **or** ~55 words **or** ~14 code lines |
-| One column of `2col` | ≤ ~5 bullets / ~35 words |
-| One cell of `3col` / `quad` | ≤ ~3–4 bullets / ~20 words |
-| `side` (in `main-side`) | ≤ ~4 short bullets, or one small figure |
-| Bullet line | ≤ ~10 words, 1 line; avoid nesting beyond 1 level |
-| Table | ≤ ~6 rows × 4 cols (full width); fewer in a column |
-| Code block | ≤ ~12 lines full / ~8 in a column |
-| Figure / diagram / chart | one primary visual per region |
+| `orchard` (default) | off-white page, calm green, Bricolage Grotesque headings |
+| `sky` | airy near-white, sky and teal tints, Figtree |
+| `stationery` | warm paper, teal ink, Epilogue over Literata |
+| `preprint` | a crisp journal page: Fira Sans over Vollkorn, one navy accent |
+| `small-press` | linen stock, Josefin Sans over Cardo, bottle green |
+| `notebook` | a ruled school exercise book, slips stuck on the page |
+| `sticker` | a dot-grid sketchbook with outlined stickers, Chewy and Patrick Hand |
+| `inscription` (dark) | deep navy, Cinzel capitals over Source Serif 4 |
+| `copper` (dark) | teal-black, Sora over Vollkorn, copper and violet |
+| `nocturne` (dark) | a graphite code editor, Atkinson Hyperlegible over Charis SIL |
+| `architect` | a drafting sheet: fine grid, title block, dimension lines |
+| `chalk` (dark) | a green-black chalkboard, Caveat titles, coloured chalk |
+| `neon` (dark) | an instrument panel, phosphor cyan on near-black glass |
+| `paper` | a finely printed book: EB Garamond, roman section numbers |
 
-**Core rule: prefer splitting into another slide over crowding one.** Budgets
-shrink proportionally for `4:3` and for smaller regions; estimate any nested
-split with `budget ≈ baseline × region-area-fraction`.
+orz-markdown theme ids are accepted as aliases (`light-neat-3` → orchard, …;
+`light-academic-1` and `beige-decent-1` → paper). The 0.x themes `executive`,
+`poppy` and `sage` are gone (`upgrade` writes `sky`, `sticker`, `orchard`).
 
----
+## Deck templates (`new --template`)
 
-## Do / don't
+`starter` (default: a tour of every kind of slide — title, outline, section,
+closing, points with `step`, notes, presets, a float, a custom split), `talk`
+(title, outline, three sections of two slides, closing) and `minimal` (a
+title page and one slide). Start from `talk` for a real talk and replace its
+placeholder text.
 
-**Do**
-- Start every slide with a `<!-- slide … -->` marker.
-- Put exactly one `## h2` as the first line of each normal slide (the title).
-- Reach for a **preset** first; drop to a raw split only when you need nesting.
-- Keep region content under the budgets above; split a crowded slide in two.
-- Use `<!-- @notes -->` for speaker notes — they never clutter the slide.
-- Use a deck-wide footer (`<!-- deck footer: … -->`) and override per-slide with
-  `<!-- @footer -->` only when needed.
+## Inspect before you act
 
-**Don't**
-- Don't use `#` (h1) on a normal slide, or a second `##` (h2) — both are lint
-  errors.
-- Don't hand-edit the generated `.slides.html`; edit the deck source.
-- Don't use `:` in a layout, or `/` in a config value.
-- Don't reuse a region name within a slide (names are unique per slide).
-- Don't lean on floats for layout — that is what splits are for. Floats are
-  occasional overlays, not the grid.
-
----
-
-## Example slides
-
-### A titled two-column slide
-
-```
-<!-- slide 2col 3/2 -->
-## Results at a glance
-<!-- @left -->
-- Accuracy **92%** across all runs
-- Latency under **40 ms**
-- Zero regressions in CI
-<!-- @right -->
-{{chart
-type: bar
-labels: A, B, C
-series: Score = 92, 81, 76
-}}
-<!-- @notes -->
-Lead with accuracy; the latency number is the surprise — pause here.
+```bash
+npx orz-slides@1 inspect x.slides.html --json    # also a text, a 0.x file or text, any HTML
 ```
 
-### A nested-split slide (header row over a main + stacked-figures column)
+Read `input` (`text`, `assembled`, `legacy`, `html`), `kind`, `format`,
+`writable`, `shell.version` / `shell.relation`, `uid`, `title`, `theme` /
+`themeEffective`, `ratio`, `slides`, `settings`, `header.keys`, `includes`,
+`lint` (with lines), `checks` (a file's structure), `sha256` (the
+`--replaces` token), `twin` (`holds`, `newer`, `sha256`, `earlier`),
+`upgrade` (for a 0.x deck: what `upgrade` changes), and **follow `advice`** —
+it names the command to run, with your file names:
 
+- `legacy` (an orz-slides 0.x file) → `upgrade`; next to an existing
+  `x.slides.md`: `upgrade x.slides.html --text x.browser.slides.md`, then
+  merge — `extract` does not read 0.x files;
+- a 0.x **text** (a `<!-- deck -->` block; lint `deck-block`) → `upgrade
+  deck.md` (writes `deck.slides.md`), then assemble that;
+- `twin.holds: "different"` → extract and merge before assembling (unless
+  `twin.earlier` is set: then assemble replaces it);
+- `checks.island: "unclosed"` → the file was cut off: `extract x.slides.html
+  -o x.recovered.slides.md`, compare with a backup; `checks.engine:
+  "different"` / `"missing"` → `upgrade` re-assembles it (the text is intact);
+- an older shell → `upgrade`; a newer shell or text `format` → `npx
+  orz-slides@latest` (do not force a downgrade);
+- lint errors → fix the text (each names its line), then assemble;
+- another kind (`md`, `paged`) → its own tool (`npx orz-mdhtml`, `npx
+  orz-paged`).
+
+## When a command refuses (`--json`)
+
+A failure is `{ "ok": false, "error", "reason", "next"?, "exitCode" }`. `next`
+is `{ "command", "args" }`: run `npx orz-slides@1 <command> <args…>` verbatim
+(it never replaces a text with another line of work). Stable `reason` codes:
+`twin-differs` (extract to `x.browser.slides.md`, merge, assemble with
+`--replaces`), `replaces-mismatch` (a save happened since: extract again and
+merge), `legacy-file` (a 0.x file or text: `upgrade`, then `assemble
+--replaces` with the `sha256` upgrade printed — not `--force`),
+`output-differs` (another text at `-o`: follow `next`; another document:
+choose another path), `newer-shell` / `newer-format` (`npx
+orz-slides@latest`), `unclosed-island`, `not-orz`, `exists`,
+`assembled-input`, `other-kind`, `invalid-text`, `no-browser` (`inspect
+--layout` without Chrome), `no-such-file`, `unreadable`, `not-utf8`,
+`write-failed`, `engine-unavailable`, `bad-usage` (exit 2; also a 0.x form),
+`failed`.
+
+## Upgrade old files and texts
+
+```bash
+npx orz-slides@1 upgrade old.slides.html            # in place, and writes old.slides.md (its text twin)
+npx orz-slides@1 upgrade old.slides.html -o new.slides.html --text new.slides.md
+npx orz-slides@1 upgrade deck.md                    # a 0.x deck source → deck.slides.md (then assemble it)
 ```
-<!-- slide row auto/1 { head; col 3/2 { main; row 1/1 { figA; figB } } } -->
-## Pipeline architecture
-<!-- @head -->
-Ingest → transform → serve, with back-pressure between stages.
-<!-- @main -->
-```mermaid
-graph LR; A[Ingest]-->B[Transform]-->C[Serve]
-```
-<!-- @figA -->
-{{qrcode https://example.org/spec}}
-<!-- @figB -->
-*Spec v3 — scan to read.*
-```
 
-### A title page
+A 0.x deck (orz-slides ≤ 0.8.5) keeps its slides: the `<!-- deck … -->`
+block (wherever 0.x found it) and a `kind: meta` block become one header at
+the top, with `carrier: slides`, a `uid`, the file's `#orz-meta` metadata and
+title, and the theme the deck SHOWED written explicitly (the deck block's,
+else the file's own, else 0.x's implicit `paper`; `executive` → `sky`,
+`poppy` → `sticker`, `sage` → `orchard`). Marker spellings 0.x tolerated
+(`<!-- @notes: -->`, `left = 50%`, upper-case options) are normalised, a
+marker a block swallowed is repaired, and a `v=` the template lacks is
+dropped — each with a note. `--json` carries `report`: every difference
+against what 0.8.5 showed (slides, titles, regions, layouts, notes, footers,
+floats, options, theme), each explained. 0.x slides were 960 × 540; 1.0
+slides are 1280 × 720 (16:9), so content has more room — still run `inspect
+--layout`. A format-1 file of an older shell is re-assembled with its text
+and includes unchanged. Upgrading twice changes nothing more.
 
-```
-<!-- slide template=title -->
-# Controlled Polymerization
-## RAFT vs ATRP — a practical comparison
-**Dr. Yu Wang** · University of Louisiana · 2026
-```
+## Recover the text from any version by hand
 
----
+- **Format 1** (`<script id="orz-shell">` exists): read the `<script
+  type="text/markdown" id="orz-src">` element's raw content; remove **one**
+  backslash after each `<` that is followed by backslashes and then `script`
+  or `/script` (any case); turn the line breaks into the style named by
+  `data-orz-eol` (`lf`, `crlf`, `cr`); prefix U+FEFF when `data-orz-bom` is
+  present. In code: `extract(html).text` from `orz-markdown/carrier` (or
+  `orz-slides`).
+- **0.x** (no `#orz-shell`; `<script type="text/orz-slides" id="orz-deck">`):
+  its raw content with each `<\/script` turned back into `</script` and the
+  one line break the writer added at the start and at the end removed — a 0.x
+  deck source (`<!-- deck -->` block). Prefer `orz-slides upgrade`.
+- A cut-off file (`checks.island: "unclosed"`): `orz-slides extract
+  x.slides.html -o x.recovered.slides.md` takes what is there (with a
+  warning); compare with a backup.
 
-## Special content & enhancers
+## What the file does for its reader
 
-Region bodies are full orz-markdown. The deck runs client enhancers, drawn per
-visible slide (and re-run on edit): **KaTeX** (math/mhchem, pre-rendered),
-**Mermaid**, **SmilesDrawer** (chemistry), and **`{{chart}}`** (simple
-bar/line/pie/doughnut via Chart.js — the line-based `type:` / `labels:` /
-`series:` config shown above). For the full orz-markdown syntax (containers
-`::: name`, `{{name body}}` plugins, `{{attrs[#id .class]}}`, tabs), read the
-orz-markdown skill at `node_modules/orz-markdown/orz-markdown-skills/SKILL.md`.
+The deck in the page — → / Space next, ← previous, **O** overview, **S**
+speaker view (its own window), **T** timer, **F** Present — and ONE control:
+a pencil at the bottom-left (click: Edit; hover or tap: Edit, Present, Print,
+Print with notes, Speaker view, Overview, Save, Download a copy, New
+document, Save as new copy, Theme, Ratio, Slide numbers, Progress bar,
+Section numbers). Settings write the header (undoable, unsaved until Save).
 
-## What the generated file needs at view time
+**Edit** (Cmd/Ctrl+E) has two ways, on the one text with one undo history:
 
-"Self-contained" means *one file*. By default the CLI **inlines** the engine,
-reveal's core CSS, and **all seven themes**, so a text deck **presents and
-switches themes offline**. The libraries that load from CDN (cached after first
-load) are only: KaTeX (math), Mermaid, SmilesDrawer, Chart.js, and CodeMirror
-(the editor) — so a deck that uses math/diagrams/charts, or in-browser editing,
-needs internet. `--cdn` instead references the engine + theme from jsDelivr
-(smaller files, needs network). Editing/Save in place needs a Chromium browser
-(File System Access API); presenting works in all modern browsers.
+- **the whole deck** — the text beside a **flattened** preview (each slide's
+  content in order under a thin divider with its number, title and layout;
+  boxes labelled; notes and footers set apart) and the **live slide card** in
+  the corner: the slide under the caret as it presents, with a fit badge
+  (*fits*, *shrunk to N%*, *footer cut*, *cut on paper*). **Issues** lists
+  the lints with quick fixes.
+- **single-slide editing** — the card's **Edit** (Cmd/Ctrl+Shift+Enter)
+  enlarges it into a layout editor over the slide: split a box into columns
+  or rows, delete a box (its text moves to the neighbour), drag a divider (it
+  snaps to simple ratios), pick a preset, rename or swap boxes, add / move /
+  resize / layer floats, pick a template page's look, set the slide's
+  options, notes and footer, and a filmstrip to add, duplicate, delete and
+  drag-reorder slides; click a box to edit its text. Each change rewrites
+  only marker lines (one undo step) — so a deck edited this way is still a
+  clean text for you.
 
-## Security
+**Save** (Cmd/Ctrl+S) writes `assemble(text)` in place in Chromium,
+downloads elsewhere; a save over a file changed on disk asks first. **Print**
+puts one slide per page at the slide's size (every step shown); *Print with
+notes* adds the notes under each slide; what paper cuts is marked. A quiet,
+once-a-day update offer on local files.
 
-`.slides.html` files are **single-file executable HTML** — opening one runs its
-embedded JavaScript. Treat them like programs: only open or edit files from a
-trusted source, and advise users the same. The one-click framework update is
-opt-in (edit view only, explicit confirm) and always fetches from the hardcoded
-canonical jsDelivr packages — a tampered file can't redirect it. A file's
-integrity can't be verified from inside it; for authenticity, verify out-of-band.
-See the README "Security" section.
+## In a web app
+
+The same editor is a component: `npm i orz-slides-browser@1`, then
+`mountEditor(element, { text, hooks: { save, ai, fetchInclude, … }, nonce })`
+(ES module, or `globalThis.OrzCarrier` from the IIFE); its preview is the
+flattened deck with the live slide card and single-slide editing, in a
+sandboxed frame. The layout operations are pure functions an app (or you)
+can run: `applyOp(text, slideIndex, { type: 'split', box: 'body', dir: 'col'
+})` → minimal edits (library `orz-slides`, the ES module, or
+`OrzCarrier.layout`). Store the text; call `assemble(text)` only when a file
+is needed. Hooks and the CSP recipe: `docs/embedding.md`, shipped in both
+packages. Platforms that show assembled files in an iframe use the host
+protocols (orz-markdown `spec/host-protocols.md`).
+
+## Gotchas
+
+- Do not edit `x.slides.html` by hand; the text is the deck.
+- Keep the `uid` across revisions; a different deck needs its own (`new`, or
+  the file's *Save as new copy* / *New document*).
+- A box marker must be alone on its line (`<!-- @left -->`), and a slide
+  marker too; `<!-- slide -->` inside a code fence is just text — to show
+  marker syntax on a slide, put it in a fence.
+- One `##` per normal slide, first; `#` only on title / section / closing
+  pages.
+- Do not lean on floats for layout — that is what splits are for.
+- `--force` keeps what it replaces as `<file>~` (or `~1`, `~2`…); still,
+  compare before you force. The pair records live in
+  `$XDG_CACHE_HOME/orz-slides/` (else `~/.cache/orz-slides/`).
+- Package: `orz-slides` 1.x depends on `orz-markdown ^2.4.0` and pins
+  reveal.js 5.2.1; files record the shell version that wrote them.
+- Security: a `.slides.html` runs the code inside it — treat files like
+  programs and open only trusted ones.
