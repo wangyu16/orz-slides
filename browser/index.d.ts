@@ -192,6 +192,12 @@ export interface RenderPreviewOptions {
    * kept as written — show it in a sandboxed frame.
    */
   document?: boolean;
+  /**
+   * With `document: true`: a CSP nonce stamped on the document's `<style>`
+   * elements (a `srcdoc` frame inherits the app's policy). The engine adds no
+   * script; the document's own raw HTML is not stamped.
+   */
+  nonce?: string;
 }
 
 /** A slide theme (`THEMES`). */

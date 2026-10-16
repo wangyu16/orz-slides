@@ -9,7 +9,8 @@
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createServer, type Server } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { UID_PATTERN } from 'orz-markdown/carrier';
@@ -126,8 +127,9 @@ chrome('the example web app (real Chrome, offline)', () => {
     expect(r.afterUndoA.endsWith('Edited A.\r\n')).toBe(false);
     expect(r.bAfter).toBe(r.bText);
 
-    // the flattened preview (A): slide dividers, the include resolved by the app, the image through resolveAsset, links as written
+    // the flattened preview (A): slide dividers, the includes resolved by the app (a URL, and a file by its path), the image through resolveAsset, links as written
     const frameA = await frameShowing(page, 'resists pH change');
+    await frameShowing(page, 'the acidity scale');
     expect(await frameA.evaluate(() => document.querySelectorAll('#orz-doc .orz-flat-slide').length)).toBe(3);
     expect(await frameA.evaluate(() => document.querySelector('#orz-doc img')?.getAttribute('src'))).toBe(`${site.url}/examples/webapp/figures/curve.svg`);
     // the frame's scripts and styles carry the nonce (no violation below); the slide theme is inside
@@ -212,6 +214,74 @@ chrome('the example web app (real Chrome, offline)', () => {
     await page.context().close();
   }, 120_000);
 
+  it('[X.5] what a reader sees for every hook, on every surface (final loop EI-1, EI-2, EI-4): an upload kept as a blob: URL shows in the flattened preview, the live card and single-slide editing (its bytes copied into the sandboxed preview); a stored bg= picture goes through resolveAsset and shows; a file include answered by fetchInclude(path) renders in the flattened preview and the live card', async () => {
+    const log: string[] = [];
+    const { page, errors } = await open('/examples/webapp/index.html', log);
+    await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
+    await page.evaluate(async () => { const { a } = (globalThis as unknown as { demo: Demo }).demo.editors; await a.ready; });
+    const frameA = await frameShowing(page, 'the acidity scale');
+    // the file include on the live card too (the caret on slide 2)
+    await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); a.select(t.indexOf('keeps the pH'), t.indexOf('keeps the pH')); });
+    await frameA.waitForFunction(() => (document.getElementById('orz-live')?.textContent ?? '').includes('the acidity scale'), null, { timeout: 15_000 });
+    expect((await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).filter((c) => c.hook === 'fetchInclude').map((c) => c.detail)).toContain('parts/units.md');
+    // uploads (object URLs in the app): a picture in the text and one as a slide background
+    const svg = (fill: string): string => `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="${fill}"/></svg>`;
+    const up = await page.evaluate(async ([p1, p2]) => {
+      const a = (globalThis as unknown as { demo: Demo }).demo.editors.a;
+      const t = a.getText();
+      a.select(t.length, t.length);
+      const r1 = await a.uploadAssets([new File([p1], 'sq.svg', { type: 'image/svg+xml' })]);
+      const r2 = await a.uploadAssets([new File([p2], 'bg.svg', { type: 'image/svg+xml' })]);
+      a.setText(`${a.getText().replace(/\n*$/, '\n')}\n<!-- slide bg=assets/bg.svg -->\n## Stored background\n\nOn the stored picture.\n`);
+      return [r1, r2];
+    }, [svg('red'), svg('blue')]);
+    expect(up.map((r) => r.ok)).toEqual([true, true]);
+    // the flattened preview: the uploaded picture loads (a data: copy of the blob)
+    await frameShowing(page, 'On the stored picture');
+    await frameA.waitForFunction(() => Array.from(document.querySelectorAll<HTMLImageElement>('#orz-doc img')).some((i) => i.alt === 'sq' && i.complete && i.naturalWidth === 40), null, { timeout: 15_000 });
+    // the live card on the picture's slide, then on the background's slide
+    await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('![sq]'); a.select(at, at); });
+    await frameA.waitForFunction(() => { const i = document.querySelector<HTMLImageElement>('#orz-live img[alt="sq"]'); return !!i && i.complete && i.naturalWidth === 40; }, null, { timeout: 15_000 });
+    await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('On the stored picture'); a.select(at, at); });
+    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return !!s && /^url\("data:image\/svg\+xml;base64,/.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
+    expect((await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).filter((c) => c.hook === 'resolveAsset').map((c) => c.detail)).toContain('assets/bg.svg');
+    // single-slide editing: the stage shows the stored background too
+    await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.editors.a.slides.setPerSlide(true));
+    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return document.body.classList.contains('orz-stage') && !!s && /^url\("data:/.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
+    expect(await page.evaluate(() => (window as unknown as { __csp: string[] }).__csp)).toEqual([]);
+    expect(errors).toEqual([]);
+    await page.context().close();
+  }, 120_000);
+
+  it('[X.6] the CSP recipe of docs/embedding.md, taken literally (its policy block, and the style-src-elem line it gives for diagrams): the app\'s own stylesheet applies, and neither the page nor the preview frame reports a style violation for its own sheet, KaTeX, highlight.js or the webfonts (final loop EI-3)', async () => {
+    const doc = readFileSync('docs/embedding.md', 'utf8');
+    const block = /## Content-Security-Policy[\s\S]*?```\n([\s\S]*?)```/.exec(doc)![1]!;
+    const directives = block.split('\n').map((l) => l.replace(/\s+\(.*$/, '').trim()).filter((l) => l.endsWith(';'));
+    const elem = /```\n(style-src-elem [^\n]+;)\n```/.exec(doc)![1]!;
+    const policy = [...directives, elem].join(' ').replace(/RANDOM/g, 'orz-demo-nonce');
+    expect(policy).toMatch(/^default-src 'none'; script-src 'nonce-orz-demo-nonce' 'strict-dynamic';/);
+    const html = readFileSync('examples/webapp/index.html', 'utf8').replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, `<meta http-equiv="Content-Security-Policy" content="${policy}">`);
+    const log: string[] = [];
+    const ctx = await context(log);
+    await ctx.route(`${site.url}/examples/webapp/literal-csp.html`, (r) => r.fulfill({ status: 200, body: html, headers: { 'content-type': 'text/html; charset=utf-8' } }));
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(`${site.url}/examples/webapp/literal-csp.html`);
+    await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
+    const frameA = await frameShowing(page, 'resists pH change');
+    // the app's own stylesheet (app.css, 'self') applies
+    expect(await page.evaluate(() => Array.from(document.styleSheets).some((s) => /app\.css$/.test(s.href ?? '') && s.cssRules.length > 0))).toBe(true);
+    // a formula in view makes the frame ask for KaTeX's stylesheet; the theme's webfonts and highlight.js too
+    await frameA.evaluate(() => new Promise((r) => setTimeout(r, 500)));
+    const pageCsp = await page.evaluate(() => (window as unknown as { __csp: string[] }).__csp);
+    const frameCsp: string[] = [];
+    for (const f of page.frames()) if (f !== page.mainFrame()) frameCsp.push(...await f.evaluate(() => (window as unknown as { __csp?: string[] }).__csp ?? []).catch(() => []));
+    expect([...pageCsp, ...frameCsp].filter((v) => /^style-src/.test(v))).toEqual([]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
   it('[X.2] the ESM build mounts the same editor (flattened preview, live card), sets no global, exports the deck templates, the parser and the layout ops, and assembles the Node bytes (cdn; inline with the engine given)', async () => {
     const { page, errors, consoleLines } = await open('/examples/webapp/esm.html', []);
     await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
@@ -257,13 +327,38 @@ describe('the app author\'s guide and the browser package', () => {
     expect(doc).toMatch(/\| `resolveAsset\(path\)` \|[^\n]*\*\*synchronously\*\*[^\n]*not a promise/);
   });
 
+  it('[X.7] the hand-written types match what the guide and the example do: examples/webapp/app.js (// @ts-check) and the guide\'s layout-op and nonce snippets, copied verbatim, typecheck under --strict against browser/index.d.ts (final loop EI-5)', () => {
+    const doc = readFileSync('docs/embedding.md', 'utf8');
+    const layoutSnippet = /```js\n(const text = editor\.getText\(\);[\s\S]*?)```/.exec(doc)![1]!;
+    const nonceLine = /^(await renderPreview\(text, \{ document: true, nonce \}\))/m.exec(doc)![1]!;
+    const dir = mkdtempSync(join(tmpdir(), 'orz-slides-types-'));
+    try {
+      writeFileSync(join(dir, 'snippets.ts'), [
+        `/// <reference path="${resolve('browser/index.d.ts')}" />`,
+        `import type { Editor, OrzCarrierApi } from '${resolve('browser/index.d.ts').replace(/\.d\.ts$/, '')}';`,
+        'declare const editor: Editor;',
+        'declare const OrzCarrier: OrzCarrierApi;',
+        'declare const renderPreview: OrzCarrierApi[\'renderPreview\'];',
+        'declare const text: string;',
+        'declare const nonce: string;',
+        'export async function layout(): Promise<void> {', layoutSnippet, '}',
+        'export async function thumb(): Promise<string> { return ' + nonceLine.replace(/^await /, '') + '; }',
+      ].join('\n'));
+      const tsc = join('node_modules', 'typescript', 'bin', 'tsc');
+      const common = ['--noEmit', '--strict', '--lib', 'dom,es2022', '--target', 'es2022', '--module', 'esnext', '--moduleResolution', 'bundler', '--skipLibCheck', 'false'];
+      const run = (files: string[], extra: string[] = []): string => { try { execFileSync(process.execPath, [tsc, ...common, ...extra, ...files], { encoding: 'utf8', stdio: 'pipe' }); return ''; } catch (e) { return String((e as { stdout?: string }).stdout ?? e); } };
+      expect(run(['examples/webapp/app.js'], ['--allowJs', '--checkJs'])).toBe('');
+      expect(run([join(dir, 'snippets.ts')])).toBe('');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }, 120_000);
+
   it('[X.4] the browser package is publishable: release.json names this version, kind slides, the bundle and the SHA-384 of its exact bytes, the guide is the repository\'s (scripts/check-release.mjs, its prepublishOnly, passes); its exports, files and types are those of orz-paged-browser 1.0; require() throws with the way to load it; both packages have one version', () => {
     const out = execFileSync(process.execPath, ['browser/scripts/check-release.mjs'], { encoding: 'utf8' });
     const pkg = JSON.parse(readFileSync('browser/package.json', 'utf8')) as { version: string; types: string; exports: Record<string, unknown>; files: string[]; scripts: Record<string, string> };
     const cli = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; files: string[] };
     expect(out).toContain(`orz-slides-browser ${pkg.version}: release.json matches the files`);
     expect(pkg.version).toBe(cli.version);
-    expect(pkg.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs');
+    expect(pkg.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts');
     expect(pkg.types).toBe('index.d.ts');
     expect(pkg.exports['.']).toEqual({ types: './index.d.ts', import: './esm/orz-slides.browser.mjs', require: './require.cjs', default: './orz-slides.browser.js' });
     expect(pkg.files.sort()).toEqual(['LICENSE', 'README.md', 'docs/embedding.md', 'esm/orz-slides.browser.mjs', 'index.d.ts', 'orz-slides.browser.js', 'release.json', 'require.cjs']);

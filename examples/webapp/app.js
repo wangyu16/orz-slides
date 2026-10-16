@@ -11,8 +11,9 @@
  * single-slide editing mode (`editor.slides.setPerSlide`).
  */
 (() => {
-  const C = globalThis.OrzCarrier;
-  if (!C) throw new Error('orz-slides-browser did not load');
+  const loaded = globalThis.OrzCarrier;
+  if (!loaded) throw new Error('orz-slides-browser did not load');
+  const C = loaded;
   const NONCE = 'orz-demo-nonce';
   const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -20,7 +21,7 @@
   const store = new Map();
   /** Uploaded assets: relative path → object URL. */
   const assets = new Map();
-  /** Every hook call, for the log (and the tests). */
+  /** Every hook call, for the log (and the tests). @type {Array<{ hook: string, detail: string }>} */
   const calls = [];
   const log = (/** @type {string} */ hook, /** @type {string} */ detail) => {
     calls.push({ hook, detail });
@@ -29,8 +30,8 @@
     $('log').prepend(li);
   };
 
-  /** Includes the app resolves under its own policy (here: a fixed table). */
-  const INCLUDES = { 'https://example.test/glossary.md': '**Buffer** — resists pH change.\n' };
+  /** Includes the app resolves under its own policy (here: a fixed table): URLs, and its own files by path. @type {Record<string, string>} */
+  const INCLUDES = { 'https://example.test/glossary.md': '**Buffer** — resists pH change.\n', 'parts/units.md': '*pH* — the acidity scale.\n' };
 
   /** @param {string} id @returns {import('../../browser/index.d.ts').EditorHooks} */
   const hooksFor = (id) => ({
@@ -59,7 +60,7 @@
     '{{nyml', 'kind: document', 'carrier: slides', 'title: Buffers — lecture 3', 'author: Lecture app', 'uid: doc-webappslides01', 'theme: orchard', 'footer: CHEM 101 · Buffers', '}}', '',
     '<!-- slide template=title -->', '# Buffers', '## Lecture 3', 'Lecture app · week 2', '',
     '<!-- slide 2col -->', '## What a buffer does', '<!-- @left -->', 'A buffer keeps the pH nearly constant. See [week 2](week2.md).', '',
-    '{{md https://example.test/glossary.md}}', '<!-- @right -->', '![a titration curve](figures/curve.svg)', '',
+    '{{md https://example.test/glossary.md}}', '', '{{md parts/units.md}}', '<!-- @right -->', '![a titration curve](figures/curve.svg)', '',
     '<!-- slide -->', '## Henderson–Hasselbalch', '$$pH = pK_a + \\log\\frac{[A^-]}{[HA]}$$', '<!-- @notes -->', 'Derive it on the board first.', '',
   ].join('\n');
   const QUIZ = '{{nyml\nkind: document\ncarrier: slides\ntitle: Quiz\ntheme: nocturne\n}}\n\n<!-- slide -->\n## Quick questions\n\nquick questions here\n';

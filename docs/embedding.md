@@ -153,10 +153,12 @@ a deleted box's block moves to its neighbour) — apply them with
 ```js
 const text = editor.getText();
 const i = editor.slides.caretSlide();
-const box = OrzCarrier.layout.slideMap(text, i).boxes[0].name;
+const box = OrzCarrier.layout.slideMap(text, i)?.boxes[0]?.name;   // null: no such slide
+if (box) {
 const r = OrzCarrier.layout.applyOp(text, i, { type: 'split', box, dir: 'col' });  // throws LayoutOpError when it cannot apply
 editor.applyEdits(r.edits, { label: r.label });   // "Split body into columns"
 editor.flash(r.changed);
+}
 ```
 
 Ops (`LayoutOp`): `split`, `delete-box`, `tracks`, `preset`, `rename`,
@@ -188,17 +190,20 @@ if (r.ok && await myConfirm(r.proposal.original, r.proposal.proposed)) editor.ap
 | `save(text)` | on Save / Cmd+S / `editor.save()` | a promise; reject to report a failure (the editor stays dirty). **With `save`, you own persistence**: nothing is written to disk or downloaded |
 | `ai.operations`, `ai.request(op, { text, selection? })` | the AI menu and `editor.proposeAi` (the proposal is reviewed before `applyAi` writes it), `editor.requestAi` | `{ proposed }` — the replacement of the selection (`selection: true` operations) or of the whole text |
 | `fetchInclude(target)` | the preview meets an include `includes` lacks: a URL (`{{md https://…}}` / `{{markdown …}}` / `{{md-include …}}`), or a file include's path as written (`{{md parts/a.md}}` → `'parts/a.md'`; you read your own files) | the Markdown, or `null`. Your trust policy (allowlist) decides |
-| `resolveAsset(path)` | every relative `src` / `srcset` / `poster` in the flattened preview and in the live slide, **synchronously** (the preview does not wait) | the URL to load, as a string — not a promise: a URL your app already knows (a `blob:` URL of a stored asset, a public URL, a URL signed beforehand) |
+| `resolveAsset(path)` | every relative `src` / `srcset` / `poster` and every slide background (`bg=`) in the flattened preview, the live slide, single-slide editing and the fit checks, **synchronously** (the preview does not wait) | the URL to load, as a string — not a promise: a URL your app already knows (a public URL, a URL signed beforehand, a `data:` URL, or a `blob:` URL of a stored asset — the editor copies a `blob:` URL's bytes into the sandboxed preview, which cannot load your page's object URLs: allow `connect-src blob:`) |
 | `uploadAsset(file)` | a file pasted or dropped into the editor, `editor.uploadAssets` | the relative path to insert (`![name](path)` for images) |
 | `resolveLink(href)` | a link clicked in the preview (as written, e.g. `week2.md`) | the URL to open |
 | `mintUid()` | `editor.ensureUid()` when the header has no `uid` | a **promise** of a `doc-[0-9a-z]{10,32}` id from your registry (FC-18 §10) |
 
-**Includes.** The preview reads an include from the `includes` option first
-(target as written → text, like an assembled file's `#orz-includes`), then
-asks `hooks.fetchInclude` — with the URL, or with the path as written for a
-file include `includes` lacks. An include neither answers shows a quiet
-"Included file not available: parts/a.md" note in the preview (the directive
-is kept).
+**Includes.** Every preview surface (the flattened preview, the live slide,
+single-slide editing) resolves an include the same way (FC-19 §3): a file
+include from the `includes` option first (target as written → text, like an
+assembled file's `#orz-includes`), then from `hooks.fetchInclude` with the
+path as written (`'parts/a.md'`: you read your own files); a URL include
+from `hooks.fetchInclude` with the URL first (your trust policy, your current
+copy), then from `includes`. Each answer is asked for once per editor. An
+include neither answers shows a quiet "Included file not available:
+parts/a.md" note in the preview (the directive is kept).
 
 Without `hooks.save` the editor saves like a standalone file: an inline
 `.slides.html` (holding the `includes` you passed) through the File System
@@ -260,7 +265,7 @@ style-src 'self' 'nonce-RANDOM' https://cdn.jsdelivr.net https://cdnjs.cloudflar
 style-src-attr 'unsafe-inline';          (fit, the single-slide overlay, KaTeX and the diagram libraries write style attributes)
 font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:;   (the slide themes' webfonts: Google Fonts; KaTeX's)
 img-src 'self' data: blob: https:;       (wherever resolveAsset points)
-connect-src 'self' https://cdn.jsdelivr.net;
+connect-src 'self' blob: https://cdn.jsdelivr.net;   (blob: only if resolveAsset gives blob: URLs: the editor reads their bytes for the preview)
 frame-src https://www.youtube.com;      (only if your decks embed YouTube videos, `{{youtube …}}`: the player is a youtube.com/embed frame)
 ```
 
@@ -272,8 +277,17 @@ bundle (no theme fetch), their webfonts from Google Fonts
 from jsDelivr, highlight.js from cdnjs, Mermaid / Chart.js from jsDelivr,
 SMILES from unpkg (the preview libraries; with `'strict-dynamic'` the nonce
 covers them). Mermaid inserts `<style>` elements at run time that nobody
-stamps: allow them with `style-src-elem 'unsafe-inline'` if your decks use
-diagrams. Offline, editing works without them: the text is edited in a textarea
+stamps: if your decks use diagrams, add
+
+```
+style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+```
+
+A `style-src-elem` directive *replaces* `style-src` for `<style>` and
+`<link rel=stylesheet>` elements, so it repeats the whole list (your own
+stylesheets, KaTeX, highlight.js, the webfonts) — `style-src-elem
+'unsafe-inline'` alone would block them all — and it carries no nonce (a
+nonce switches `'unsafe-inline'` off). Offline, editing works without them: the text is edited in a textarea
 until CodeMirror arrives, the themes fall back to system fonts, and
 formulas, diagrams and charts wait for their libraries.
 

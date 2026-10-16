@@ -25,16 +25,17 @@
  * comment blocks only); a marker line the grammar does not read (a lint)
  * renders as the comment it is — nothing.
  *
- * Includes as the engine resolves them (src/present/render.ts): the file's
- * `#orz-includes` record for file includes, URL includes through the host's
- * `fetchInclude` then the record (`prepareSources`); included content
+ * Includes as every preview surface resolves them (the kit's
+ * `previewIncludes`, FC-19 §3): a file include from the `#orz-includes`
+ * record, else the host's `fetchInclude(path)`; a URL include through
+ * `fetchInclude(url)`, else the record (`prepareSources`); included content
  * anchors at its directive's line.
  *
  * Isomorphic (no DOM): unit-tested in Node (tests/flat.test.ts).
  */
 import { md, prepareSources } from 'orz-markdown';
 import { withoutHeader } from 'orz-markdown/carrier';
-import { includeRecordEnv } from 'orz-markdown/carrier/editor';
+import { includeRecordEnv, previewIncludes } from 'orz-markdown/carrier/editor';
 import { parseDeck, scanMarkers, type ScannedMarker } from '../../deck/parse.js';
 import { plainInline, sectionTitleOf } from '../../deck/plan.js';
 import { leaves } from '../../deck/layout-spec.js';
@@ -53,7 +54,6 @@ export const FLAT_ARTICLE_CLASS = 'markdown-body orz-flat';
 type Tok = ReturnType<typeof md.parse>[number];
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const isUrl = (t: string): boolean => /^[a-z][a-z0-9+.-]*:\/\//i.test(t);
 
 /** Line breaks in a string (CR LF, CR and LF each count once). */
 function linesIn(s: string): number {
@@ -108,29 +108,20 @@ function floatGeometry(content: string): string {
 export async function renderFlat(text: string, ctx: FlatRenderContext = {}): Promise<string> {
   const { body, offset } = withoutHeader(text);
   const lineOffset = linesIn(text.slice(0, offset));
-  const rec = ctx.includes;
+  // includes as every preview surface resolves them (the kit's previewIncludes, FC-19 §3; final loop EI-2): a file
+  // include from the record, else the host's fetchInclude(path); a URL include from fetchInclude(url), else the record
+  const inc = ctx.fetchInclude || (ctx.includes && Object.keys(ctx.includes).length > 0)
+    ? await previewIncludes(text, { ...(ctx.includes ? { includes: ctx.includes } : {}), ...(ctx.fetchInclude ? { fetchInclude: ctx.fetchInclude } : {}), ...(ctx.cache ? { cache: ctx.cache } : {}) })
+    : null;
+  const rec = inc?.includes ?? ctx.includes;
   const env: Record<string, unknown> = { ...includeRecordEnv(rec ?? {}), orzTwinLinks: ctx.twinLinks !== false };
 
-  // URL includes, as the engine resolves them (the host first, then the record), each fetched once per shell
+  // URL includes, as the engine resolves them, each fetched once per shell
   let source = body;
   let mapLine: ((l: number) => number) | null = null;
   const hasUrlIncludes = /\{\{[^}\n]*[a-z][a-z0-9+.-]*:\/\//i.test(body);
-  if (hasUrlIncludes && (typeof ctx.fetchInclude === 'function' || (rec && Object.keys(rec).some(isUrl)))) {
-    const cache = ctx.cache;
-    const fetcher = (url: string): Promise<string | null> => {
-      const key = `orz-include:${url}`;
-      const hit = cache?.get(key) as Promise<string | null> | undefined;
-      if (hit) return hit;
-      const p = (async (): Promise<string | null> => {
-        if (ctx.fetchInclude) {
-          try { const t = await ctx.fetchInclude(url); if (typeof t === 'string') return t; } catch { /* the record */ }
-        }
-        return rec && Object.prototype.hasOwnProperty.call(rec, url) && typeof rec[url] === 'string' ? rec[url] : null;
-      })();
-      cache?.set(key, p);
-      void p.then((t) => { if (t === null && cache?.get(key) === p) cache.delete(key); });
-      return p;
-    };
+  if (hasUrlIncludes && inc !== null) {
+    const fetcher = inc.fetcher;
     try { source = await prepareSources(body, { fetcher, includeEnv: env as never }); } catch { source = body; }
     if (source !== body) {
       const a = body.split(/\r\n?|\n/);
