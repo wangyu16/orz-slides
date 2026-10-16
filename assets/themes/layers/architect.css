@@ -321,7 +321,7 @@
   background: #fff;
   border: 1.5px solid var(--slate);
   padding: 0.35em 0.55em;
-  font-size: 0.7em;
+  --sl-float-size: 0.7em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.22;
   display: flex;
   align-items: center;
@@ -559,6 +559,8 @@
   margin-bottom: -1.05em;
   font-size: 0.62em;
 }
+/* the bubble hangs 1.05em (its own em) below the title line: a section page with only its title keeps that room inside the box (final loop FINAL-ENG-1) */
+.reveal .orz-section-main:last-child { margin-bottom: calc(0.62em * 1.05); }
 .reveal .orz-section-meta { margin: 1.2em 0 0 calc(2.05em * 0.62 * 3.2 + 0.5em * 2.05); font-size: 0.95em; color: var(--slate-2); max-width: 26em; font-weight: 500; }
 
 /* ───────── outline: a drawing index ───────── */

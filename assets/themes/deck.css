@@ -158,6 +158,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 /* a diagram is laid out as a block until it is drawn: Mermaid draws into a box inside it and measures that
    box's width (a gantt chart in a flex item fell back to 300 px and its axis labels overprinted: TK-2) */
 .reveal .orz-region > .markdown-body > div.mermaid:not(:has(> svg)) { display: block !important; }
+/* …and takes the height of what it shows until then: its source as text when Mermaid never loads (offline, a firewall,
+   a CDN outage: final loop T.17), so the box measures it and fit shrinks it, never a 4em share it spills out of */
+.reveal .orz-region > .markdown-body > div.mermaid:not(:has(svg)) { flex: 0 0 auto; padding-block: 0.2em; }   /* room for a fallback font's tall ascent: the div scrolls */
 
 /* code and tables never scroll on a slide: they wrap, fit scales them, else they are marked clipped */
 .reveal .orz-slide:not([data-fit="scroll"]) .markdown-body pre { overflow: hidden; }
@@ -168,6 +171,9 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 
 /* ---------- floats ---------- */
 .reveal .orz-float { position: absolute; overflow: clip; overflow-clip-margin: 6px; z-index: 2; }
+/* a float's size is the theme's (--sl-float-size), and fit shrinks it like any box (final loop CLI-2: a theme's own
+   font-size pinned it, so a float reported 0.6 and was cut at full size) */
+.reveal .orz-float.orz-box { font-size: calc(var(--sl-float-size, 1em) * var(--fit-scale, 1)); }
 .reveal .orz-float .markdown-body { margin: 0; padding: 0; font-size: 1em; }
 .reveal .orz-float > .markdown-body > :first-child { margin-top: 0; }
 .reveal .orz-float > .markdown-body > :last-child { margin-bottom: 0; }
@@ -501,5 +507,18 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
   background: #fff; color: #9b2c2c; font: italic 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
   box-shadow: 0 0 0 1px rgba(155, 44, 44, 0.35); white-space: nowrap; pointer-events: none;
 }
-.reveal.orz-print .orz-print-notes .orz-print-notes-head { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: #77776f; margin: 0 0 10px; }
+.reveal.orz-print .orz-print-notes .orz-print-notes-head { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: #5f5f58; margin: 0 0 10px; }
 .reveal.orz-print .orz-print-notes > .notes-body > :first-child { margin-top: 0; }
+/* the notes area is a sheet of paper in every theme (final loop FINAL-ENG-2): the notes body is a .markdown-body, so a
+   dark theme's light ink, its code panels and its link colours reached it (1.2 : 1 on the white area). Every text in
+   it takes the paper's ink, every panel is paper; a code block keeps a faint tint and a link its underline. */
+.reveal.orz-print .orz-print-notes { color-scheme: light; }
+.reveal.orz-print .orz-print-notes .notes-body,
+.reveal.orz-print .orz-print-notes .notes-body * {
+  color: #1d1d1b !important; -webkit-text-fill-color: currentColor !important; text-shadow: none !important;
+  background-color: transparent !important; background-image: none !important; border-color: #c9c9c4 !important; box-shadow: none !important;
+}
+.reveal.orz-print .orz-print-notes .notes-body :is(pre, code, kbd) { background-color: #f3f3f0 !important; }
+.reveal.orz-print .orz-print-notes .notes-body pre code { background-color: transparent !important; }
+.reveal.orz-print .orz-print-notes .notes-body a { text-decoration: underline !important; }
+.reveal.orz-print .orz-print-notes .notes-body blockquote { border-left: 3px solid #c9c9c4 !important; }

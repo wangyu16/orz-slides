@@ -159,7 +159,7 @@ describe('the deck plan (src/deck/plan.ts)', () => {
     expect(plain[3]).toContain('<span class="orz-chrome-bar" aria-hidden="true"></span>');
     expect(plain[3]).toContain('<span class="orz-chrome-sec" data-sec="01">First part</span>');
     expect(plain[3]).toContain('<span class="orz-head-deck">The deck</span><span class="orz-head-sec" data-sec="01">First part</span>');
-    expect(plain[5]).toContain('<div class="orz-section-main" data-sec="02">Second <strong>part</strong></div>');
+    expect(plain[5]).toContain('<div class="orz-section-main" data-sec="02" data-sec-len="2">Second <strong>part</strong></div>');
     expect(plain[5]).toContain('<div class="orz-section-meta markdown-body"><p>Its subtitle</p>');
     const off = sections(renderDeck(parseDeck(`${H('slide_numbers: no\nprogress: no\nsection_numbers: roman\n')}${DECK.slice(H().length)}`), renderer));
     expect(off[3]).not.toContain('orz-chrome-num');

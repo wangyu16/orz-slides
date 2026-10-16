@@ -1178,6 +1178,9 @@
   padding: 0.35em;
   line-height: 0;
 }
+/* a diagram that is not drawn (offline, a firewall, a CDN outage: final loop FINAL-ENG-3) shows its source
+   as text: line-height 0 is for the drawing only, or the source's lines print over each other and never overflow */
+.reveal .orz-region .markdown-body > .mermaid:not(:has(svg)) { line-height: 1.5; }
 /* a chart in its room (round A4) is sized with its slip's padding and border */
 .reveal .orz-chart-room > .orz-chart-frame { --orz-chart-pad-x: calc(0.7em + 2px); --orz-chart-pad-y: calc(0.7em + 2px); }
 .reveal .orz-region .markdown-body > p.orz-pic { position: relative; width: fit-content; margin-inline: auto; transform: rotate(-0.6deg); padding: 0.4em 0.4em 0.5em; }
@@ -1254,7 +1257,7 @@
   transform: rotate(-2deg);
   overflow: visible;
   color: var(--ink-warning);
-  font-size: 0.9em; line-height: 1.35;
+  --sl-float-size: 0.9em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */ line-height: 1.35;
   display: flex; align-items: center;
 }
 .reveal .orz-float::before {

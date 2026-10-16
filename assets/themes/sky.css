@@ -1495,7 +1495,7 @@
   border: 1px solid var(--info-border);
   border-radius: 16px;
   padding: 0.5em 0.8em 0.5em 1.7em;
-  font-size: 0.8em;
+  --sl-float-size: 0.8em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.3;
   color: var(--text-soft);
   display: flex; align-items: center;
@@ -1553,7 +1553,7 @@
 .reveal .orz-title-meta strong { color: var(--heading); }
 
 /* ───────── section: centred; the number in a big haloed dot, the star below ───────── */
-.reveal .orz-template-section { align-items: center; text-align: center; }
+.reveal .orz-template-section { align-items: center; text-align: center; padding-block: 0.75em; }   /* the number's halo (0.64em of its 1.15em) inside the box, above and below alike (final loop T.16) */
 .reveal .orz-section-main {
   font-family: var(--font-heading); font-weight: 800; color: #173248;
   font-size: 2.3em; line-height: 1.06; letter-spacing: -0.035em; max-width: 15em;

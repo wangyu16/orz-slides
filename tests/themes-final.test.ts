@@ -1,0 +1,244 @@
+/**
+ * Step 10, the final closed loop — theme probes over every theme, OFFLINE
+ * (the fallback fonts; what `inspect --layout --offline` and a reader
+ * without the network see):
+ *
+ * - T.16 (FINAL-ENG-1): a template page that holds only its heading — title
+ *   v1–v6, section v1–v4 (short and long), outline v1–v3, closing v1–v3, at
+ *   16:9 and 4:3 — is never clipped, a one-line heading is never scaled,
+ *   and nothing the theme draws is cut by the template box (the page with
+ *   the box's clip widened looks the same). Decorations that hang
+ *   below the heading (a badge, a lozenge, a shadow, a rotation) used to
+ *   take the subtitle's room, which a bare page does not have.
+ * - Q.6 (FINAL-ENG-2): every text the print document adds — the notes area
+ *   (its head and every kind of note text: a paragraph, strong, em, code, a
+ *   link, a list item, a quote, a code block), the "cut on paper" notices and
+ *   the slide's chrome on paper (its number; at 3 : 1, its own design) — reads at 4.5 : 1 or more
+ *   against what is drawn behind it, printed and printed with notes, in
+ *   every theme (the notes body took a dark theme's light ink on white paper).
+ */
+import { describe, it, expect, afterAll } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { assemble } from '../src/lib.js';
+import { THEMES } from '../src/themes.js';
+import { TEMPLATES } from '../src/deck/parse.js';
+import { checkDeck } from './fit-oracle.js';
+import { goTo, launchChrome, openDeck, type PageGlobal } from './helpers.js';
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { textOverlaps } from './support/overprint.js';
+
+type Page = import('playwright-core').Page;
+
+const browser = await launchChrome();
+const dir = mkdtempSync(join(tmpdir(), 'orz-slides-final-'));
+afterAll(async () => { await browser?.close(); rmSync(dir, { recursive: true, force: true }); });
+const real = browser ? describe : describe.skip;
+const fileFor = (name: string): string => { const sub = join(dir, name); mkdirSync(sub, { recursive: true }); return join(sub, 'deck.slides.html'); };
+
+const SHORT: Record<string, string> = { title: 'Quarterly review', section: 'Results', outline: 'Plan', closing: 'Thanks' };
+const LONG = 'A much longer heading that wraps onto two lines here';
+/** Heading-only template pages: every variant, a one-line heading (short) and a two-line one (long). */
+const BARE: Array<{ template: string; v: number; long: boolean }> = [];
+for (const [template, n] of Object.entries(TEMPLATES)) for (let v = 1; v <= n; v++) for (const long of [false, true]) BARE.push({ template, v, long });
+const bareDeck = (theme: string, ratio: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: bare\ntheme: ${theme}\nratio: ${ratio}\nfooter: a footer line\n}}\n\n${BARE.map((b) => `<!-- slide template=${b.template} v=${b.v} -->\n# ${b.long ? LONG : SHORT[b.template]}\n${b.template === 'outline' ? '\n1. One\n2. Two\n' : ''}`).join('\n')}`;
+
+/** Pixels of the current slide that change when its template box paints past its edge (what the box cuts off). */
+async function cutByTemplate(page: Page): Promise<number> {
+  const clip = await page.evaluate(() => {
+    const r = document.querySelector('.reveal .slides > section.present')!.getBoundingClientRect();
+    return { x: Math.max(0, r.left - 40), y: Math.max(0, r.top - 40), width: r.width + 80, height: r.height + 80 };
+  });
+  const a = await page.screenshot({ clip });
+  // the clip widened, not removed: overflow: visible would lay the box out again (a flex item's minimum size) and refit
+  // it, so the pictures would differ where nothing was cut; a wider overflow-clip-margin only paints more
+  const open = await page.addStyleTag({ content: '.reveal .slides > section.present .orz-template { overflow-clip-margin: 4000px !important; }' });
+  await page.waitForTimeout(60);
+  const b = await page.screenshot({ clip });
+  await open.evaluate((el) => (el as Element).remove());
+  await page.waitForTimeout(60);
+  const a2 = await page.screenshot({ clip });
+  // a pixel counts only when the widened page differs from the page both before and after (a late refit or a
+  // transition between the shots is no cut)
+  return page.evaluate(async ({ x, y, z }) => {
+    const load = async (d: string): Promise<Uint8ClampedArray> => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${d}`;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d')!;
+      g.drawImage(img, 0, 0);
+      return g.getImageData(0, 0, c.width, c.height).data;
+    };
+    const [p, q, r] = [await load(x), await load(y), await load(z)];
+    const differs = (u: Uint8ClampedArray, v: Uint8ClampedArray, i: number): boolean => Math.abs(u[i] - v[i]) + Math.abs(u[i + 1] - v[i + 1]) + Math.abs(u[i + 2] - v[i + 2]) > 48;
+    let n = 0;
+    for (let i = 0; i < p.length; i += 4) if (differs(p, q, i) && differs(r, q, i)) n++;
+    return n;
+  }, { x: a.toString('base64'), y: b.toString('base64'), z: a2.toString('base64') });
+}
+
+real('final loop: theme probes (real Chrome, offline)', () => {
+  for (const t of THEMES) {
+    it(`[T.16] ${t.id}: heading-only template pages (every variant, short and long heading, 16:9 and 4:3) are never clipped, a one-line heading is never scaled, and the template box cuts nothing the theme draws`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) {
+        const { page, ctx, errors } = await openDeck(browser!, fileFor(`bare-${t.id}-${ratio.replace(':', 'x')}`), assemble(bareDeck(t.id, ratio)));
+        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+        const boxes = await checkDeck(page, `${t.id} ${ratio}`);
+        for (const [i, b] of BARE.entries()) {
+          const where = `${ratio} ${b.template} v${b.v} ${b.long ? 'long' : 'short'}`;
+          const tpl = boxes.find((x) => x.slide === i && /orz-template/.test(x.box));
+          if (!tpl) { bad.push(`${where}: no template box`); continue; }
+          if (tpl.clipped) bad.push(`${where}: clipped at ${tpl.scale}`);
+          else if (!b.long && b.template !== 'outline' && Number(tpl.scale) < 1) bad.push(`${where}: scaled to ${tpl.scale}`);
+          await goTo(page, i);
+          const cut = await cutByTemplate(page);
+          if (cut > 40) bad.push(`${where}: the template box cuts ${cut} px of what the theme draws`);
+        }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 240_000);
+  }
+
+  const NOTES = 'Plain sentence. **Strong** and *em* and `code` and [a link](https://example.com).\n\n- an item\n\n> a quote\n\n```\ncode block\n```';
+  const printDeck = (theme: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: print\ntheme: ${theme}\nfooter: a footer line\n}}\n\n<!-- slide -->\n## A slide with notes\n\nSome text.\n\n<!-- @notes -->\n${NOTES}\n\n<!-- slide fit=off -->\n## Too much\n\n${Array.from({ length: 30 }, (_, i) => `- line ${i + 1} of a slide that is too long for its box`).join('\n')}\n\n<!-- @notes -->\n${Array.from({ length: 260 }, (_, i) => `Note sentence ${i + 1}, long enough to fill the notes area of the page.`).join(' ')}\n`;
+
+  /** Every text the print document adds, with its ink and the median of what is drawn behind it (the text hidden). */
+  async function printInks(page: Page): Promise<Array<{ what: string; ratio: number; ink: string; bg: string }>> {
+    const n = await page.evaluate(() => {
+      const leaves = (root: Element): Element[] => Array.from(root.querySelectorAll('*')).filter((e) => Array.from(e.childNodes).some((c) => c.nodeType === 3 && (c.textContent ?? '').trim()));
+      const picked: Element[] = [];
+      for (const notes of Array.from(document.querySelectorAll('.orz-print-notes'))) picked.push(...leaves(notes));
+      picked.push(...Array.from(document.querySelectorAll('.orz-print-cut')));
+      for (const c of Array.from(document.querySelectorAll('.orz-page section .orz-chrome'))) picked.push(...leaves(c));
+      let k = 0;
+      for (const e of picked) { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); if (r.width > 1 && r.height > 1 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0) e.setAttribute('data-probe', String(k++)); }
+      return k;
+    });
+    const out: Array<{ what: string; ratio: number; ink: string; bg: string }> = [];
+    for (let k = 0; k < n; k++) {
+      const box = await page.evaluate((i) => {
+        const el = document.querySelector<HTMLElement>(`[data-probe="${i}"]`)!;
+        el.scrollIntoView({ block: 'start' }); // its first line in view (a long note's paragraph is taller than the window)
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const fill = cs.getPropertyValue('-webkit-text-fill-color');
+        const where = el.closest('.orz-print-notes') ? 'notes' : el.classList.contains('orz-print-cut') ? 'cut notice' : 'chrome';
+        return { x: Math.max(0, r.left), y: Math.max(0, r.top), width: Math.min(r.width, 600), height: Math.min(r.height, 80), ink: fill && fill !== cs.color && !/rgba\(0, 0, 0, 0\)/.test(fill) ? fill : cs.color, what: `${where} <${el.tagName.toLowerCase()}> "${(el.textContent ?? '').trim().slice(0, 24)}"` };
+      }, k);
+      if (box.width < 2 || box.height < 2) continue;
+      const hide = await page.addStyleTag({ content: `[data-probe="${k}"], [data-probe="${k}"] * { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; text-decoration-color: transparent !important; }` });
+      const png = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      await hide.evaluate((el) => (el as Element).remove());
+      const r = await page.evaluate(async ({ data, ink }) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${data}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        const px = g.getImageData(0, 0, c.width, c.height).data;
+        const ch: number[][] = [[], [], []];
+        for (let i = 0; i < px.length; i += 4) for (let q = 0; q < 3; q++) ch[q].push(px[i + q]);
+        const median = ch.map((v) => v.sort((a, b) => a - b)[v.length >> 1]);
+        const probe = document.createElement('span');
+        probe.style.color = ink;
+        document.body.appendChild(probe);
+        const m = /rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)/.exec(getComputedStyle(probe).color)!;
+        probe.remove();
+        const a = m[4] === undefined ? 1 : Number(m[4]);
+        const fg = [1, 2, 3].map((q, j) => Number(m[q]) * a + median[j] * (1 - a));
+        const lum = (rgb: number[]): number => { const [rr, gg, bb] = rgb.map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * rr + 0.7152 * gg + 0.0722 * bb; };
+        const [l1, l2] = [lum(fg), lum(median)].sort((x, y) => y - x);
+        return { ratio: (l1 + 0.05) / (l2 + 0.05), ink: `rgb(${fg.map(Math.round).join(',')})`, bg: `rgb(${median.join(',')})` };
+      }, { data: png.toString('base64'), ink: box.ink });
+      out.push({ what: box.what, ...r });
+    }
+    return out;
+  }
+
+  for (const t of THEMES) {
+    it(`[Q.6] ${t.id}: on paper every added text reads — the notes area (head, paragraph, strong, em, code, link, list, quote, code block) and the cut notices at 4.5 : 1 or more, the slide's chrome at 3 : 1 — printed and printed with notes`, async () => {
+      const { page, ctx } = await openDeck(browser!, fileFor(`print-${t.id}`), assemble(printDeck(t.id)));
+      const bad: string[] = [];
+      for (const notes of [false, true]) {
+        const doc = await page.evaluate((nn) => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.view.engine.printHtml({ notes: nn }) as Promise<{ html: string }>, notes);
+        const path = join(dir, `print-${t.id}-${notes ? 'notes' : 'plain'}.html`);
+        writeFileSync(path, doc.html, 'utf8');
+        const p = await ctx.newPage();
+        await p.setViewportSize({ width: 1400, height: 1300 });
+        await p.goto(`file://${path}`);
+        await p.evaluate(() => document.fonts.ready);
+        const inks = await printInks(p);
+        expect(inks.filter((x) => x.what.startsWith('cut notice')).length, `${t.id} ${notes ? 'with notes' : 'plain'}: cut notices`).toBeGreaterThan(notes ? 1 : 0);
+        if (notes) expect(inks.filter((x) => x.what.startsWith('notes')).length, t.id).toBeGreaterThan(8);
+        // what print adds reads at 4.5 : 1; the slide's own chrome (the theme's on-screen design, the same on paper) at 3 : 1,
+        // a separator glyph (`/`, `·`, `—`) being decoration
+        for (const x of inks) if (x.what.startsWith('chrome') ? !/"[\/·|—–-]"$/.test(x.what) && x.ratio < 3 : x.ratio < 4.5) bad.push(`${notes ? 'with notes' : 'plain'}: ${x.what} ${x.ink} on ${x.bg} = ${x.ratio.toFixed(2)}`);
+        await p.close();
+      }
+      expect(bad, t.id).toEqual([]);
+      await ctx.close();
+    }, 240_000);
+  }
+
+  /** A deck whose float overflows at full size (the agent lecture's callout) and one that overflows past the floor. */
+  const floatDeck = (theme: string, ratio: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: floats\ntheme: ${theme}\nratio: ${ratio}\n}}\n\n<!-- slide -->\n## A float that needs to shrink\n\nThe body text of the slide.\n\n<!-- @float right=3% top=12% w=20% h=12% -->\n::: info\nCheck: pH < 7\n:::\n\n<!-- slide -->\n## A float past the floor\n\nBody.\n\n<!-- @float left=5% top=40% w=12% h=8% -->\n${Array.from({ length: 12 }, (_, i) => `Line ${i + 1} of far too much text for this float.`).join(' ')}\n`;
+
+  for (const t of THEMES) {
+    it(`[F.8] ${t.id}: a float shrinks like every box — its drawn font size is its size at full scale times its data-scale — so an overflowing float is fitted (or, past the floor, marked clipped), never reported scaled while drawn at full size (16:9 and 4:3)`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) {
+        const { page, ctx, errors } = await openDeck(browser!, fileFor(`float-${t.id}-${ratio.replace(':', 'x')}`), assemble(floatDeck(t.id, ratio)));
+        await checkDeck(page, `${t.id} ${ratio}`); // no silent clipping
+        for (const i of [0, 1]) {
+          await goTo(page, i);
+          const r = await page.evaluate((n) => {
+            const f = document.querySelectorAll<HTMLElement>('.reveal .slides > section')[n]!.querySelector<HTMLElement>('.orz-float')!;
+            const scale = Number(f.getAttribute('data-scale'));
+            const drawn = parseFloat(getComputedStyle(f).fontSize);
+            const was = f.style.getPropertyValue('--fit-scale');
+            f.style.setProperty('--fit-scale', '1');
+            const full = parseFloat(getComputedStyle(f).fontSize);
+            if (was) f.style.setProperty('--fit-scale', was); else f.style.removeProperty('--fit-scale');
+            return { scale, drawn, full, clipped: f.hasAttribute('data-clipped') };
+          }, i);
+          if (Math.abs(r.drawn - r.full * r.scale) > 0.6) bad.push(`${ratio} slide ${i + 1}: data-scale ${r.scale} but drawn at ${r.drawn}px of ${r.full}px`);
+          if (i === 0 && r.clipped) bad.push(`${ratio} slide 1: the callout float is cut (scale ${r.scale})`);
+          if (i === 1 && !(r.scale < 1)) bad.push(`${ratio} slide 2: the overflowing float was not scaled`);
+        }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 240_000);
+  }
+
+  const SAMPLE = readFileSync('tests/fixtures/sample/sample.slides.md', 'utf8');
+  for (const t of THEMES) {
+    it(`[T.17] ${t.id}: OFFLINE (no content library, no webfont: a firewall, a CDN outage) the sample deck has no silent clipping and no text over another on any slide — an undrawn diagram, chart or molecule shows its source readably (16:9 and 4:3)`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) {
+        const file = fileFor(`offline-${t.id}-${ratio.replace(':', 'x')}`);
+        copyFileSync('tests/fixtures/sample/gpc-traces.svg', join(file, '..', 'gpc-traces.svg'));
+        const { page, ctx, errors } = await openDeck(browser!, file, assemble(SAMPLE.replace(/^theme: .*$/m, `theme: ${t.id}`).replace(/^ratio: .*$/m, `ratio: ${ratio}`)));
+        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+        await checkDeck(page, `${t.id} ${ratio}`);
+        const total = await page.evaluate(() => document.querySelectorAll('.reveal .slides > section').length);
+        for (let i = 0; i < total; i++) {
+          await goTo(page, i);
+          for (const x of await textOverlaps(page)) bad.push(`${ratio} slide ${i + 1}: ${x}`);
+        }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 240_000);
+  }
+});

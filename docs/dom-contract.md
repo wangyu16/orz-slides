@@ -92,6 +92,7 @@ current item `li.orz-here[aria-current=step]`.
 |---|---|---|
 | `data-n` | section | 1-based slide number |
 | `data-sec` | section, `.orz-head-sec`, `.orz-chrome-sec`, `.orz-section-main` | the section label in the deck's style: `1` (plain), `I` (roman), `01`, or `''` (none, or before the first section) |
+| `data-sec-len` | `.orz-section-main` | the label's length in characters (`VIII`: 4): a theme that sets the number large in a room of fixed width sizes it by this (Paper's drop numeral; final loop T.16) |
 | `--progress` | section | (n − 1) / (total − 1), 0 … 1 |
 | `li.orz-here` | outline | the next section's item (automatic), or `here=N`; none for `here=0` |
 | `.fragment` | step units | `step` slides: each top-level list item and every other top-level block of a region |
@@ -121,7 +122,12 @@ Every `.orz-box` (title band, region, template box, float) shows its content
 on both axes: an overflowing box is scaled by font size
 (`font-size: calc(1em * var(--fit-scale))`) to the largest scale that fits,
 never below **0.6**; still overflowing at 0.6, it is marked `data-clipped`.
-`fit=off` never scales but marks; `fit=scroll` scrolls. The title band is
+`fit=off` never scales but marks; `fit=scroll` scrolls. A theme never sets
+a box's own `font-size` (it would pin it: the box would report a scale it
+does not draw): a float's size is the token `--sl-float-size` (deck.css
+draws `calc(var(--sl-float-size, 1em) * var(--fit-scale, 1))`), and the
+theme contract refuses a layer that sets a fitted box's font-size without
+`--fit-scale` (final loop CLI-2, claim F.8). The title band is
 bounded in width only. Overflow counts the box itself and any element inside
 it that clips or scrolls its content (a wide table or code block). Pictures
 and diagrams in a region take the room left (`flex: 1 1 0`, at least
@@ -198,6 +204,7 @@ Set by a theme on `:root` (defaults in deck.css):
 | `--sl-surround` | — | GENERATED for every theme (never set by hand): the surround as drawn — a dark theme's soft dark (= its generated `--sl-viewport`), a light theme's designed tint (= its layer's `--sl-viewport`) |
 | `--sl-graphic-min` | 4em | the smallest height a picture or diagram keeps |
 | `--sl-qr` | 4.6em | the QR code's size in its slot |
+| `--sl-float-size` | 1em | a float's text size, on `.orz-float` (deck.css multiplies it by `--fit-scale`; never a `font-size` on the float itself, §4) |
 | `--chart-*`, `--mm-*` | the orz-markdown theme's | Chart.js and Mermaid colours and fonts (orz-markdown 2.4.0, read where drawn); a dark theme sets light ink on its dark (dark-native: no light panel) |
 | `--chart-font-size`, `--mm-font-size` | 18 | chart and diagram text in logical px (a theme sets 18–22) |
 | `--chart-aspect`, `--chart-max-width` | 1.6, `min(100%, 20.8em)` | a chart's shape and width cap (≤ 13em tall: fit scales it) |
@@ -320,6 +327,15 @@ refine one with a more specific rule):
 | section | centred, the title in the accent, larger | the title on a tinted band with an accent bar | the title in an outlined box, centred | — | — |
 | outline | each item a card with an accent edge | two balanced columns | — | — | — |
 | closing | cover sign-off (`--sl-cover`), centred | oversized, low on the left | — | — | — |
+
+**A template page keeps its decorations inside it** (final loop
+FINAL-ENG-1, claim T.16): the template box hugs its content (centred in the
+slide) and clips (`overflow: clip`), so a badge, a lozenge, a shadow or a
+rotation drawn below or beside the heading must have room of its own inside
+the box — padding or a margin on the part that draws it — never the room a
+subtitle or meta line happens to leave. A page that holds only its heading
+(every variant, one- and two-line headings, 16:9 and 4:3) is neither scaled
+nor cut, and nothing the theme draws is clipped by the box.
 
 An outline's column is a measure, the same at 16:9 and 4:3, that grows to
 the slide's width for a longer item (`width: fit-content; min-width:

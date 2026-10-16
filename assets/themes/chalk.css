@@ -663,7 +663,7 @@
   border-radius: 2px;
   box-shadow: 0 7px 16px rgba(0, 0, 0, 0.42);
   transform: rotate(-2deg);
-  font-size: 0.8em;
+  --sl-float-size: 0.8em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.22;
   display: flex;
   align-items: center;

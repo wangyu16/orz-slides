@@ -451,6 +451,9 @@ export function contractProblems(id: string, css: { deck: string; layer: string;
     const reaches = (x: string): boolean => /\.orz-(footer|chrome)\b/.test(x) || (!/\.orz-(region|template|float|title|head|outline|section|qr|print)|\b(pre|code|td|th|table|li|blockquote|h[1-6])\b|\.(katex|mermaid|hljs)/.test(x) && /(^|[\s>+~])(p|span|div|\*|\.markdown-body)\s*$/.test(x));
     if (wraps && plainSelectors(r.selector).some((x) => reaches(x) && (/\.orz-footer\b/.test(x) || specificity(x) >= footerSpec))) problems.push(`${id}: "${r.selector}" lets the footer wrap`);
     if (sels.some((x) => /\.orz-(region|template)\s*$/.test(x)) && r.decls.some((d) => /^overflow(-[xy])?$/.test(d.prop) && /^(visible|hidden)$/.test(d.value))) problems.push(`${id}: "${r.selector}" sets overflow on a box (fit needs clip)`);
+    // final loop (CLI-2): fit shrinks a box through --fit-scale on its own font size (deck.css); a layer that sets a
+    // box's font-size itself pins it, so the box never shrinks while it reports a scale — a float sets --sl-float-size
+    if (sels.some((x) => /\.orz-(region|template|float|box)\s*$/.test(x)) && r.decls.some((d) => d.prop === 'font-size' && !/--fit-scale/.test(d.value))) problems.push(`${id}: "${r.selector}" sets a fitted box's font-size (fit could not shrink it): set --sl-float-size on a float, or multiply by var(--fit-scale, 1)`);
     // the title band clips across (overflow-x: clip) and grows down: a layer must not make it visible across
     if (sels.some((x) => /\.orz-title\s*$/.test(x)) && r.decls.some((d) => (d.prop === 'overflow' || d.prop === 'overflow-x') && /^visible/.test(d.value))) problems.push(`${id}: "${r.selector}" lets the title band overflow across (it clips on x)`);
   }

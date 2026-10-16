@@ -1406,7 +1406,7 @@
     var(--bg-elevated);
   border: 1px solid var(--border);
   padding: 0.5em 0.75em;
-  font-size: 0.8em; line-height: 1.35;
+  --sl-float-size: 0.8em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */ line-height: 1.35;
   color: var(--text-primary);
   display: flex; align-items: center;
 }
@@ -1438,7 +1438,7 @@
     linear-gradient(var(--b), var(--b)) calc(100% - var(--i)) calc(100% - var(--i)) / 2px var(--a) no-repeat,
     var(--bg-surface);
 }
-.reveal .orz-template-title, .reveal .orz-template-closing { align-items: center; text-align: center; padding: 0 70px; }
+.reveal .orz-template-title, .reveal .orz-template-closing { align-items: center; text-align: center; padding: 15px 70px; }   /* the lozenges' room above and below the rules (final loop FINAL-ENG-1) */
 .reveal .orz-title-main {
   position: relative;
   font-family: 'Cinzel', Georgia, serif; font-weight: 600; text-transform: uppercase;
@@ -1464,13 +1464,13 @@
 .reveal .orz-slide[data-template="closing"] :is(.orz-chrome, .orz-footer) { display: none; }
 
 /* closing: shorter title, the QR set beneath like a seal */
-.reveal .orz-template-closing .orz-title-main { width: auto; min-width: 9em; font-size: 1.9em; padding: 0.45em 1.2em 0.5em; letter-spacing: 0.14em; }
+.reveal .orz-template-closing .orz-title-main { width: auto; min-width: min(9em, 100% - 2.4em);   /* never wider than its box with its 1.2em sides (closing v3 at 4:3: final loop FINAL-ENG-1) */ font-size: 1.9em; padding: 0.45em 1.2em 0.5em; letter-spacing: 0.14em; }
 .reveal .orz-template-closing .orz-title-meta { margin-top: 1.2em; }
 .reveal .orz-template-closing > .orz-qr-slot { --sl-qr: 5em; margin-top: 0.8em; outline: 1px solid var(--accent-dim); outline-offset: 7px; }
 .reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 7px; border-radius: 1px; }
 
 /* ───────── section: the number between lozenges, the title in capitals over the keyed rule ───────── */
-.reveal .orz-template-section { align-items: center; text-align: center; padding: 0 90px; }
+.reveal .orz-template-section { align-items: center; text-align: center; padding: 15px 90px; }   /* the keyed lozenge's room below the rule (FINAL-ENG-1) */
 .reveal .orz-section-main {
   position: relative;
   font-family: 'Cinzel', Georgia, serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;

@@ -178,7 +178,7 @@
   overflow: visible;
   display: flex;
   align-items: center;
-  font-size: 0.7em;
+  --sl-float-size: 0.7em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.15;
 }
 .reveal .orz-float strong { font-family: var(--heading-font); -webkit-text-stroke: 0; font-weight: 400; color: #b8321c; font-size: 1.12em; letter-spacing: 0.02em; }
@@ -233,7 +233,7 @@
   paint-order: stroke fill;
   text-shadow: 3px 3px 0 var(--ink);
   transform: rotate(-1.5deg);
-  max-width: 21em;
+  max-width: min(21em, 100%);   /* never wider than its box (title v4 at 4:3: FINAL-ENG-1) */
 }
 .reveal .orz-title-main::after {
   content: '';
@@ -282,7 +282,7 @@
 .reveal .orz-title-meta strong { font-family: var(--heading-font); -webkit-text-stroke: 0; font-weight: 400; font-size: 1.18em; letter-spacing: 0.02em; color: #111; }
 
 /* ───────── section: a big round number sticker beside the title ───────── */
-.reveal .orz-template-section { align-items: flex-start; padding: 0 40px 0 30px; }
+.reveal .orz-template-section { align-items: flex-start; padding: 20px 40px 20px 30px; }   /* room for the tilted number sticker and its shadow (final loop FINAL-ENG-1) */
 .reveal .orz-section-main {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -389,7 +389,7 @@
 }
 
 /* ───────── closing: the same red letters; the QR on a taped sticker at the right ───────── */
-.reveal .orz-template-closing { align-items: flex-start; text-align: left; padding: 0 calc(5em + 120px) 0 40px; }
+.reveal .orz-template-closing { align-items: flex-start; text-align: left; padding: 24px calc(5em + 120px) 24px 40px; }   /* room for the tilted letters' corners (FINAL-ENG-1) */
 .reveal .orz-template-closing .orz-title-main { font-size: 2.6em; transform: rotate(-2.5deg); }
 .reveal .orz-template-closing .orz-title-main::after { margin-left: 0.1em; }
 .reveal .orz-template-closing .orz-title-meta { transform: none; position: static; margin-top: 1.4em; }

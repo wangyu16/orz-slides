@@ -80,7 +80,7 @@ The picture takes the room its column has.
 - Point 14: a sentence that takes most of a line on a slide, to fill the box.
 
 <!-- slide template=section -->
-# A section title so long that it runs over several lines of the section page and must be scaled down to fit inside the slide without spilling past either edge of it at all
+# A section title so long that it runs over several lines of the section page and must be scaled down to fit inside the slide without spilling past either edge of it at all, however wide the theme sets its heading and however many words it holds
 Some more words under it, which also take room on the page.
 
 <!-- slide -->

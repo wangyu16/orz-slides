@@ -92,7 +92,7 @@
   border-top: 3px solid var(--navy);
   padding: 0.45em 0.7em;
   font-family: var(--header-font);
-  font-size: 0.76em;
+  --sl-float-size: 0.76em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.3;
   color: var(--text-soft);
   display: flex; align-items: center;
@@ -176,7 +176,7 @@
   align-self: stretch;
 }
 .reveal .orz-section-main::before {
-  content: attr(data-sec); position: absolute; left: 0; top: 0.45em;
+  content: attr(data-sec); position: absolute; left: 0; top: 0; padding-top: inherit; line-height: inherit;   /* on the first line whatever padding a variant gives the title (section v2: FINAL-ENG-1) */
   color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: 0;
 }
 .reveal .orz-section-meta {

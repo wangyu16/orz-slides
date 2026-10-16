@@ -209,7 +209,7 @@ function renderTemplate(slide: Slide, plan: SlidePlan, md: Renderer, deck: DeckC
     const f = splitFields(body);
     const head = f.title || f.subtitle;
     const meta = f.title ? [f.subtitle ? `## ${f.subtitle}` : '', f.meta].filter((x) => x).join('\n\n') : f.meta;
-    inner = (head ? `<div class="orz-section-main" data-sec="${esc(plan.sectionLabel)}">${inline(md, head, env)}</div>` : '')
+    inner = (head ? `<div class="orz-section-main" data-sec="${esc(plan.sectionLabel)}" data-sec-len="${[...plan.sectionLabel].length}">${inline(md, head, env)}</div>` : '')
       + (meta ? `<div class="orz-section-meta markdown-body">${block(md, meta, env)}</div>` : '');
   } else {
     // title / closing → title-style fields (h1 · h2 · meta)

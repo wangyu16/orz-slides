@@ -673,7 +673,7 @@
   border-radius: 2px;
   padding: 0.5em 0.6em;
   font-family: var(--font-mono);
-  font-size: 0.6em;
+  --sl-float-size: 0.6em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.35;
   display: flex;
   align-items: center;

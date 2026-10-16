@@ -1459,7 +1459,7 @@
   border: 1px solid var(--border-strong);
   border-radius: 3px;
   padding: 0.55em 0.75em 0.45em;
-  font-size: 0.78em;
+  --sl-float-size: 0.78em; /* the float's size: deck.css scales it by --fit-scale (final loop CLI-2) */
   line-height: 1.3;
   color: var(--text-soft);
   display: flex; align-items: center;

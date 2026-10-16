@@ -78,7 +78,8 @@ function clippersOf(box: HTMLElement): Clipper[] {
  */
 export function overflows(box: HTMLElement, clippers: readonly Clipper[] = clippersOf(box)): boolean {
   const widthOnly = box.classList.contains('orz-title');
-  if ((!widthOnly && box.scrollHeight > box.clientHeight + 1) || box.scrollWidth > box.clientWidth + 1) return true;
+  const slack = paintedSlack(box);
+  if ((!widthOnly && box.scrollHeight > box.clientHeight + slack) || box.scrollWidth > box.clientWidth + slack) return true;
   // an element inside that clips (or scrolls) its own content: a wide table or code block, a display formula
   for (const c of clippers) {
     const el = c.el;
@@ -87,6 +88,23 @@ export function overflows(box: HTMLElement, clippers: readonly Clipper[] = clipp
     if ((c.x && el.scrollWidth > el.clientWidth + 1) || (c.y && el.scrollHeight > el.clientHeight + 1)) return true;
   }
   return false;
+}
+
+/**
+ * How far content may pass a box's edge and still be painted whole (final loop FINAL-ENG-1): a box that clips with
+ * `overflow: clip` paints its `overflow-clip-margin` past its edge, so a heading's glyph ink below its line box (a
+ * theme's tight line height, the fallback fonts) or a hairline decoration there is not a cut — and, because it grows
+ * with the scale, counting it drove a heading-only template page down to the floor and marked it clipped. Capped at
+ * 6 px (a theme may give a box a larger margin for a drawn leader; text is never let further out than that). At least
+ * 1 (sub-pixel layout).
+ */
+function paintedSlack(box: HTMLElement): number {
+  const win = box.ownerDocument.defaultView;
+  if (!win) return 1;
+  const cs = win.getComputedStyle(box);
+  if (cs.overflowX !== 'clip' || cs.overflowY !== 'clip') return 1;
+  const m = parseFloat(cs.getPropertyValue('overflow-clip-margin').replace(/^[a-z-]+\s*/, '')) || 0;
+  return Math.max(1, Math.min(6, m));
 }
 
 /** How much of its content a box shows at its current scale (the overflow ratio, ≤ 1): the box's own axes and its clipping elements'. */
