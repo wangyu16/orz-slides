@@ -12,6 +12,9 @@
     },
     "./package.json": "./package.json"
   },
+  "bin": {
+    "orz-slides": "dist/cli.js"
+  },
   "files": [
     "dist",
     "assets/themes",
@@ -22,6 +25,8 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json && npm run bundle",
     "prebuild": "tsx scripts/sync-version.ts && tsx scripts/build-themes.ts",
     "bundle": "tsx build/bundle.ts",
+    "examples": "tsx scripts/examples.ts",
+    "gen": "tsx src/cli.ts",
     "test": "vitest run",
     "pretest": "tsx scripts/sync-version.ts && tsx scripts/build-themes.ts",
     "test:watch": "vitest",

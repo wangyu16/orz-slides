@@ -13,7 +13,7 @@ import { configDefaults, defineConfig } from 'vitest/config';
  * "real" in notes/CLAIMS.md.
  */
 const HEAVY = ['tests/conformance.test.ts'];
-const CHROME = ['tests/layout-gui.test.ts', 'tests/standalone.test.ts', 'tests/fit.test.ts', 'tests/engine.test.ts', 'tests/print.test.ts', 'tests/themes-look.test.ts', 'tests/settle.test.ts', 'tests/themes-stress.test.ts', 'tests/editor.test.ts', 'tests/surround.test.ts'];
+const CHROME = ['tests/layout-gui.test.ts', 'tests/standalone.test.ts', 'tests/fit.test.ts', 'tests/engine.test.ts', 'tests/print.test.ts', 'tests/themes-look.test.ts', 'tests/settle.test.ts', 'tests/themes-stress.test.ts', 'tests/editor.test.ts', 'tests/surround.test.ts', 'tests/layout-report.test.ts'];
 
 export default defineConfig({
   test: {

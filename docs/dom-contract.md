@@ -106,6 +106,15 @@ current item `li.orz-here[aria-current=step]`.
 | `data-fitted` | section | fit has run on it (a provisional pass: content may still arrive) |
 | `data-fit-settled` | section | its fit is final: the fonts, the content libraries, its images and stylesheets (a theme `<style>`'s `@import`ed webfont CSS included: `data-orz-loading` on it while it loads) are in, its diagrams drawn, a frame passed with nothing to refit (`timeout`: 10 s of one settle CYCLE passed first — a cycle begins when the slide shows and whenever a settled slide is unsettled: a refit, a theme or size switch, Present, the deck shown again). With it the deck root fires `orz-fitted` (`detail: { index, timeout }`); `engine.settled()` resolves. Tests, agents and the editor's badges wait for this, never for `data-fitted` |
 
+The fit attributes are an interface beyond the editor: `orz-slides inspect
+--layout` (rebuild step 7, src/layout-report.ts) shows every slide in turn,
+waits for `engine.settled()` and reads, per section, every `.orz-box` in
+document order — named `title` (`.orz-title`), the region's `data-region`,
+`template` (`.orz-template`), `float n` (`.orz-float`, in order) — with its
+`data-scale`, `data-clipped` and `data-scroll`, the `.orz-footer`'s
+`data-clipped` and the section's `data-fit-settled`. Renaming any of them
+breaks that report (claim I.7).
+
 ## 4. Fit
 
 Every `.orz-box` (title band, region, template box, float) shows its content

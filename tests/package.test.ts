@@ -1,0 +1,68 @@
+/**
+ * Rebuild step 7 — the package surface (claims S.1, S.2): the Node library
+ * apps and agents import (the BUILT `dist/lib.js`, as npm ships it) and the
+ * `orz-slides` bin; the committed examples never go stale (orz-paged's D.1).
+ */
+import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { twinName } from 'orz-markdown/carrier';
+import { assemble, extract, inspect, VERSION } from '../src/lib.js';
+
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { bin: Record<string, string>; files: string[]; main: string; types: string; scripts: Record<string, string> };
+
+describe('the package', () => {
+  it('[S.1] the library (dist/lib.js) exports the format-1 API — assemble, extract, readDocument, newDocument with its templates, upgrade, inspect, inspectLayout, the upgrade report — plus parseDeck and the layout ops the per-slide editor uses (applyOp, slideMap, partAt, …) for apps and agents; buildSlidesHtml and the 0.x API are gone (FC-09); the bin `orz-slides` is dist/cli.js', async () => {
+    const lib = await import('../dist/lib.js') as Record<string, unknown>;
+    for (const name of ['assemble', 'extract', 'readDocument', 'newDocument', 'storedText', 'upgrade', 'upgradeText', 'readLegacy', 'inspect', 'inspectLayout', 'findChrome', 'layoutAdvice', 'upgradeReport', 'reportNotes', 'parseDeck', 'scanMarkers', 'planDeck', 'deckConfig', 'applyOp', 'applyEdits', 'slideMap', 'partAt', 'blockingProblem', 'placeFloat', 'presetOf', 'snapTracks', 'stepTracks', 'resolveTheme', 'isThemeId', 'sha256', 'engineSource']) {
+      expect(typeof lib[name], name).toBe('function');
+    }
+    for (const name of ['TEMPLATES', 'DEFAULT_TEMPLATE', 'THEMES', 'DEFAULT_THEME', 'DROPPED_THEMES', 'PRESET_CHOICES', 'SLIDE_SIZE', 'VERSION', 'ORZ_MARKDOWN_VERSION', 'LayoutOpError']) expect(lib[name], name).toBeDefined();
+    for (const gone of ['buildSlidesHtml', 'THEME_DEFS', 'selfVersion', 'pkgVersion']) expect(lib, gone).not.toHaveProperty(gone);
+    // an agent's round: a new deck, one layout op, the parse of the result, the file
+    const L = lib as unknown as typeof import('../src/lib.js');
+    const text = L.newDocument({ template: 'minimal', uid: 'doc-agentround0001' });
+    const op = L.applyOp(text, 1, { type: 'split', box: 'body', dir: 'col' });
+    expect(op.edits.length).toBeGreaterThan(0);
+    expect(L.applyEdits(text, op.edits)).toBe(op.text);
+    const deck = L.parseDeck(op.text);
+    expect(deck.slides[1]!.regions.map((r) => r.name)).toEqual(['body', 'body-2']);
+    expect(deck.slides[1]!.layoutSpec).toMatch(/^col /);
+    expect(L.slideMap(op.text, 1)!.boxes.map((b) => b.name)).toHaveLength(2);
+    expect(() => L.applyOp(text, 0, { type: 'split', box: 'body', dir: 'col' })).toThrow(L.LayoutOpError);
+    expect(L.extract(L.assemble(op.text))!.text).toBe(op.text);
+    expect(L.inspect(op.text, { filename: 'a.slides.md' }).slides).toBe(2);
+    // the bin
+    expect(pkg.bin).toEqual({ 'orz-slides': 'dist/cli.js' });
+    expect(readFileSync('dist/cli.js', 'utf8').startsWith('#!/usr/bin/env node\n')).toBe(true);
+    expect(pkg.files).toContain('dist');
+    expect([pkg.main, pkg.types]).toEqual(['./dist/lib.js', './dist/lib.d.ts']);
+    expect(pkg.scripts['examples']).toBe('tsx scripts/examples.ts');
+  });
+
+  it('[S.2] the committed examples never go stale: every examples/*.slides.md has its examples/*.slides.html, which extracts to exactly that text, was made by this version, and equals a fresh assemble with its delivery and includes (inline, and one cdn deck for the web); the texts have a uid and no lint errors; `npm run examples` regenerates them', () => {
+    const texts = readdirSync('examples').filter((f) => f.endsWith('.slides.md')).sort();
+    const files = readdirSync('examples').filter((f) => f.endsWith('.slides.html')).sort();
+    expect(texts.length).toBeGreaterThanOrEqual(4);
+    expect(files).toEqual(texts.map((t) => twinName(t)));
+    const deliveries = new Set<string>();
+    const themes = new Set<string>();
+    for (const name of texts) {
+      const text = readFileSync(`examples/${name}`, 'utf8');
+      const html = readFileSync(`examples/${twinName(name)}`, 'utf8');
+      const ex = extract(html);
+      expect(ex, name).not.toBeNull();
+      expect(ex!.text === text, `${name}: the file's text is not its twin`).toBe(true);
+      expect(ex!.shell, `${name}: made by another version`).toBe(VERSION);
+      expect(ex!.kind, name).toBe('slides');
+      deliveries.add(ex!.delivery);
+      const fresh = assemble(text, { delivery: ex!.delivery as 'inline' | 'cdn', ...(ex!.includes ? { includes: ex!.includes } : {}) });
+      expect(fresh === html, `${twinName(name)} is stale: run \`npm run build && npm run examples\``).toBe(true);
+      const r = inspect(text, { filename: name });
+      expect(r.lint.filter((l) => l.level === 'error'), name).toEqual([]);
+      expect(r.uid, name).not.toBeNull();
+      themes.add(r.themeEffective!);
+    }
+    expect([...deliveries].sort()).toEqual(['cdn', 'inline']);
+    expect(themes.size).toBeGreaterThanOrEqual(3);
+  });
+});

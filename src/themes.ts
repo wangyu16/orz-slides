@@ -28,24 +28,26 @@ export interface SlideTheme {
   derivedFrom: string | null;
   /** How the theme numbers sections when the header's `section_numbers` does not say (Q3). */
   sectionNumbers: 'plain' | 'roman' | '01' | 'none';
+  /** One line for `orz-slides themes` (what the theme looks like). */
+  description: string;
 }
 
 export const THEMES: readonly SlideTheme[] = Object.freeze(
   ([
-    { id: 'orchard', name: 'Orchard', scheme: 'light', derivedFrom: 'light-neat-3', sectionNumbers: '01' },
-    { id: 'sky', name: 'Sky', scheme: 'light', derivedFrom: 'light-neat-1', sectionNumbers: '01' },
-    { id: 'stationery', name: 'Stationery', scheme: 'light', derivedFrom: 'light-neat-2', sectionNumbers: '01' },
-    { id: 'preprint', name: 'Preprint', scheme: 'light', derivedFrom: 'light-academic-2', sectionNumbers: '01' },
-    { id: 'small-press', name: 'Small Press', scheme: 'light', derivedFrom: 'beige-decent-2', sectionNumbers: '01' },
-    { id: 'notebook', name: 'Notebook', scheme: 'light', derivedFrom: 'light-playful-1', sectionNumbers: '01' },
-    { id: 'sticker', name: 'Sticker', scheme: 'light', derivedFrom: 'light-playful-2', sectionNumbers: '01' },
-    { id: 'inscription', name: 'Inscription', scheme: 'dark', derivedFrom: 'dark-elegant-1', sectionNumbers: '01' },
-    { id: 'copper', name: 'Copper', scheme: 'dark', derivedFrom: 'dark-elegant-2', sectionNumbers: '01' },
-    { id: 'nocturne', name: 'Nocturne', scheme: 'dark', derivedFrom: 'dark-elegant-3', sectionNumbers: '01' },
-    { id: 'architect', name: 'Architect', scheme: 'light', derivedFrom: null, sectionNumbers: '01' },
-    { id: 'chalk', name: 'Chalk', scheme: 'dark', derivedFrom: null, sectionNumbers: '01' },
-    { id: 'neon', name: 'Neon', scheme: 'dark', derivedFrom: null, sectionNumbers: '01' },
-    { id: 'paper', name: 'Paper', scheme: 'light', derivedFrom: null, sectionNumbers: 'roman' },
+    { id: 'orchard', name: 'Orchard', scheme: 'light', derivedFrom: 'light-neat-3', sectionNumbers: '01', description: 'off-white page, calm green, Bricolage Grotesque headings; the leaf shape' },
+    { id: 'sky', name: 'Sky', scheme: 'light', derivedFrom: 'light-neat-1', sectionNumbers: '01', description: 'airy near-white with sky and teal tints, Figtree over Source Sans 3, round dots' },
+    { id: 'stationery', name: 'Stationery', scheme: 'light', derivedFrom: 'light-neat-2', sectionNumbers: '01', description: 'warm paper, teal ink, Epilogue over Literata; pen strokes and punched tags' },
+    { id: 'preprint', name: 'Preprint', scheme: 'light', derivedFrom: 'light-academic-2', sectionNumbers: '01', description: 'a crisp journal page: Fira Sans over Vollkorn, one navy accent, rules only' },
+    { id: 'small-press', name: 'Small Press', scheme: 'light', derivedFrom: 'beige-decent-2', sectionNumbers: '01', description: 'linen stock, Josefin Sans over Cardo, bottle green; round colophon marks' },
+    { id: 'notebook', name: 'Notebook', scheme: 'light', derivedFrom: 'light-playful-1', sectionNumbers: '01', description: 'a ruled school exercise book, slips stuck on the page' },
+    { id: 'sticker', name: 'Sticker', scheme: 'light', derivedFrom: 'light-playful-2', sectionNumbers: '01', description: 'a dot-grid sketchbook with outlined stickers, Chewy and Patrick Hand' },
+    { id: 'inscription', name: 'Inscription', scheme: 'dark', derivedFrom: 'dark-elegant-1', sectionNumbers: '01', description: 'deep navy, Cinzel capitals over Source Serif 4, one blue lozenge' },
+    { id: 'copper', name: 'Copper', scheme: 'dark', derivedFrom: 'dark-elegant-2', sectionNumbers: '01', description: 'teal-black, Sora over Vollkorn, copper and violet accents' },
+    { id: 'nocturne', name: 'Nocturne', scheme: 'dark', derivedFrom: 'dark-elegant-3', sectionNumbers: '01', description: 'a graphite code editor, Atkinson Hyperlegible over Charis SIL' },
+    { id: 'architect', name: 'Architect', scheme: 'light', derivedFrom: null, sectionNumbers: '01', description: 'a drafting sheet: fine grid, title block, dimension lines, Barlow' },
+    { id: 'chalk', name: 'Chalk', scheme: 'dark', derivedFrom: null, sectionNumbers: '01', description: 'a green-black chalkboard, Caveat titles, coloured chalk, a wooden tray' },
+    { id: 'neon', name: 'Neon', scheme: 'dark', derivedFrom: null, sectionNumbers: '01', description: 'an instrument panel, phosphor cyan on near-black glass, Barlow and JetBrains Mono' },
+    { id: 'paper', name: 'Paper', scheme: 'light', derivedFrom: null, sectionNumbers: 'roman', description: 'a finely printed book: brown ink on laid stock, EB Garamond, roman section numbers' },
   ] as SlideTheme[]).map((t) => Object.freeze(t)),
 );
 

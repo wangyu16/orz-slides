@@ -52,7 +52,15 @@ their owned files, interfaces, and the build order.
 > in `LAYOUT_KEYS`). Claims
 > in `notes/CLAIMS.md` (bound by `tests/claims.test.ts`); the kit's
 > conformance harness runs from
-> day one (`tests/conformance.test.ts`). There is no CLI until step 7. The
+> day one (`tests/conformance.test.ts`). Step 7 built the CLI and library:
+> `src/cli.ts` (`orz-slides new | assemble | extract | upgrade | inspect |
+> themes | templates` on the kit's `orz-markdown/carrier/node`, as
+> orz-paged's; `npm run gen -- <args>` runs it from source), `src/inspect.ts`,
+> `src/layout-report.ts` (`inspect --layout`: the installed Chrome over the
+> DevTools pipe; `ORZ_SLIDES_CHROME` names one), `src/starters.ts` (deck
+> templates), `src/upgrade-report.ts` with the frozen 0.8.5 parser in
+> `src/legacy/parser-0.8.5` (never edit it); `npm run examples` regenerates
+> `examples/*.slides.html` (claim S.2 fails when stale). The
 > sections below still describe 0.x where they name deleted files; they are
 > rewritten in step 8 (D-28). `KIT GAP` markers name code that belongs in
 > orz-markdown/carrier.
@@ -74,9 +82,10 @@ npm run gen -- deck.md   # generate deck.slides.html (dev; same as the CLI)
 npx tsx scripts/spike.ts # regenerate the WP6 fit spike harness (out/spike.html)
 ```
 
-The CLI is `orz-slides <input.md> [-o out] [--theme id] [--inline|--cdn] [--title t]`;
-`--inline` (default) embeds the engine + theme, `--cdn` references jsDelivr. The
-deck's `<!-- deck -->` config (theme/title/ratio) overrides the flags.
+The CLI (1.0, `orz-slides --help`): `new | assemble | extract | upgrade |
+inspect [--layout] | themes | templates`; inline by default, `--cdn` for the
+web; content only from the text's header (no `--theme`/`--title`); `--json`
+for agents (reason codes, `next`).
 
 Pure modules (parser, layout, assembler, `{{chart}}`) are unit-tested with
 vitest; the in-browser app and the assembled deck must be **verified in a real
