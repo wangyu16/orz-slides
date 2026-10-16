@@ -10,3 +10,4 @@ ideas/
 browser/esm/
 browser/release.json
 browser/docs/
+.readme-sample-*/

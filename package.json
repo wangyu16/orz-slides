@@ -33,7 +33,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build && npm test"
+    "release:check": "tsx scripts/release-check.ts",
+    "prepublishOnly": "npm run build && tsx scripts/release-check.ts && npm test"
   },
   "keywords": [
     "slides",

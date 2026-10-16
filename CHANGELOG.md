@@ -40,6 +40,11 @@ keys, FC-19 `applyEdits` / `select` / `setFocusRange` / `flash` /
   vertical sub-slides; the 0.x CLI forms `orz-slides deck.md --theme … --title
   …` (content comes only from the header: refused with the header or `new`
   named; D-07).
+- Node 20.16 or later (`engines`; 0.8.5 declared none).
+- `buildSlidesHtml({ markdown, theme, title })` is gone: write the deck's
+  text with a header (`upgradeText(markdown)` turns a 0.x deck source into
+  one; `newDocument({ template, title, theme, ratio })` starts one), then
+  `assemble(text)`.
 - Themes: 14 slide themes replace the 7. Derived from orz-markdown's themes:
   Orchard (the default), Sky, Stationery, Preprint, Small Press, Notebook,
   Sticker, Inscription, Copper, Nocturne; updated from 0.x: Architect, Chalk,
@@ -105,7 +110,10 @@ keys, FC-19 `applyEdits` / `select` / `setFocusRange` / `flash` /
   known states (the CLI's pair records, git), backups `<file>~`, atomic
   writes. `inspect --layout` renders a deck in the installed Chrome and
   reports per slide and box the fit scale and clipping (refused with
-  `no-browser` without Chrome) — an agent's overflow check.
+  `no-browser` without Chrome; `ORZ_SLIDES_CHROME` names a browser,
+  `--offline` renders without the network) — an agent's overflow check.
+  Every command the CLI names in a `next`, an advice, a warning or a note
+  runs as written (tested over a corpus of states).
 - Deck templates for `new` (`starter`, `talk`, `minimal`).
 - The library exports `assemble`, `extract`, `readDocument`, `newDocument`,
   `upgrade`, `upgradeText`, `inspect`, `inspectLayout`, the upgrade report,
@@ -140,6 +148,35 @@ keys, FC-19 `applyEdits` / `select` / `setFocusRange` / `flash` /
 - Examples regenerated with this shell (one inline, the rest cdn) and kept
   fresh by a test; the 0.x test decks upgraded to format-1 review decks
   (D-29). The 0.x design documents moved to `archive/`.
+- Owner revisions taken in: Notebook's ruled lines are the slide's fixed
+  background (no text aligned to them; a shrunk box never changes the page);
+  the area around the slide is drawn in every theme (a soft dark tinted to
+  the theme in dark themes, the designed light tint in light ones).
+- Final closed loop (step 10): heading-only template pages keep their
+  decorations inside the page in every theme (no shrink, no cut; Paper's
+  drop numeral is sized to its room by the label's length, `data-sec-len`);
+  offline, an undrawn diagram shows its source readably; printed
+  notes are a sheet of paper in every theme (dark themes' notes were light
+  ink on white); floats shrink like every box; uploads an app keeps as
+  `blob:` URLs and stored `bg=` pictures show on every editor surface; file
+  includes go to the app's `fetchInclude`; a read-only editor's setting
+  pickers change nothing; `inspect --layout` is robust to its own cleanup.
+- The release gate (`scripts/release-check.ts`, both packages'
+  `prepublishOnly`): the `orz-markdown` range must be at least the kit the
+  code needs and installed (not linked), the two versions in lockstep, the
+  entry dated and the tree committed.
+
+### Known limits
+
+- A 0.x file's own "Framework 1.0.x available" banner cannot update it:
+  its in-file updater fetches `orz-slides@<latest>/assets/app.js`, which 1.0
+  no longer has, so it ends with "Update failed — check your connection" and
+  changes nothing (the file keeps working as 0.x). Dismiss it and run
+  `orz-slides upgrade old.slides.html` (nothing shipped under that path
+  could help: the 0.x updater would inline it into the file and replace its
+  working 0.x runtime).
+- No app-side print of the slides in `orz-slides-browser` 1.0 (the
+  `print` event goes to the app); handouts later.
 
 ## [0.8.3] – [0.8.5] — 2026-07-14 – 2026-07-17
 

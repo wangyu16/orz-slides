@@ -1059,3 +1059,79 @@ Open by choice when round B closed (details in each round's entry):
 - Root family docs (REBUILD.md, STATUS, CONTRACTS) are the coordinator's.
 
 The next loop is the final one, at step 10.
+
+---
+
+## Final loop — 2026-10-16 (step 10; rebuild/1.0@0ca80a5, kit orz-markdown@0e5c38e)
+
+Five release audits (CLI/agents, engine/themes, editing/isolation, kit
+2.4.0, release readiness), each finding verified by an independent agent
+(`output/closed-loop/slides-final.json` in the family root): 3 HIGH, 16
+MEDIUM after verification, 13 LOW. The fix pass was cut off by a session
+limit and resumed from its uncommitted work (backup in the family
+`output/closed-loop/final-fixpass-wip-2026-10-16/`). Every finding has a
+probe that fails on the round's base (checked in worktrees at 0ca80a5 /
+0e5c38e with the new tests copied in) and passes now, or a dismissal.
+
+| Id | Sev. | What | Fix (class) | Probe |
+|---|---|---|---|---|
+| FINAL-ENG-1 | HIGH | heading-only template pages shrank to 0.6 and were marked clipped (Inscription, Architect, Sticker, Preprint) | every decoration keeps its room inside the template box (Inscription's lozenges, Architect's bubble, Sticker's tilted letters and number sticker, Preprint's number on the first line in every variant, Small Press's ink room, Sky's halo, Paper's drop numeral sized to its room by the new `data-sec-len`); fit counts as overflow only what passes the box's `overflow-clip-margin` (≤ 6 px, painted) — dom-contract §7 states the rule | T.16: all 14 themes × every variant × short/long × 16:9/4:3, offline: never clipped, a one-line heading never scaled, nothing cut (pixels with the clip widened) |
+| FINAL-ENG-2 | HIGH | print with notes: dark themes' notes light ink on white | the notes area is a sheet of paper in every theme (ink, panels, links, quotes) | Q.6 (every theme, plain and with notes, 4.5 : 1; chrome 3 : 1) |
+| EI-1 / EI-4 | HIGH / MED | `blob:` uploads and `bg=` pictures never shown in the editor surfaces | kit `inlineBlobUrls` (E.44) in the shell and in slides' live card, stage and fit checks; `bg=` through `resolveAsset` | X.5 (example app, real Chrome) |
+| CLI-1 (D-65) | MED | git-proved "unchanged" read as proof the file is newer | kit: only the pair record proves it; git-only gets the safe pull (N.11) | kit N.11 |
+| CLI-2 | MED | floats never shrank | `--sl-float-size` token, deck.css scales it; build-themes contract refuses a fitted box's own font-size; float advice | F.8 (every theme, both ratios) + contract |
+| CLI-3/4/6/7, RR-8 | MED/LOW | `next`s and advice that did not run as written | `--replaces <sha256>` wording, 0.x pair recorded by `upgrade deck.md`, newer shell first, `upgrade` for 0.x files, `new` named only for its keys | V.14 (every named command run verbatim in 10 states) |
+| CLI-5 | LOW | cut-off twin advised as "browser changes"; "last wrote it from" | cut-off advice names `assemble --replaces`; kit wording "last synced it with" | V.14 |
+| CLI-8, CLI-9 | LOW | plain Markdown assembled to an empty deck; `inspect x.slides.md` without the text gave no next | kind decided once (`textKindOf`); `no-such-file` with `next: extract` | V.14 (kind/advice test) |
+| FINAL-ENG-3 | MED | offline, Notebook's undrawn Mermaid overprinted | line-height 0 only for drawn content; an undrawn diagram takes its source's height (deck.css) | T.17 (every theme, offline sample) |
+| EI-2 | MED | `fetchInclude` never asked for file includes | kit `previewIncludes` (E.45) used by every surface | kit E.45, X.1/X.5 |
+| EI-3 | MED | CSP advice blocked the app's own sheets | the `style-src-elem` line spelled out, FC-19 note | X.6 (the guide's policy taken literally) |
+| EI-5 / RR-7 | MED/LOW | `nonce` missing in index.d.ts; unguarded `slideMap` sample | type added, sample guarded | X.7 (tsc --strict over app.js and the guide's snippets) |
+| EI-6 | MED | read-only editor's pickers changed the header | kit: pickers disabled, `setHeader` throws read-only (E.43) | kit E.43 |
+| EI-7 / RR-3 | MED/LOW | 0.x files' "Framework 1.0.x" banner fails | documented (CHANGELOG known limits, README, skill, `inspect` note); no stub shipped | — (docs) |
+| RR-1 | MED | `inspect --layout` ENOTEMPTY | Chrome closed with its process group; profile removed with retries, never failing the report | I.9 (12 runs, 4 at a time) |
+| RR-2 / RR-5 | MED/LOW | kit range unguarded; publish order | `scripts/release-check.ts` in both `prepublishOnly`s (range ≥ 2.4.0, no link, lockstep, dated entry, clean tree); CLAUDE.md runs the root's checks before the browser publish. The previous pass's green-run stamp was taken out: the owner put it in Phase 4, "not before" | B.6, B.7 |
+| RR-4 | MED | README library sample threw | slide index 3, `version` listed | I.10 (the sample run verbatim) |
+| RR-6 | LOW | PROTOCOL.md pointed at an unshipped `spec/` | kit ships `spec/` | — (kit `files`) |
+| RR-9 | LOW | release notes gaps | merge step, CHANGELOG items, status | — (docs) |
+| KR-1/2/3 | LOW | stale site bundle; CHANGELOG/spec ranges | kit `web-bundle.mjs --check` in check:site and prepublishOnly; wording | the check itself |
+| EI-8 | LOW | IIFE README omitted `layout` | listed | — (docs) |
+
+Found by the new probes beyond the findings (same classes, fixed): Sky's
+section-number halo clipped flat; Paper's drop numeral for III–VIII cut at
+the box's left edge; Small Press's fallback-font ink above its headings;
+Inscription's closing `min-width` wider than the box at 4:3; Sticker's
+title `max-width` wider than its box at title v4, 4:3.
+
+Not taken: the kit-level `blob:` transfer over the port (the shell's
+`data:` copy covers it); a speaker-view fragment counter; an offline
+placeholder for undrawn charts and molecules (kit, later); a 3 : 1 chrome is
+the themes' frozen design (Stationery's slide number 3.07 : 1, the
+separators decorative). The round-B open item "Notebook's sticky note at
+4:3" was the float bug (CLI-2) and is closed with it.
+
+Verification (2026-10-16):
+- Probes on the base: kit N.11, E.43, E.44, E.45 fail at 0e5c38e; slides
+  V.14 (three tests), B.6, B.7, T.16 (six themes run), Q.6, F.8, T.17,
+  X.5, X.6, X.7, I.10 fail at 0ca80a5 (worktrees, the new tests copied
+  in). I.9 passed there: RR-1 needs a loaded machine (the verifier saw 4 in
+  16 with four loops at once); the fix is by construction (cleanup never
+  throws) and I.9 guards it under load.
+- orz-slides full `npm test`: 446/452; the six were D.5 (the new
+  `data-sec-len` in its expected string), S.2 (examples regenerated), V.14
+  (help prose named `new --template` without its value — reworded), X.4
+  (the browser package's new prepublishOnly), F.3 (its fixture overflowed
+  by 1–2 px, now painted: lengthened) and P.14 (timing); all six files green
+  alone after the fixes (81/81). Typecheck clean; `build-themes --check`
+  clean.
+- Kit (orz-markdown@9588335): 2116/2116 (unit + cli 1625, chrome + screen +
+  conformance 491); `web-bundle --check` clean.
+- Downstream against the linked kit (worktrees, real repos untouched):
+  orz-mdhtml 153/154, orz-paged 372/374 — the known stale-examples
+  artifacts (mdhtml E.1, paged D.1) and paged T.18, which pins the kit's
+  2.3.0 refusal words (`--replaces` followed by that sha256; 2.4.0 writes
+  `--replaces <sha256>`): the regex follows at paged's `^2.4.0` move
+  (STATUS D-64), green in the copy with it.
+- The hub (`output/orz-test/slides/`): the 14 decks, sample, stress and
+  surround decks, sheets, the editor sample and the web-app copy
+  regenerated; the hub-only CodeMirror path (`/slides/cm/`) re-applied.

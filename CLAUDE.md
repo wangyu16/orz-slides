@@ -32,11 +32,12 @@ Two npm packages live here, **versioned in lockstep**:
   (its `prepublishOnly`).
 
 > **Status: 1.0.0 prepared, not released** — the rebuild on branch
-> `rebuild/1.0` (plan `../docs/REBUILD.md` §3c): steps 1–8 done (base,
+> `rebuild/1.0` (plan `../docs/REBUILD.md` §3c): steps 1–9 done (base,
 > format-1 parser and assembler, engine, 14 themes, both editing modes, CLI
-> and library, web apps / agents / docs), closed-loop rounds A and B closed
-> (`notes/closed-loop.md`); next the UI/theme freeze (step 9), the final
-> closed loop (step 10) and the release (step 11). The package version stays
+> and library, web apps / agents / docs, the owner's UI/theme freeze),
+> closed-loop rounds A and B closed and the final loop's fix pass (step 10)
+> applied (`notes/closed-loop.md`); next its confirming round, then the
+> release (step 11). The package version stays
 > `0.8.5` until the release step bumps both packages to 1.0.0. Claims in
 > `notes/CLAIMS.md` (bound by `tests/claims.test.ts`).
 >
@@ -60,6 +61,7 @@ npm run gen -- new x.slides.md --template talk   # the CLI from source (tsx src/
 npm run examples         # regenerate examples/*.slides.html from examples/*.slides.md (after a build; S.2 fails when stale)
 npx tsx scripts/build-themes.ts --check   # the generated themes are fresh (also in prebuild/pretest)
 npx tsx scripts/theme-sheets.ts           # a review page of every theme
+npm run release:check    # what both prepublishOnlys check first (kit range and install, lockstep, dated entry, clean tree)
 npm run clean
 ```
 
@@ -221,21 +223,36 @@ channel `chrome`) — such a run verifies nothing "real".
 ## Releasing (two packages, same version)
 
 1. Publish orz-markdown 2.4.0 first; replace the link with the registry
-   package (`npx npm@11 install orz-markdown@^2.4.0`).
+   package (`npx npm@11 install orz-markdown@^2.4.0` — it writes `^2.4.0`;
+   the release check refuses a lower range, a link or an older install).
 2. Bump **both** `package.json` and `browser/package.json` to the same
-   version; date the CHANGELOG entry.
-3. `npm run build`, `npm run examples`, `npm test` (green, conformance
-   included; timing tests re-run alone if they fail under load).
-4. `cd browser && npm publish` (orz-slides-browser; its `prepublishOnly` runs
-   `scripts/check-release.mjs`) **first**, then `npm publish` in the root
-   (`prepublishOnly`: build and test).
-5. Token: granular with bypass-2FA in a temp `.npmrc`, deleted after; never
+   version; date the CHANGELOG entry (`## [1.0.0] — YYYY-MM-DD`, no
+   "unreleased").
+3. `npm run build`, `npm run examples`, commit; then `npm test` on that
+   commit (green, conformance included; a timing file that fails under the
+   full run is re-run alone, green).
+4. Merge `rebuild/1.0` into `main` (fast-forward) and push `main` (the
+   release notes link `blob/main/CHANGELOG.md#100`, the guide links
+   `docs/embedding.md` and `examples/webapp/` on main).
+5. `npm run prepublishOnly` in the root (build, `scripts/release-check.ts`,
+   the full suite) — BEFORE anything is published, so a refusal or a flake
+   cannot leave orz-slides-browser published and orz-slides not (RR-5). Then
+   `cd browser && npm publish` (its `prepublishOnly`: `check-release.mjs`
+   and the release check) **first**, then `npm publish` in the root (its
+   `prepublishOnly` runs the suite again). If only a timing file flakes
+   there, re-run that file alone (green) and publish the same commit with
+   `npm publish --ignore-scripts`: the build is deterministic and step 5's
+   run checked it. (A green-run stamp that spares the second run is Phase 4
+   work, REBUILD §4: not before.)
+6. Token: granular with bypass-2FA in a temp `.npmrc`, deleted after; never
    commit.
-6. **Network note**: IPv6 is unreliable on this machine — prefix npm/git
+7. **Network note**: IPv6 is unreliable on this machine — prefix npm/git
    network commands with
    `NODE_OPTIONS="--dns-result-order=ipv4first --no-network-family-autoselection"`.
-7. Then the family docs (CONTRACTS, STATUS), the plugin skill mirror, the
-   website (slides page, the `new-slides` starter, the verifier for format 1).
+8. Then the family docs (CONTRACTS, STATUS), the plugin skill mirror, the
+   website (slides page, the `new-slides` starter, the verifier for format 1),
+   and a jsDelivr purge of the unversioned skill URL the files' agent banner
+   names (`cdn.jsdelivr.net/npm/orz-slides/orz-slides-skills/SKILL.md`).
 
 ## After each major revision
 

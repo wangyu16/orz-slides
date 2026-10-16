@@ -1,5 +1,5 @@
 /**
- * Rebuild step 1 — the base (claims B.1–B.6): orz-markdown ^2.3.0 from the
+ * Rebuild step 1 — the base (claims B.1–B.7): orz-markdown ^2.3.0 from the
  * registry, reveal.js pinned, no shims and no copied shell code, one theme
  * list, the version constant, the test setup, prepublishOnly (D-15).
  */
@@ -76,8 +76,32 @@ describe('base', () => {
     expect(existsSync('tests/claims.test.ts')).toBe(true);
   });
 
-  it('[B.6] prepublishOnly builds and tests before any publish; the release script that published the CLI first is gone (D-15)', () => {
-    expect(pkg.scripts['prepublishOnly']).toBe('npm run build && npm test');
+  it('[B.6] both prepublishOnlys run the release check (the browser package\'s before anything is published); the root\'s then builds and runs the full suite; the release script that published the CLI first is gone (D-15)', () => {
+    expect(pkg.scripts['prepublishOnly']).toBe('npm run build && tsx scripts/release-check.ts && npm test');
+    expect(pkg.scripts['release:check']).toBe('tsx scripts/release-check.ts');
+    const browser = JSON.parse(readFileSync('browser/package.json', 'utf8')) as { scripts: Record<string, string> };
+    expect(browser.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts');
     expect(pkg.scripts['release']).toBeUndefined();
+  });
+
+  it('[B.7] the release check refuses what would ship a broken or half-published release: an orz-markdown range below the kit the code needs (2.3.0 crashes at import), a linked kit, an older installed kit, versions out of lockstep, an undated CHANGELOG entry, a dirty tree — and passes a release state (final loop RR-2, RR-5)', async () => {
+    const { KIT_REQUIRED, releaseProblems } = await import('../scripts/release-check.js');
+    expect(KIT_REQUIRED).toBe('2.4.0');
+    const ok = { version: '1.0.0', browserVersion: '1.0.0', kitRange: '^2.4.0', kitLinked: false, kitInstalled: '2.4.0', changelog: '## [1.0.0] - 2026-10-17\n', head: 'abc', clean: true };
+    expect(releaseProblems(ok)).toEqual([]);
+    const one = (patch: Record<string, unknown>, re: RegExp): void => { const p = releaseProblems({ ...ok, ...patch }); expect(p, JSON.stringify(patch)).toHaveLength(1); expect(p[0], JSON.stringify(patch)).toMatch(re); };
+    one({ kitRange: '^2.3.0' }, /needs orz-markdown 2\.4\.0/);
+    one({ kitRange: '2.4.0' }, /write it as \^2\.4\.0/);
+    one({ kitLinked: true }, /never release from a link/);
+    one({ kitInstalled: '2.3.0' }, /installed orz-markdown is 2\.3\.0/);
+    one({ browserVersion: '0.8.5' }, /same version/);
+    one({ changelog: '## [1.0.0] — 2026-10-13 (prepared; not yet published)\n' }, /still marked/);
+    one({ changelog: '## [1.0.0] — unreleased (prepared on branch rebuild/1.0)\n' }, /not dated/);
+    one({ changelog: '## [Unreleased]\n' }, /no "## \[1\.0\.0\] — <date>" entry/);
+    expect(releaseProblems({ ...ok, changelog: '## [1.0.0] — 2026-10-17\n' })).toEqual([]);
+    one({ clean: false }, /uncommitted/);
+    // the repository now (the kit linked, ^2.3.0, the entry not dated): refused, naming the kit
+    const { releaseState } = await import('../scripts/release-check.js');
+    expect(releaseProblems(releaseState(process.cwd())).join('\n')).toMatch(/orz-markdown/);
   });
 });

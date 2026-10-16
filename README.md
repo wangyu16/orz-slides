@@ -268,10 +268,10 @@ const html = assemble(text);                     // inline (this release's engin
 extract(html)?.text === text;                    // true: the exact text back
 readDocument(text).title;                        // 'RAFT in five minutes' (header and derived facts, no rendering)
 parseDeck(text).slides.length;                   // the deck: slides, regions, notes, lints
-applyOp(text, 2, { type: 'split', box: 'body', dir: 'col' }).text;   // a layout op: minimal edits on marker lines
+applyOp(text, 3, { type: 'split', box: 'body', dir: 'col' }).text;   // a layout op on slide 4 (0-based; slides 1–3 of 'talk' are template pages): minimal edits on marker lines
 inspect(html).advice;                            // what to do next, for any version
 await inspectLayout(text);                       // per slide and box: fit scale and clipping (installed Chrome)
-upgrade(oldHtml);                                // { text, html, from, moved, notes } for a 0.x file (upgradeReport: what changed)
+upgrade(oldHtml);                                // { text, html, from, version, moved, notes } for a 0.x file (upgradeReport: what changed)
 ```
 
 Exports (types included): `assemble`, `extract`, `readDocument`,
@@ -366,6 +366,11 @@ options, theme), each explained. The slides are now 1280 × 720: content
 sized for 0.x's 960 × 540 has more room, and fit shrinks what still does not
 fit. The 0.x API (`buildSlidesHtml`) and CLI forms (`--theme`, `--title` on a
 deck) are gone: content lives in the header.
+
+A 0.x file opened in its own editor offers "Framework 1.0.x available": that
+in-file update cannot move a 0.x deck to format 1 — it ends with "Update
+failed — check your connection" and changes nothing. Dismiss it and run
+`orz-slides upgrade` as above.
 
 ## Versions
 
