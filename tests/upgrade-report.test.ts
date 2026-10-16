@@ -3,7 +3,7 @@
  * family has (the legacy fixtures, and — when the sibling checkouts are
  * here — every 0.x `*.slides.html` under Demo/, coursewerk/examples,
  * output/ …) upgrades to a text that shows what 0.x showed, read by the
- * FROZEN 0.8.5 parser (tests/support/upgrade-report.ts). A difference is
+ * FROZEN 0.8.5 parser (src/upgrade-report.ts). A difference is
  * either one of the registered decisions (deck block applied, region
  * joined, marker in code — each with its reason) or a failure; a deck 0.x
  * read without an error has no error after upgrade.
@@ -17,8 +17,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { readLegacy, upgrade, upgradeText } from '../src/legacy.js';
 import { readDocument } from '../src/assemble.js';
-import { parseDeck as parse085 } from './fixtures/legacy/parser-0.8.5/slide-parser.js';
-import { upgradeReport } from './support/upgrade-report.js';
+import { parseDeck as parse085 } from '../src/legacy/parser-0.8.5/slide-parser.js';
+import { upgradeReport } from '../src/upgrade-report.js';
 import { LEGACY_DIR, LEGACY_FILES } from './helpers.js';
 
 const FAMILY = resolve('..');

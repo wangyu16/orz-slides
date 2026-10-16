@@ -127,7 +127,10 @@ Class siblings found while fixing:
 
 - The upgrade report inside the library (`upgrade --json` notes listing
   each difference) needs the frozen 0.8.5 parser in the shipped package:
-  rebuild step 7 decides (with `inspect`).
+  rebuild step 7 decides (with `inspect`). **Step 7: shipped** — the frozen
+  parser moved to `src/legacy/parser-0.8.5`, the report to
+  `src/upgrade-report.ts`; `upgrade --json` and `inspect --json` carry it
+  (`report` / `upgrade`, and the notes) — claims I.6, V.4.
 - Pre-fitting the next slide in idle time (see above).
 - Variant looks are generic compositions in each theme's tokens; their
   polish per theme belongs to the step-9 UI/theme freeze (review page:

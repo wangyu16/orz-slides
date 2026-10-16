@@ -1,6 +1,7 @@
 /**
- * The upgrade report (closed-loop round A, claim U.7): what a 0.x text
- * SHOWED — read with the frozen 0.8.5 parser (tests/fixtures/legacy/
+ * The upgrade report (closed-loop round A, claim U.7; shipped since rebuild
+ * step 7, claim I.6: `upgrade --json` and `inspect --json` carry it): what a
+ * 0.x text SHOWED — read with the frozen 0.8.5 parser (src/legacy/
  * parser-0.8.5, never edited) — against what its upgraded format-1 text
  * shows (`parseDeck`): slide count, and per slide the title, the speaker
  * notes, the footer, the floats, every region's text, the layout, the
@@ -8,10 +9,9 @@
  * texts is collapsed (the renderer collapses it too). A variant 0.x had no
  * look for counts as its first look (FMT-7).
  */
-import { parseDeck as parse085 } from '../fixtures/legacy/parser-0.8.5/slide-parser.js';
-import { deckTokens, parseDeck, REPAIR_CODES, scanMarkers } from '../../src/deck/parse.js';
-import { DROPPED_THEMES, resolveTheme } from '../../src/themes.js';
-import { TEMPLATES } from '../../src/deck/parse.js';
+import { parseDeck as parse085 } from './legacy/parser-0.8.5/slide-parser.js';
+import { deckTokens, parseDeck, REPAIR_CODES, scanMarkers, TEMPLATES } from './deck/parse.js';
+import { DROPPED_THEMES, resolveTheme } from './themes.js';
 
 const norm = (s: string | undefined | null): string => (s ?? '').replace(/\s+/g, ' ').trim();
 /** The closer upgrade's repair inserts where 0.x ended a block at the slide's (or region's) end. */
@@ -154,4 +154,17 @@ export function upgradeReport(legacyText: string, upgradedText: string, shownThe
     }
   }
   return report;
+}
+
+/**
+ * The report as lines for `notes` (`upgrade` and `inspect`): one line when
+ * the upgraded deck shows what 0.8.5 showed, else one line per difference —
+ * the registered decisions first named as such.
+ */
+export function reportNotes(r: UpgradeReport): string[] {
+  if (r.unexplained.length === 0 && r.accepted.length === 0) return ['upgrade report: the upgraded deck shows what orz-slides 0.8.5 showed (slides, titles, regions, layouts, notes, footers, floats, slide options, theme)'];
+  return [
+    ...r.accepted.map((d) => `upgrade report: differs from 0.8.5 by a registered decision — ${d}`),
+    ...r.unexplained.map((d) => `upgrade report: differs from what 0.8.5 showed — ${d}`),
+  ];
 }
