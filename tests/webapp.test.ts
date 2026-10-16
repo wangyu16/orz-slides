@@ -133,6 +133,8 @@ chrome('the example web app (real Chrome, offline)', () => {
     // the frame's scripts and styles carry the nonce (no violation below); the slide theme is inside
     expect(await frameA.evaluate(() => Array.from(document.querySelectorAll('style')).every((s) => (s as HTMLStyleElement).nonce === 'orz-demo-nonce'))).toBe(true);
     expect(await frameA.evaluate(() => document.getElementById('orz-slide-theme')?.getAttribute('data-theme'))).toBe('orchard');
+    // the link in view and clear of the live card (bottom right): scrolled to the frame's top, then clicked
+    await frameA.evaluate(() => { [...document.querySelectorAll('#orz-doc a')].find((a) => a.textContent === 'week 2')!.scrollIntoView({ block: 'start' }); });
     await frameA.locator('#orz-doc a', { hasText: 'week 2' }).click();
     await page.waitForFunction(() => (globalThis as unknown as { demo: Demo }).demo.calls.some((c) => c.hook === 'resolveLink'));
     // the live slide card in the preview's corner shows the caret's slide (the image again through resolveAsset)
