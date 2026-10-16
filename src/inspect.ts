@@ -191,7 +191,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
       } else {
         report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (before text format 1; no compatibility shim): run \`orz-slides upgrade ${self}\` for its format-1 text twin and a file of this version; ${what}`);
       }
-      report.notes.push(`its own "Framework 1.x available" banner (in its 0.x editor) cannot update it to format 1: it ends with "Update failed — check your connection" and changes nothing; use upgrade`);
+      report.notes.push(`its own "Framework 1.0.0 available" banner (the newest release's number) (in its 0.x editor) cannot update it to format 1: it ends with "Update failed — check your connection" and changes nothing; use upgrade`);
       if (report.upgrade && report.upgrade.unexplained.length > 0) report.advice.push(`the upgraded deck differs from what 0.x showed in ${report.upgrade.unexplained.length} place${report.upgrade.unexplained.length === 1 ? '' : 's'} no decision explains (see notes): check those slides after upgrading`);
       legacyText = legacy.text;
       text = up.text;

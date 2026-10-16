@@ -534,7 +534,7 @@ function cmdExtract(p: Parsed, o: Io): void {
   const names = { out: NODE.shown(out, outArg ?? twinName(file) ?? undefined), file };
   const other = NODE.otherName(names.out);
   const outArgs = outArg !== undefined ? ['-o', outArg] : [];
-  const check = NODE.textOutputCheck({ out, text: ex.text, file: input, names, token, uid: NODE.uidOf(ex.text), advice: (h) => {
+  const check = NODE.textOutputCheck({ out, text: ex.text, file: input, names, token, uid: NODE.uidOf(ex.text), fileHtml: html, advice: (h) => {
     const pull: Next = { command: 'extract', args: [file, '-o', other] };
     return {
       message: `If ${names.out} has edits of its own, extract to another name and merge the two: \`${commandLine(pull)}\`.${h ? ` When ${names.out} holds no edit you want to keep, \`${commandLine({ command: 'extract', args: [file, ...outArgs, '--replaces', h] })}\` replaces it while it still holds that text;` : ''} --force replaces it anyway (the old text is kept as ${names.out}~)`,
@@ -613,7 +613,9 @@ function cmdUpgrade(p: Parsed, o: Io): void {
   }) }) : { risk: null, earlier: null };
   if (!force) for (const risk of [outRisk, textCheck.risk]) if (risk !== null) throw new CliError(risk.message, risk.reason, risk.next);
   const backups: string[] = [];
+  // replaced in place: a newer shell, a cut file, or a 0.x file (its text was converted; confirming round C-L2) is kept as ~
   if (out === input && (newerShell !== null || cut)) backups.push(backup(input, o));
+  else if (out === input && legacy !== null) backups.push(backup(input, { warn: () => undefined }));
   const ob = NODE.guard(out, outRisk, force, o);
   if (ob) backups.push(ob);
   if (textOut) { const tb = NODE.guard(textOut, textCheck.risk, force, o); if (tb) backups.push(tb); }
@@ -632,6 +634,7 @@ function cmdUpgrade(p: Parsed, o: Io): void {
   const moved = Object.keys(r.moved);
   if (moved.length > 0) o.say(`Moved into the header: ${moved.map((k) => `${k}: ${r.moved[k]}`).join('; ')}`);
   if (rep.report && rep.report.unexplained.length > 0) o.warn(`the upgraded deck differs from what 0.x showed in ${rep.report.unexplained.length} place${rep.report.unexplained.length === 1 ? '' : 's'} no decision explains (see the notes): check those slides`);
+  if (out === input && legacy !== null && backups[0]) o.say(`Kept the 0.x file as ${backups[0]}`);
   o.say(`  sha256 ${sha256(held)} (the text the file holds; --replaces takes it)`);
   emit(o, { command: 'upgrade', input, output: out, text: textOut, from: r.from, previous: r.from === 'legacy' ? legacy?.version ?? null : ex?.shell ?? null, shell: VERSION, delivery: d, uid: info.meta.uid ?? null, title: info.title, theme: info.theme ?? null, themeEffective: pres.theme.id, ratio: pres.ratio, slides: inspect(r.text, { filename: 'x.slides.md' }).slides, moved: r.moved, notes, report: rep.report, backups, sha256: sha256(held) });
 }

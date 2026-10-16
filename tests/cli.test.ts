@@ -926,8 +926,79 @@ describe('the CLI: every command it names runs as written', () => {
     expect(advice).toMatch(/assemble c\.slides\.md --replaces [0-9a-f]{64}/);
     expect(advice).not.toMatch(/saved in the browser/);
     expect((await cli(['extract', 'c.slides.html', '-o', 'c.recovered.slides.md'], d, { XDG_CACHE_HOME: join(d, '.cache') })).code).toBe(0);
+    // assemble itself says so too (confirming round C-H1: the kit refuses a cut file with unclosed-island)
     const a = json(await cli(['assemble', 'c.slides.md', '--json'], d, { XDG_CACHE_HOME: join(d, '.cache') }));
-    expect(String(a.error)).not.toMatch(/last wrote it from/);
-    expect(String(a.error)).toMatch(/last synced it with c\.recovered\.slides\.md/);
+    expect(a).toMatchObject({ ok: false, reason: 'unclosed-island', next: { command: 'assemble', args: ['c.slides.md', '--replaces', expect.stringMatching(/^[0-9a-f]{64}$/)] } });
+    // the record of the last sync, for a complete file another text last synced
+    write(join(d, 'e.slides.html'), assemble(`${T}from the browser\n`, { delivery: 'cdn' }));
+    expect((await cli(['extract', 'e.slides.html', '-o', 'e.other.slides.md'], d, { XDG_CACHE_HOME: join(d, '.cache') })).code).toBe(0);
+    write(join(d, 'e.slides.md'), `${T}mine\n`);
+    const b = json(await cli(['assemble', 'e.slides.md', '--json'], d, { XDG_CACHE_HOME: join(d, '.cache') }));
+    expect(String(b.error)).not.toMatch(/last wrote it from/);
+    expect(String(b.error)).toMatch(/last synced it with e\.other\.slides\.md/);
+  }, 120_000);
+
+  it('[V.15] a file cut off inside its text never replaces the complete text: with the pair recorded (the text unchanged since the sync), assemble refuses with unclosed-island and next `assemble x.slides.md --replaces <hash>` — never extract —, which repairs the file; extract in place and with -o onto the text are refused (next: extract -o x.recovered.slides.md) and --force keeps x.slides.md~ (confirming round C-H1)', async () => {
+    const d = folder();
+    const env = { XDG_CACHE_HOME: join(d, '.cache') };
+    expect((await cli(['new', 'x.slides.md', '--template', 'talk', '--html'], d, env)).code).toBe(0);
+    const whole = text(join(d, 'x.slides.md'));
+    const lines = text(join(d, 'x.slides.html')).split('\n');
+    const at = lines.findIndex((l) => l.includes('id="orz-src"'));
+    write(join(d, 'x.slides.html'), `${lines.slice(0, at + 21).join('\n')}\n`);
+    const held = extract(text(join(d, 'x.slides.html')))!.text;
+    expect(held.length).toBeLessThan(whole.length);
+    const a = json(await cli(['assemble', 'x.slides.md', '--json'], d, env));
+    expect(a).toMatchObject({ ok: false, reason: 'unclosed-island', next: { command: 'assemble', args: ['x.slides.md', '--replaces', sha256(held)] } });
+    for (const args of [['extract', 'x.slides.html'], ['extract', 'x.slides.html', '-o', 'x.slides.md']]) {
+      const r = json(await cli([...args, '--json'], d, env));
+      expect(r, args.join(' ')).toMatchObject({ ok: false, reason: 'unclosed-island', next: { command: 'extract', args: ['x.slides.html', '-o', 'x.recovered.slides.md'] } });
+      expect(text(join(d, 'x.slides.md'))).toBe(whole);
+    }
+    const f = json(await cli(['extract', 'x.slides.html', '--force', '--json'], d, env));
+    expect(f).toMatchObject({ ok: true, backup: join(d, 'x.slides.md~') });
+    expect(text(join(d, 'x.slides.md~'))).toBe(whole);
+    write(join(d, 'x.slides.md'), whole);
+    // the repair: the named next, verbatim (a cache that never saw the cut text)
+    const env2 = { XDG_CACHE_HOME: join(d, '.cache2') };
+    const b = json(await cli(['assemble', 'x.slides.md', '--json'], d, env2));
+    expect(b.reason).toBe('unclosed-island');
+    const next = b.next as { command: string; args: string[] };
+    expect((await cli([next.command, ...next.args], d, env2)).code).toBe(0);
+    expect(extract(text(join(d, 'x.slides.html')))!.text).toBe(whole);
+    expect(inspect(text(join(d, 'x.slides.html'))).checks?.island).toBe('closed');
+  }, 120_000);
+
+  it('[V.16] extract never puts an older text over a newer twin: a file that holds one of the text\'s earlier commits (or the text last synced) beside a committed newer text is refused (twin-differs, next `assemble x.slides.md`, which then brings the file up to date), --force keeps x.slides.md~ (confirming round C-L1); an in-place upgrade of a 0.x file keeps the old file as old.slides.html~ (C-L2)', async () => {
+    const d = folder();
+    const git = await gitIn(d);
+    const env = { XDG_CACHE_HOME: join(d, '.cache') };
+    if (git) {
+      write(join(d, 'x.slides.md'), T);
+      expect((await cli(['assemble', 'x.slides.md'], d, env)).code).toBe(0);
+      await git('add', '.'); await git('commit', '-q', '-m', 'a');
+      write(join(d, 'x.slides.md'), `${T}b\n`); await git('commit', '-q', '-am', 'b');
+      write(join(d, 'x.slides.md'), `${T}b\nc\n`); await git('commit', '-q', '-am', 'c');
+      for (const e of [env, { XDG_CACHE_HOME: join(d, '.fresh') }]) {
+        const r = json(await cli(['extract', 'x.slides.html', '--json'], d, e));
+        expect(r).toMatchObject({ ok: false, reason: 'twin-differs', next: { command: 'assemble', args: ['x.slides.md'] } });
+        expect(text(join(d, 'x.slides.md'))).toBe(`${T}b\nc\n`);
+      }
+      const f = json(await cli(['extract', 'x.slides.html', '--force', '--json'], d, env));
+      expect(f).toMatchObject({ ok: true, backup: join(d, 'x.slides.md~') });
+      expect(text(join(d, 'x.slides.md~'))).toBe(`${T}b\nc\n`);
+      write(join(d, 'x.slides.md'), `${T}b\nc\n`);
+      const r = json(await cli(['extract', 'x.slides.html', '--json'], d, env));
+      const next = r.next as { command: string; args: string[] };
+      expect((await cli([next.command, ...next.args], d, env)).code).toBe(0);
+      expect(extract(text(join(d, 'x.slides.html')))!.text).toBe(`${T}b\nc\n`);
+    }
+    // C-L2: the 0.x file replaced in place is kept
+    const e = folder();
+    const old = legacyFile('plain-0.8.5.slides.html');
+    write(join(e, 'old.slides.html'), old);
+    const u = json(await cli(['upgrade', 'old.slides.html', '--json'], e, { XDG_CACHE_HOME: join(e, '.cache') }));
+    expect(u).toMatchObject({ ok: true, backups: [join(e, 'old.slides.html~')] });
+    expect(text(join(e, 'old.slides.html~'))).toBe(old);
   }, 120_000);
 });

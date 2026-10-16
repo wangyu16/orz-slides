@@ -194,8 +194,8 @@ orz-slides templates
 |---|---|
 | `new` | writes a new text twin from a deck template: its header (`kind: document`, `carrier: slides`, a fresh `uid`, the given `--title`, `--theme`, `--ratio`), then the template's slides (default `starter`). `--html` also assembles it; without a file name the text goes to stdout. A slides text twin's name ends in `.slides.md`. |
 | `assemble` | writes `x.slides.html` (or the `-o` path; missing folders are created) from `x.slides.md` (exact text in, the same bytes every time). A plain Markdown deck `x.md` assembles to `x.slides.html` too. Keeps the delivery and the includes the existing file holds (`--cdn` / `--inline` choose the delivery); `--resolve-includes` reads file includes from the text's folder. Lints are reported as warnings with their lines; the file is still written. A 0.x text (a `<!-- deck -->` block) is refused with `upgrade` as the next step. |
-| `extract` | writes the exact text twin of an assembled file (`x.slides.html` → `x.slides.md`) — also of a page the browser saved — and reports its includes. Replaces an existing, different `x.slides.md` only when it is a known state (below). A 0.x file is refused with the advice to run `upgrade`; a cut-off file gives a warning. |
-| `upgrade` | turns a 0.x file (or a file of an older 1.x shell) into a file of this version, in place by default, and writes its text twin unless `--no-text`; keeps the file's delivery unless `--cdn` / `--inline`; repairs a damaged engine. Given a 0.x **text** (`deck.md`), writes its format-1 text (`deck.slides.md`). Either way with an upgrade report: what the upgraded deck shows against what 0.8.5 showed (`--json` `report`). Refuses (unless `--force`) to downgrade a newer shell or to upgrade a file cut off inside its text. |
+| `extract` | writes the exact text twin of an assembled file (`x.slides.html` → `x.slides.md`) — also of a page the browser saved — and reports its includes. Replaces an existing, different `x.slides.md` only when it is a known state (below) and the file does not hold an earlier state of it (then `assemble` is named: the text is the newer side). A 0.x file is refused with the advice to run `upgrade`; a file cut off inside its text gives a warning and never replaces another text without `--force` (`extract x.slides.html -o x.recovered.slides.md`). |
+| `upgrade` | turns a 0.x file (or a file of an older 1.x shell) into a file of this version, in place by default, and writes its text twin unless `--no-text`; keeps the file's delivery unless `--cdn` / `--inline`; repairs a damaged engine. Given a 0.x **text** (`deck.md`), writes its format-1 text (`deck.slides.md`). Either way with an upgrade report: what the upgraded deck shows against what 0.8.5 showed (`--json` `report`). Refuses (unless `--force`) to downgrade a newer shell or to upgrade a file cut off inside its text. A 0.x file upgraded in place is kept as `old.slides.html~`. |
 | `inspect` | diagnoses a text or a file of any version: kind, text format, shell version and how it compares to this tool, delivery, uid, title, theme (as written and as shown), ratio, number of slides, header keys and settings, includes, lint with lines, the file's structure (cut off? engine intact?), the SHA-256 of the text it holds, whether the sibling twin holds the same text and which is newer, advice in plain sentences naming the files, and for a 0.x deck what `upgrade` changes. **`--layout`** renders the deck in the installed Chrome (headless) and reports per slide and box the fit scale and whether its content is cut — an agent's overflow check (`--offline` blocks every host; without Chrome: refused, `no-browser`; `ORZ_SLIDES_CHROME` names a Chrome). |
 | `themes` | lists the slide theme ids a header may name, light or dark, the default marked. |
 | `templates` | lists the deck templates, the default marked. |
@@ -229,8 +229,11 @@ wrote or read (`--json`: `sha256`).
 
 **Known states.** `orz-slides assemble x.slides.md` replaces `x.slides.html`
 (or the `-o` output) without `--force` when the file holds the same text, or
-an earlier state of `x.slides.md` the CLI can prove; `orz-slides extract`
-replaces `x.slides.md` when it is a known state. Known are: a committed
+an earlier state of `x.slides.md` the CLI can prove — never a file cut off
+inside its text, which holds an incomplete text, not browser work: `assemble
+x.slides.md --replaces <its sha256>` repairs it; `orz-slides extract`
+replaces `x.slides.md` when it is a known state and the file is not an
+earlier one. Known are: a committed
 version of the twin in git (HEAD, staged, or one of its 20 most recent
 commits; a shallow clone knows only HEAD); the text `orz-slides` itself last
 wrote or read for that pair (records in `$XDG_CACHE_HOME/orz-slides/`, else
@@ -348,7 +351,7 @@ The 0.x files and deck sources (orz-slides up to 0.8.5) predate text format
 
 ```bash
 npx orz-slides@1 inspect old.slides.html        # what it is, and what upgrade changes
-npx orz-slides@1 upgrade old.slides.html        # → old.slides.html (format 1) and old.slides.md (its text twin)
+npx orz-slides@1 upgrade old.slides.html        # → old.slides.html (format 1, the 0.x file kept as old.slides.html~) and old.slides.md (its text twin)
 npx orz-slides@1 upgrade old.slides.html --text old.browser.slides.md   # when old.slides.md exists: then merge
 npx orz-slides@1 upgrade deck.md                # a 0.x deck source → deck.slides.md (format 1)
 ```
@@ -367,7 +370,7 @@ sized for 0.x's 960 × 540 has more room, and fit shrinks what still does not
 fit. The 0.x API (`buildSlidesHtml`) and CLI forms (`--theme`, `--title` on a
 deck) are gone: content lives in the header.
 
-A 0.x file opened in its own editor offers "Framework 1.0.x available": that
+A 0.x file opened in its own editor offers "Framework 1.0.0 available" (the newest release's number): that
 in-file update cannot move a 0.x deck to format 1 — it ends with "Update
 failed — check your connection" and changes nothing. Dismiss it and run
 `orz-slides upgrade` as above.

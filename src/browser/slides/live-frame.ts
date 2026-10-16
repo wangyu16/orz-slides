@@ -103,7 +103,7 @@ const REFITS = 24;
 
 (function live(): void {
   const W = window as unknown as Window & {
-    __orzPreview?: { post(m: unknown): void };
+    __orzPreview?: { post(m: unknown): void; assets?(html: string): string };
     __orzPreviewMessage?: (m: unknown) => void;
     __orzEnhance?: () => void;
     __orzRedraw?: (el: Element) => void;
@@ -111,6 +111,8 @@ const REFITS = 24;
   };
   const D = document;
   const post = (m: unknown): void => { try { W.__orzPreview?.post(m); } catch { /* the bridge's */ } };
+  /** The page's blob: URLs → this frame's own object URLs of the Blobs the shell shared once (the kit's bridge; confirming round E-M2). */
+  const own = (html: string): string => { try { return W.__orzPreview?.assets ? W.__orzPreview.assets(html) : html; } catch { return html; } };
 
   const card = D.getElementById('orz-live') ?? D.body.appendChild(Object.assign(D.createElement('aside'), { id: 'orz-live' }));
   card.className = 'orz-live';
@@ -183,7 +185,7 @@ const REFITS = 24;
     for (const v of variants) {
       const box = D.createElement('div');
       box.className = 'orz-live-variant';
-      box.innerHTML = `<div class="reveal orz-deck orz-print"><div class="orz-page">${v.html}</div></div>`;
+      box.innerHTML = `<div class="reveal orz-deck orz-print"><div class="orz-page">${own(v.html)}</div></div>`;
       const dk = box.firstElementChild as HTMLElement;
       dk.setAttribute('data-orz-theme', String(shown.theme));
       dk.style.width = `${shown.width}px`;
@@ -332,7 +334,7 @@ const REFITS = 24;
       deck.style.width = `${sl.width}px`;
       W.__orzSmilesTheme = sl.scheme === 'dark' ? 'dark' : 'light';
       previewed.clear();
-      page.innerHTML = sl.html;
+      page.innerHTML = own(sl.html);
       const s = section();
       // as on paper: nothing scrolls (a fit=scroll slide is fitted), every fragment shows
       scrolls = s?.getAttribute('data-fit') === 'scroll';
@@ -410,7 +412,7 @@ const REFITS = 24;
     const mine = ++checkGen;
     const w = Number(m.width) || 1280;
     const h = Number(m.height) || 720;
-    checkHost.innerHTML = `<div class="reveal orz-deck orz-print"><div class="orz-page">${String(m.html)}</div></div>`;
+    checkHost.innerHTML = `<div class="reveal orz-deck orz-print"><div class="orz-page">${own(String(m.html))}</div></div>`;
     const dk = checkHost.firstElementChild as HTMLElement;
     dk.setAttribute('data-orz-theme', String(m.theme));
     dk.style.width = `${w}px`;

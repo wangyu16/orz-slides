@@ -341,8 +341,8 @@ it names the command to run, with your file names:
 - `legacy` (an orz-slides 0.x file) → `upgrade`; next to an existing
   `x.slides.md`: `upgrade x.slides.html --text x.browser.slides.md`, then
   merge and `assemble x.slides.md --replaces <sha256 upgrade printed>` —
-  `extract` does not read 0.x files. The 0.x file's own "Framework 1.x
-  available" banner cannot do this (it ends with "Update failed — check your
+  `extract` does not read 0.x files. The 0.x file's own "Framework 1.0.0
+  available" banner (the newest release's number) cannot do this (it ends with "Update failed — check your
   connection" and changes nothing): tell the user to dismiss it;
 - a 0.x **text** (a `<!-- deck -->` block; lint `deck-block`) → `upgrade
   deck.md` (writes `deck.slides.md`), then assemble that (a 0.x
@@ -382,7 +382,7 @@ orz-slides@latest`), `unclosed-island`, `not-orz`, `exists`,
 ## Upgrade old files and texts
 
 ```bash
-npx orz-slides@1 upgrade old.slides.html            # in place, and writes old.slides.md (its text twin)
+npx orz-slides@1 upgrade old.slides.html            # in place (the 0.x file kept as old.slides.html~), and writes old.slides.md (its text twin)
 npx orz-slides@1 upgrade old.slides.html -o new.slides.html --text new.slides.md
 npx orz-slides@1 upgrade deck.md                    # a 0.x deck source → deck.slides.md (then assemble it)
 ```

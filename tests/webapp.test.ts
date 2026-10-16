@@ -214,7 +214,7 @@ chrome('the example web app (real Chrome, offline)', () => {
     await page.context().close();
   }, 120_000);
 
-  it('[X.5] what a reader sees for every hook, on every surface (final loop EI-1, EI-2, EI-4): an upload kept as a blob: URL shows in the flattened preview, the live card and single-slide editing (its bytes copied into the sandboxed preview); a stored bg= picture goes through resolveAsset and shows; a file include answered by fetchInclude(path) renders in the flattened preview and the live card', async () => {
+  it('[X.5] what a reader sees for every hook, on every surface (final loop EI-1, EI-2, EI-4): an upload kept as a blob: URL shows in the flattened preview, the live card and single-slide editing (its Blob shared once with the sandboxed preview); a stored bg= picture goes through resolveAsset and shows; a file include answered by fetchInclude(path) renders in the flattened preview and the live card', async () => {
     const log: string[] = [];
     const { page, errors } = await open('/examples/webapp/index.html', log);
     await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
@@ -236,19 +236,117 @@ chrome('the example web app (real Chrome, offline)', () => {
       return [r1, r2];
     }, [svg('red'), svg('blue')]);
     expect(up.map((r) => r.ok)).toEqual([true, true]);
-    // the flattened preview: the uploaded picture loads (a data: copy of the blob)
+    // the flattened preview: the uploaded picture loads (the frame's own object URL of the Blob shared once, kit E.46)
     await frameShowing(page, 'On the stored picture');
     await frameA.waitForFunction(() => Array.from(document.querySelectorAll<HTMLImageElement>('#orz-doc img')).some((i) => i.alt === 'sq' && i.complete && i.naturalWidth === 40), null, { timeout: 15_000 });
     // the live card on the picture's slide, then on the background's slide
     await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('![sq]'); a.select(at, at); });
     await frameA.waitForFunction(() => { const i = document.querySelector<HTMLImageElement>('#orz-live img[alt="sq"]'); return !!i && i.complete && i.naturalWidth === 40; }, null, { timeout: 15_000 });
     await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('On the stored picture'); a.select(at, at); });
-    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return !!s && /^url\("data:image\/svg\+xml;base64,/.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
+    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return !!s && /^url\("blob:null\//.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
     expect((await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).filter((c) => c.hook === 'resolveAsset').map((c) => c.detail)).toContain('assets/bg.svg');
     // single-slide editing: the stage shows the stored background too
     await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.editors.a.slides.setPerSlide(true));
-    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return document.body.classList.contains('orz-stage') && !!s && /^url\("data:/.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
+    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return document.body.classList.contains('orz-stage') && !!s && /^url\("blob:null\//.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
     expect(await page.evaluate(() => (window as unknown as { __csp: string[] }).__csp)).toEqual([]);
+    expect(errors).toEqual([]);
+    await page.context().close();
+  }, 120_000);
+
+  it('[X.8] uploads named with spaces or non-ASCII letters show on every surface — the flattened preview, the live card, single-slide editing and as a stored bg= — and resolveAsset is asked for exactly the path uploadAsset returned (confirming round E-M1)', async () => {
+    const { page, errors } = await open('/examples/webapp/index.html', []);
+    await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
+    await page.evaluate(async () => { await (globalThis as unknown as { demo: Demo }).demo.editors.a.ready; });
+    const frameA = await frameShowing(page, 'the acidity scale');
+    const svg = (w: number): string => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="30"><rect width="${w}" height="30" fill="red"/></svg>`;
+    const up = await page.evaluate(async ([p1, p2, p3]) => {
+      const a = (globalThis as unknown as { demo: Demo }).demo.editors.a;
+      const t = a.getText();
+      a.select(t.length, t.length);
+      const r = await a.uploadAssets([new File([p1], 'Screen Shot 1.svg', { type: 'image/svg+xml' }), new File([p2], '图表.svg', { type: 'image/svg+xml' }), new File([p3], 'my bg.svg', { type: 'image/svg+xml' })]);
+      a.setText(`${a.getText().replace(/\n*$/, '\n').replace('![my bg](assets/my%20bg.svg)', '')}\n<!-- slide bg="assets/my%20bg.svg" -->\n## Stored background\n\nOn the stored picture.\n`);
+      return r;
+    }, [svg(41), svg(42), svg(43)]);
+    expect(up.ok).toBe(true);
+    await frameShowing(page, 'On the stored picture');
+    const widths = (sel: string) => frameA.evaluate((q) => Array.from(document.querySelectorAll<HTMLImageElement>(q)).map((i) => (i.complete ? i.naturalWidth : -1)).join(','), sel);
+    await expect.poll(() => widths('#orz-doc img[alt="Screen Shot 1"], #orz-doc img[alt="图表"]'), { timeout: 15_000 }).toBe('41,42');
+    await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('![Screen Shot 1]'); a.select(at, at); });
+    await expect.poll(() => widths('#orz-live img[alt="Screen Shot 1"], #orz-live img[alt="图表"]'), { timeout: 15_000 }).toBe('41,42');
+    await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.editors.a.slides.setPerSlide(true));
+    await frameA.waitForFunction(() => document.body.classList.contains('orz-stage'), null, { timeout: 15_000 });
+    await expect.poll(() => widths('#orz-live img[alt="Screen Shot 1"], #orz-live img[alt="图表"]'), { timeout: 15_000 }).toBe('41,42');
+    await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('On the stored picture'); a.select(at, at); });
+    await frameA.waitForFunction(() => { const s = document.querySelector<HTMLElement>('#orz-live section[data-background-image]'); return !!s && /^url\("blob:null\//.test(s.style.backgroundImage); }, null, { timeout: 15_000 });
+    const asked = new Set((await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).filter((c) => c.hook === 'resolveAsset').map((c) => String(c.detail)));
+    for (const path of ['assets/Screen Shot 1.svg', 'assets/图表.svg', 'assets/my bg.svg']) expect(asked, path).toContain(path);
+    expect([...asked].filter((x) => /%[0-9A-F]{2}/i.test(x))).toEqual([]);
+    expect(errors).toEqual([]);
+    await page.context().close();
+  }, 120_000);
+
+  it('[X.9] ten 4 MB uploads kept as blob: URLs: the preview keeps up with typing (within 2 s) with no long task over 1 s in the page, each Blob crosses into the frame once, and no message carries a data: copy (confirming round E-M2)', async () => {
+    const { page, errors } = await open('/examples/webapp/index.html', []);
+    await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
+    await page.evaluate(async () => { await (globalThis as unknown as { demo: Demo }).demo.editors.a.ready; });
+    const frameA = await frameShowing(page, 'the acidity scale');
+    await page.evaluate(() => {
+      const w = window as unknown as { __sent: Array<{ type: string; bytes: number; add: number }> };
+      w.__sent = [];
+      const pm = MessagePort.prototype.postMessage;
+      MessagePort.prototype.postMessage = function (this: MessagePort, ...args: unknown[]) {
+        const m = args[0] as Record<string, unknown> | null;
+        try { if (m && typeof m === 'object') w.__sent.push({ type: String(m.type), bytes: JSON.stringify(m, (_k, v) => (v instanceof Blob ? `blob ${v.size}` : v)).length, add: Array.isArray(m.add) ? m.add.length : 0 }); } catch { /* not data */ }
+        return (pm as (...a: unknown[]) => void).apply(this, args);
+      } as typeof pm;
+      const { demo } = globalThis as unknown as { demo: Demo & { assets: Map<string, string> } };
+      let add = '';
+      for (let i = 0; i < 10; i++) {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${30 + i}" height="20"><rect width="10" height="10"/><!-- ${'abcdefgh'.repeat(512 * 1024)} --></svg>`;
+        demo.assets.set(`assets/p${i}.svg`, URL.createObjectURL(new File([svg], `p${i}.svg`, { type: 'image/svg+xml' })));
+        add += `\n<!-- slide -->\n## Photo ${i}\n\n![p${i}](assets/p${i}.svg)\n`;
+      }
+      const a = demo.editors.a;
+      a.setText(a.getText() + add);
+    });
+    await expect.poll(() => frameA.evaluate(() => Array.from(document.querySelectorAll<HTMLImageElement>('#orz-doc img')).filter((i) => /^p\d$/.test(i.alt) && i.complete && i.naturalWidth > 0).length), { timeout: 60_000 }).toBe(10);
+    await page.waitForTimeout(1500);
+    let worst = 0;
+    for (let round = 0; round < 2; round++) {
+      await page.evaluate(() => { const w = window as unknown as { __lt: number; __po?: PerformanceObserver }; w.__lt = 0; w.__po?.disconnect(); w.__po = new PerformanceObserver((l) => { for (const e of l.getEntries()) w.__lt = Math.max(w.__lt, e.duration); }); w.__po.observe({ type: 'longtask' }); });
+      await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); const at = t.indexOf('Derive'); a.select(at, at); a.focus(); });
+      const typed = `kkkkkkkkkk${round}`;
+      for (const ch of typed) await page.keyboard.type(ch);
+      const t0 = Date.now();
+      await frameA.waitForFunction((x) => (document.getElementById('orz-doc')?.textContent ?? '').includes(x), typed, { timeout: 120_000 });
+      worst = Math.max(worst, Date.now() - t0);
+      expect(await page.evaluate(() => (window as unknown as { __lt: number }).__lt), 'longest task in the page (ms)').toBeLessThan(1000);
+    }
+    expect(worst, 'preview behind typing (ms)').toBeLessThan(2000);
+    const sent = await page.evaluate(() => (window as unknown as { __sent: Array<{ type: string; bytes: number; add: number }> }).__sent);
+    expect(sent.filter((m) => m.type === 'orz-preview-assets').reduce((n, m) => n + m.add, 0)).toBeLessThanOrEqual(12); // each picture once (plus a theme change's reload at most)
+    expect(Math.max(...sent.map((m) => m.bytes)), 'largest message (bytes, Blobs by reference)').toBeLessThan(1_000_000);
+    expect(errors).toEqual([]);
+    await page.context().close();
+  }, 240_000);
+
+  it('[X.10] one include resolution per shell: the live card resolves its includes through the shell\'s render context, so the flattened preview and the live card ask fetchInclude once per include, however many times they render (FC-19 §8.8; confirming round E-L1)', async () => {
+    const { page, errors } = await open('/examples/webapp/index.html', []);
+    await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
+    await page.evaluate(async () => { await (globalThis as unknown as { demo: Demo }).demo.editors.a.ready; });
+    const frameA = await frameShowing(page, 'the acidity scale');
+    await page.evaluate(() => { const a = (globalThis as unknown as { demo: Demo }).demo.editors.a; const t = a.getText(); a.select(t.indexOf('keeps the pH'), t.indexOf('keeps the pH')); });
+    await frameA.waitForFunction(() => (document.getElementById('orz-live')?.textContent ?? '').includes('the acidity scale'), null, { timeout: 15_000 });
+    for (let i = 0; i < 5; i++) {
+      await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.editors.a.focus());
+      await page.keyboard.type('q');
+      await page.waitForTimeout(700);
+    }
+    await frameA.waitForFunction(() => (document.getElementById('orz-live')?.textContent ?? '').includes('qqqqq'), null, { timeout: 15_000 });
+    const counts: Record<string, number> = {};
+    for (const c of (await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).filter((x) => x.hook === 'fetchInclude')) counts[String(c.detail)] = (counts[String(c.detail)] ?? 0) + 1;
+    expect(Object.keys(counts).length).toBeGreaterThan(0);
+    for (const [target, n] of Object.entries(counts)) expect(n, target).toBe(1);
     expect(errors).toEqual([]);
     await page.context().close();
   }, 120_000);

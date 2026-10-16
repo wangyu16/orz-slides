@@ -42,7 +42,7 @@
 import { md, prepareSources } from 'orz-markdown';
 import { readHeader } from 'orz-markdown/carrier';
 import { installCss, WIDGET_CSS, button } from 'orz-markdown/carrier/app';
-import { includeRecordEnv, inlineBlobUrls, previewIncludes, rewriteAssetUrls, type EditorShell } from 'orz-markdown/carrier/editor';
+import { includeRecordEnv, previewIncludes, type EditorShell } from 'orz-markdown/carrier/editor';
 import { createPreferenceStore, showToast, type PreferenceSpec, type PreferenceStore } from 'orz-markdown/carrier/shell';
 import { readDocument } from '../../assemble.js';
 import { parseDeck, TEMPLATES } from '../../deck/parse.js';
@@ -287,9 +287,11 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   const fits = new Map<string, FitReport>();
   let last: (FitReport & { index: number; fitKey: string }) | null = null;
   let sourceCache: { text: string; source: Promise<{ text: string; env: Record<string, unknown> }> } | null = null;
-  /** The per-editor scratch of the include and asset reads (each host answer and each blob read once). */
-  const includeCache = new Map<string, unknown>();
-  const blobCache = new Map<string, Promise<string | null>>();
+  /**
+   * The shell's render context (confirming round E-L1): its cache is the one per-shell include cache the flattened
+   * preview fills, so the live card never asks the host again for an include (FC-19 §8.8 "once per shell").
+   */
+  const rc = shell.preview.context;
 
   /**
    * The text the live slide renders from and its render env — includes as every preview surface resolves them (the
@@ -297,11 +299,13 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
    * fetchInclude(path); a URL include through fetchInclude(url), else the record. Cached per text.
    */
   const sourceOf = (text: string): Promise<{ text: string; env: Record<string, unknown> }> => {
-    const plain = { text, env: { ...includeRecordEnv(o.includes ?? {}), orzTwinLinks: true } };
-    if (!/\{\{\s*(?:markdown|md|md-include)\b/.test(text) || (!o.fetchInclude && !o.includes)) return Promise.resolve(plain);
+    const record = rc.includes ?? o.includes;
+    const fetchInclude = rc.fetchInclude ?? o.fetchInclude;
+    const plain = { text, env: { ...includeRecordEnv(record ?? {}), orzTwinLinks: true } };
+    if (!/\{\{\s*(?:markdown|md|md-include)\b/.test(text) || (!fetchInclude && !record)) return Promise.resolve(plain);
     if (sourceCache?.text === text) return sourceCache.source;
     const source = (async () => {
-      const inc = await previewIncludes(text, { ...(o.includes ? { includes: o.includes } : {}), ...(o.fetchInclude ? { fetchInclude: o.fetchInclude } : {}), cache: includeCache });
+      const inc = await previewIncludes(text, { ...(record ? { includes: record } : {}), ...(fetchInclude ? { fetchInclude } : {}), ...(rc.cache ? { cache: rc.cache } : {}) });
       const env: Record<string, unknown> = { ...includeRecordEnv(inc.includes ?? {}), orzTwinLinks: true };
       if (!/\{\{[^}\n]*[a-z][a-z0-9+.-]*:\/\//i.test(text)) return { text, env };
       return { text: await prepareSources(text, { fetcher: inc.fetcher, includeEnv: env as never }).catch(() => text), env };
@@ -316,20 +320,21 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
    * EI-4). Synchronous: the result keys the slide (a new upload under the same path is a new picture).
    */
   const resolveAssets = (html: string): string => {
-    const ra = o.resolveAsset;
-    if (!ra) return html;
-    const out = rewriteAssetUrls(html, (path) => ra(path));
+    if (!o.resolveAsset) return html;
+    // the shell's resolver: the decoded path, as the upload returned it, on every surface (confirming round E-M1)
+    const out = shell.preview.resolveAssets(html);
     return out.replace(/ data-background-image="([^"]*)"/g, (m, v: string) => {
       const raw = v.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-      const t = raw.trim();
-      if (t === '' || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(t) || /^[/\\#?]/.test(t)) return m;
-      let r: unknown;
-      try { r = ra(t); } catch { return m; }
+      const r = shell.preview.resolveAsset(raw);
       return typeof r === 'string' && r !== raw ? ` data-background-image="${r.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}"` : m;
     });
   };
-  /** The frame (an opaque origin) cannot load the page's blob: URLs: their bytes go in as data: URLs (EI-1; the kit's inlineBlobUrls). */
-  const inlineBlobs = (html: string): Promise<string> => inlineBlobUrls(html, blobCache);
+  /**
+   * The frame (an opaque origin) cannot load the page's blob: URLs: each one's bytes cross ONCE, as a Blob the
+   * frame makes its own URL of, and live-frame.ts swaps it in (the kit's shareAssets, confirming round E-M2; the
+   * data: copy per message froze the page). `surface`: what this HTML is (the live card, a fit check).
+   */
+  const shareBlobs = (html: string, surface: string): Promise<string> => shell.preview.shareAssets(html, surface).then(() => html);
 
   let postTries = 0;
   /** The stage the GUI asked for (insets; a template's variant thumbnails). */
@@ -369,14 +374,14 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     const size = slideSize(p.ratio);
     const plans = planDeck(d, p.theme.sectionNumbers);
     const renderOne = (sl: Slide): string => resolveAssets(renderSlide(sl, plans[slide.index], md as unknown as Renderer, d.config, { env: src.env, themeNumbers: p.theme.sectionNumbers }));
-    let html = renderOne(slide);
+    const html = renderOne(slide);
     // a template on the stage: its looks, for the variant picker's thumbnails (the same slide with each v=)
-    let variants = perSlide && stageAsk.variants && slide.kind === 'template' && slide.template
+    const variants = perSlide && stageAsk.variants && slide.kind === 'template' && slide.template
       ? Array.from({ length: TEMPLATES[slide.template] }, (_, k) => ({ v: k + 1, html: renderOne({ ...slide, templateVariant: k + 1 === 1 ? undefined : k + 1 } as Slide) }))
       : [];
     const key = `${p.theme.id}|${p.ratio}|${hash(html)}`;
     if (html.includes('blob:') || variants.some((x) => x.html.includes('blob:'))) {
-      [html, variants] = await Promise.all([inlineBlobs(html), Promise.all(variants.map(async (x) => ({ v: x.v, html: await inlineBlobs(x.html) })))]);
+      await shareBlobs([html, ...variants.map((x) => x.html)].join('\n'), 'slides-live');
       if (destroyed || shell.getText() !== text) return;
     }
     variantHtml = variants;
@@ -467,10 +472,10 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     const p = presentationOf(text);
     const size = slideSize(p.ratio);
     const plans = planDeck(d, p.theme.sectionNumbers);
-    let html = resolveAssets(renderSlide(slide, plans[i], md as unknown as Renderer, d.config, { env: src.env, themeNumbers: p.theme.sectionNumbers }));
+    const html = resolveAssets(renderSlide(slide, plans[i], md as unknown as Renderer, d.config, { env: src.env, themeNumbers: p.theme.sectionNumbers }));
     const key = `check|${p.theme.id}|${p.ratio}|${hash(html)}|${i}`;
     if (html.includes('blob:')) {
-      html = await inlineBlobs(html);
+      await shareBlobs(html, 'slides-check');
       if (destroyed || shell.getText() !== text) { scheduleCheck(CHECK_GAP_MS); return; }
     }
     postedFitKeys.set(key, { fitKey: fitKeyOf(text, deck.slides[i]), index: i, check: true });
