@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="600" fill="#ffffff"/>
+  <!-- axes -->
+  <g stroke="#222" stroke-width="2" fill="none">
+    <path d="M110 40 V510 H920"/>
+  </g>
+  <g stroke="#222" stroke-width="2">
+    <path d="M110 510 v10 M245 510 v10 M380 510 v10 M515 510 v10 M650 510 v10 M785 510 v10 M920 510 v10"/>
+  </g>
+  <g font-size="26" fill="#222" text-anchor="middle">
+    <text x="110" y="552">12</text><text x="245" y="552">14</text><text x="380" y="552">16</text>
+    <text x="515" y="552">18</text><text x="650" y="552">20</text><text x="785" y="552">22</text><text x="920" y="552">24</text>
+    <text x="515" y="592" font-size="28">Elution time (min)</text>
+  </g>
+  <text x="44" y="280" font-size="28" fill="#222" text-anchor="middle" transform="rotate(-90 44 280)">RI response (norm.)</text>
+  <!-- traces: narrow peaks moving to shorter elution time with conversion -->
+  <g fill="none" stroke-width="5" stroke-linejoin="round">
+    <path stroke="#9aa5b1" d="M520 508 C600 508 620 470 650 330 C668 240 680 140 700 140 C720 140 734 240 752 330 C782 470 800 508 880 508"/>
+    <path stroke="#3b7dd8" d="M400 508 C480 508 500 460 530 300 C548 200 560 95 582 95 C604 95 618 200 636 300 C666 460 684 508 764 508"/>
+    <path stroke="#d0453a" d="M290 508 C370 508 392 450 420 280 C438 170 452 70 474 70 C496 70 510 170 528 280 C556 450 578 508 658 508"/>
+  </g>
+  <g font-size="24" font-weight="bold">
+    <text x="712" y="128" fill="#6b7682">22 %</text>
+    <text x="596" y="84" fill="#2a63b3">51 %</text>
+    <text x="486" y="58" fill="#b23a30">84 % conversion</text>
+  </g>
+</svg>

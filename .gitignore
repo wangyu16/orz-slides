@@ -2,7 +2,6 @@ node_modules/
 dist/
 out/
 browser/orz-slides.browser.js
-examples/*.slides.html
 tests/*.slides.html
 *.tgz
 .DS_Store
