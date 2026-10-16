@@ -187,10 +187,11 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
       const what = 'its <!-- deck --> block and metadata become one FC-18 header (with the theme 0.x showed), and the slides are kept';
       if (twinText) {
         const other = sh(browserName(twinText.name));
-        report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (before text format 1; no compatibility shim) next to the text ${twinText.name}: run \`orz-slides upgrade ${self} --text ${other}\` — it writes this file's format-1 text (${what}) to ${browserName(twinText.name)} and re-assembles this file from it; then compare it with ${twinText.name}, merge what you keep into ${twinText.name} (keep the new header), and \`orz-slides assemble ${sh(twinText.name)}\``);
+        report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (before text format 1; no compatibility shim) next to the text ${twinText.name}: run \`orz-slides upgrade ${self} --text ${other}\` — it writes this file's format-1 text (${what}) to ${browserName(twinText.name)} and re-assembles this file from it; then compare it with ${twinText.name}, merge what you keep into ${twinText.name} (keep the new header), and \`orz-slides assemble ${sh(twinText.name)} --replaces <sha256>\` with the sha256 upgrade printed (the text this file then holds)`);
       } else {
         report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (before text format 1; no compatibility shim): run \`orz-slides upgrade ${self}\` for its format-1 text twin and a file of this version; ${what}`);
       }
+      report.notes.push(`its own "Framework 1.x available" banner (in its 0.x editor) cannot update it to format 1: it ends with "Update failed — check your connection" and changes nothing; use upgrade`);
       if (report.upgrade && report.upgrade.unexplained.length > 0) report.advice.push(`the upgraded deck differs from what 0.x showed in ${report.upgrade.unexplained.length} place${report.upgrade.unexplained.length === 1 ? '' : 's'} no decision explains (see notes): check those slides after upgrading`);
       legacyText = legacy.text;
       text = up.text;
@@ -231,13 +232,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
     }
   } else {
     text = input;
-    kind = options.filename ? (kindFromFilename(options.filename) ?? undefined) : undefined;
-    // a plain x.md is kind md by its name (FC-18 §3) — unless it is a deck: a header naming its carrier decides, else
-    // slide markers or a 0.x <!-- deck --> block (`orz-slides deck.md`, the 0.x habit, assembles it as a deck too)
-    if (kind === 'md' && /\.(md|markdown)$/i.test(options.filename ?? '')) {
-      const carrier = readHeader(text)?.fields['carrier']?.trim();
-      kind = carrier === 'md' || carrier === 'slides' || carrier === 'paged' ? carrier : scanMarkers(text).some((m) => m.type === 'deck' || m.type === 'slide') ? 'slides' : 'md';
-    }
+    kind = options.filename ? textKindOf(text, options.filename) : undefined;
   }
 
   // the text the input holds (a 0.x file: its source; the facts below read it as `upgrade` would write it)
@@ -289,7 +284,15 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
     const t = report.twin;
     const tn = sh(t.name);
     const twinLegacy = report.input === 'text' && looksHtml(options.twin.content) && readLegacy(options.twin.content) !== null;
-    if (t.holds === 'different' && twinLegacy) {
+    // the file beside a text, as assemble will see it: cut off inside its text (CLI-5), or made by a newer orz-slides (CLI-6)
+    const twinFile = report.input === 'text' && t.holds === 'different' && !twinLegacy ? inspect(options.twin.content, { filename: options.twin.name }) : null;
+    const twinCut = twinFile?.checks?.island === 'unclosed';
+    const twinNewer = twinFile?.shell?.relation === 'newer' ? twinFile.shell.version : null;
+    if (twinCut) {
+      report.advice.push(`${t.name} was cut off inside its text (#orz-src not closed): it holds an incomplete text, not changes to bring in — keep this complete text and repair the file from it: \`orz-slides assemble ${self} --replaces ${t.sha256}\``);
+    } else if (twinNewer !== null) {
+      report.advice.push(`${t.name} was made by a newer orz-slides (${twinNewer}) than this tool (${VERSION}): assembling here would write an older shell, and assemble refuses it — use \`npx orz-slides@latest assemble ${self}\``);
+    } else if (t.holds === 'different' && twinLegacy) {
       report.advice.push(`${t.name} is an orz-slides 0.x file holding a different text than this text twin: \`orz-slides upgrade ${tn} --text ${sh(browserName(options.filename ?? 'file.slides.md'))}\` gives its format-1 text; compare and merge that into ${options.filename ?? 'this text'}, then \`orz-slides assemble ${self} --replaces <sha256>\` with the sha256 upgrade printed (the text ${t.name} then holds)`);
     } else if (t.holds === 'different' && options.twin.earlier) {
       const source = { 'git-head': 'its last commit', 'git-index': 'its staged version', 'git-log': 'one of its recent commits', cache: 'what orz-slides last wrote there' }[options.twin.earlier];
@@ -310,6 +313,21 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
   if (report.input === 'text' && doc.kind === 'slides' && !newer && !deckBlockLint && report.twin?.holds !== 'different') report.advice.push(`a deck text: \`orz-slides assemble ${self}\` makes its .slides.html; \`orz-slides inspect ${self} --layout\` checks in Chrome that every box fits`);
   if (report.input === 'text' && doc.kind === 'slides' && !doc.header && !deckBlockLint && (report.slides ?? 0) > 0) report.notes.push('no header: the deck shows the default theme (orchard) — an orz-slides 0.x deck showed paper; `orz-slides upgrade` writes a header with the theme 0.x showed, a carrier and a uid');
   return report;
+}
+
+/**
+ * The kind of a TEXT, as `inspect`, `assemble` and `upgrade` all decide it
+ * (final loop CLI-8): a header that names its carrier decides, whatever the
+ * file name; else the name (`x.slides.md`, `x.paged.md`); else — a plain
+ * `x.md`, 0.x's habit — slide markers or a 0.x `<!-- deck -->` block make it
+ * a deck, and anything else is an orz md document.
+ */
+export function textKindOf(text: string, filename: string): Kind {
+  const carrier = readHeader(text)?.fields['carrier']?.trim();
+  if (carrier === 'md' || carrier === 'slides' || carrier === 'paged') return carrier;
+  const byName = kindFromFilename(filename);
+  if (byName === 'slides' || byName === 'paged') return byName;
+  return scanMarkers(text).some((m) => m.type === 'deck' || m.type === 'slide') ? 'slides' : 'md';
 }
 
 /**

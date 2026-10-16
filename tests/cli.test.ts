@@ -807,3 +807,127 @@ describe.concurrent('the CLI', () => {
     }
   }, 900_000);
 });
+
+describe('the CLI: every command it names runs as written', () => {
+  /** POSIX shell words (the CLI quotes with single quotes, `'\''` inside). */
+  const words = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let has = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i]!;
+      if (c === "'") { const j = line.indexOf("'", i + 1); cur += line.slice(i + 1, j); i = j; has = true; }
+      else if (c === '\\' && i + 1 < line.length) { cur += line[++i]; has = true; }
+      else if (/\s/.test(c)) { if (has) out.push(cur); cur = ''; has = false; }
+      else { cur += c; has = true; }
+    }
+    if (has) out.push(cur);
+    return out;
+  };
+  /** Every orz-slides command a text names: backticked, or after "next:". */
+  const commandsIn = (s: string): string[] => [
+    ...[...s.matchAll(/`((?:npx )?orz-slides(?:@[\w.]+)? [^`]+)`/g)].map((m) => m[1]!),
+    ...[...s.matchAll(/next: (orz-slides [^\n]+)/g)].map((m) => m[1]!.trim()),
+  ];
+  /** Runnable as written here: no placeholder, no other version, no browser. */
+  const runnable = (c: string): boolean => !/[<>…]|\.\.\.|@latest|--layout|--force/.test(c);
+  /** Everything a run said: human or JSON (error, advice, warnings, next). */
+  const said = (r: Run): string => {
+    let extra = '';
+    try {
+      const j = JSON.parse(r.stdout) as { error?: string; advice?: string[]; warnings?: string[]; next?: { command: string; args: string[] } };
+      extra = [j.error ?? '', ...(j.advice ?? []), ...(j.warnings ?? [])].join('\n');
+      if (j.next) extra += `\n\`orz-slides ${[j.next.command, ...j.next.args].map((a) => (/^[\w./@:=+-]+$/.test(a) ? a : `'${a.replace(/'/g, "'\\''")}'`)).join(' ')}\``;
+    } catch { /* human output */ }
+    return `${r.stdout}\n${r.stderr}\n${extra}`;
+  };
+  const UID = 'doc-v13runnable0001';
+  const T = `{{nyml\nkind: document\ncarrier: slides\nuid: ${UID}\ntitle: R\n}}\n\n<!-- slide -->\n## R\n\nR body\n`;
+  const newerFile = (t: string): string => assemble(t).split(`"shell":"${VERSION}"`).join('"shell":"99.0.0"');
+  /** The scenarios: a deterministic setup each (re-run from scratch for every command), and the commands that probe it. */
+  const SCENARIOS: Array<{ name: string; setup(d: string): Promise<void>; probes: string[][] }> = [
+    { name: 'a text alone', setup: async (d) => { write(join(d, 'x.slides.md'), T); }, probes: [['inspect', 'x.slides.md'], ['assemble', 'x.slides.md', '--footer', 'F'], ['assemble', 'x.slides.md', '--author', 'A'], ['assemble', 'x.slides.md', '--title', 'X']] },
+    { name: 'a pair, the file saved in the browser', setup: async (d) => { write(join(d, 'x.slides.md'), T); expect((await cli(['assemble', 'x.slides.md'], d, { XDG_CACHE_HOME: join(d, '.cache') })).code).toBe(0); write(join(d, 'x.slides.html'), assemble(`${T}browser\n`)); }, probes: [['inspect', 'x.slides.md'], ['inspect', 'x.slides.html'], ['assemble', 'x.slides.md']] },
+    { name: 'both changed', setup: async (d) => { write(join(d, 'x.slides.md'), T); expect((await cli(['assemble', 'x.slides.md'], d, { XDG_CACHE_HOME: join(d, '.cache') })).code).toBe(0); write(join(d, 'x.slides.html'), assemble(`${T}browser\n`)); write(join(d, 'x.slides.md'), `${T}agent\n`); }, probes: [['inspect', 'x.slides.md'], ['assemble', 'x.slides.md'], ['extract', 'x.slides.html']] },
+    { name: 'a 0.x file beside its edited text (CLI-3)', setup: async (d) => { const legacy = legacyFile('demo-0.8.5.slides.html'); write(join(d, 'x.slides.html'), legacy); write(join(d, 'x.slides.md'), upgradeText(`${readLegacy(legacy)!.text}\n<!-- slide -->\n## my edit\n`, { uid: 'doc-mineedited0001' }).text); }, probes: [['inspect', 'x.slides.html'], ['inspect', 'x.slides.md'], ['assemble', 'x.slides.md']] },
+    { name: 'a 0.x deck source beside the 0.x file built from it (CLI-4)', setup: async (d) => { write(join(d, 'talk.md'), read(join(LEGACY_DIR, 'demo.md'))); write(join(d, 'talk.slides.html'), legacyFile('demo-0.8.5-inline.slides.html')); }, probes: [['upgrade', 'talk.md'], ['inspect', 'talk.md'], ['talk.md']] },
+    { name: 'a 0.x file alone (CLI-7)', setup: async (d) => { write(join(d, 'old.slides.html'), legacyFile('meta-0.8.5.slides.html')); }, probes: [['assemble', 'old.slides.html'], ['extract', 'old.slides.html'], ['inspect', 'old.slides.html']] },
+    { name: 'plain Markdown (CLI-8)', setup: async (d) => { write(join(d, 'p.md'), '# Hi\n\nplain text\n'); write(join(d, 'm.slides.md'), '{{nyml\nkind: document\ncarrier: md\n}}\n\n# M\n'); }, probes: [['assemble', 'p.md'], ['inspect', 'p.md'], ['assemble', 'm.slides.md'], ['inspect', 'm.slides.md'], ['upgrade', 'm.slides.md']] },
+    { name: 'only the file (CLI-9)', setup: async (d) => { write(join(d, 'e.slides.html'), assemble(T)); }, probes: [['inspect', 'e.slides.md'], ['inspect', 'e.slides.html']] },
+    { name: 'a twin made by a newer shell (CLI-6)', setup: async (d) => { write(join(d, 'n.slides.html'), newerFile(T)); write(join(d, 'n.slides.md'), `${T}- y\n`); }, probes: [['inspect', 'n.slides.md'], ['assemble', 'n.slides.md']] },
+    { name: 'a twin cut off inside its text (CLI-5)', setup: async (d) => { const whole = assemble(`${T}second part\n`, { delivery: 'cdn' }); write(join(d, 'c.slides.html'), whole.slice(0, whole.indexOf('second part') + 6)); write(join(d, 'c.slides.md'), `${T}second part\n`); }, probes: [['inspect', 'c.slides.md'], ['inspect', 'c.slides.html'], ['assemble', 'c.slides.md'], ['upgrade', 'c.slides.html']] },
+  ];
+
+  it('[V.14] every `next`, and every command an advice, a refusal, a warning or a note names, runs as written in the state that named it (exit 0) — a text alone, browser saves, both sides changed, 0.x files beside texts and alone, plain Markdown, only the file, a newer shell, a cut-off file — and every concrete command in the help parses (final loop CLI-3/4/6/7/8/9, RR-8)', async () => {
+    const failures: string[] = [];
+    let ran = 0;
+    // the scenarios side by side (each in folders of its own); within one, a state is rebuilt from scratch for every command
+    await Promise.all(SCENARIOS.map(async (sc) => {
+      const fresh = async (): Promise<{ d: string; env: NodeJS.ProcessEnv }> => { const d = folder(); const env = { XDG_CACHE_HOME: join(d, '.cache') }; await sc.setup(d); return { d, env }; };
+      const named = new Map<string, string[]>();
+      for (const probe of sc.probes) {
+        const runs = await Promise.all([false, true].map(async (asJson) => { const { d, env } = await fresh(); return cli([...probe, ...(asJson ? ['--json'] : [])], d, env); }));
+        named.set(probe.join('\u0000'), [...new Set(runs.flatMap((r) => commandsIn(said(r))))].filter(runnable));
+      }
+      for (const [key, commands] of named) {
+        const probe = key.split('\u0000');
+        await Promise.all(commands.map(async (c) => {
+          const { d, env } = await fresh();
+          await cli(probe, d, env); // the state that named it
+          const out = await cli([...words(c.replace(/^npx /, '')).slice(1), '--json'], d, env);
+          ran++;
+          if (out.code !== 0) failures.push(`${sc.name}: \`${probe.join(' ')}\` named \`${c}\` → exit ${out.code}: ${(() => { try { return String(JSON.parse(out.stdout).error); } catch { return out.stderr.trim(); } })()}`);
+        }));
+      }
+    }));
+    expect(failures).toEqual([]);
+    expect(ran).toBeGreaterThan(20);
+    // the help: every concrete command parses (no usage error) in a folder holding the files it names
+    const d = folder();
+    write(join(d, 'x.slides.md'), T);
+    write(join(d, 'x.md'), read(join(LEGACY_DIR, 'demo.md')));
+    write(join(d, 'deck.md'), read(join(LEGACY_DIR, 'demo.md')));
+    const help = (await Promise.all(['', 'new', 'assemble', 'extract', 'upgrade', 'inspect', 'themes', 'templates'].map((c) => cli(c ? [c, '--help'] : ['--help'], d)))).map((r) => r.stdout).join('\n');
+    const helpCommands = [...new Set(commandsIn(help))].filter((c) => !/[<>\[\]|…]|@latest/.test(c));
+    expect(helpCommands.length).toBeGreaterThan(3);
+    for (const c of helpCommands) {
+      const out = await cli([...words(c.replace(/^npx /, '')).slice(1), '--json'], d);
+      expect(out.code, `help names \`${c}\`: ${out.stdout}${out.stderr}`).not.toBe(2);
+    }
+  }, 600_000);
+
+  it('[V.14] the kind and the advice as inspect decides them: plain Markdown and a `carrier: md` text are other-kind for assemble and upgrade (--force builds them; CLI-8); `inspect x.slides.md` with only x.slides.html names `extract x.slides.html` (CLI-9); a header key given to assemble names `new` only for the keys `new` takes (RR-8)', async () => {
+    const d = folder();
+    const env = { XDG_CACHE_HOME: join(d, '.cache') };
+    write(join(d, 'p.md'), '# Hi\n\nplain text\n');
+    write(join(d, 'm.slides.md'), '{{nyml\nkind: document\ncarrier: md\n}}\n\n# M\n');
+    for (const args of [['assemble', 'p.md'], ['assemble', 'm.slides.md'], ['upgrade', 'm.slides.md']]) {
+      const r = json(await cli([...args, '--json'], d, env));
+      expect(r, args.join(' ')).toMatchObject({ ok: false, reason: 'other-kind' });
+      expect(String(r.error), args.join(' ')).toMatch(/orz-mdhtml/);
+    }
+    expect(existsSync(join(d, 'p.slides.html'))).toBe(false);
+    expect((await cli(['assemble', 'p.md', '--force'], d, env)).code).toBe(0);
+    write(join(d, 'e.slides.html'), assemble(T));
+    expect(json(await cli(['inspect', 'e.slides.md', '--json'], d, env))).toMatchObject({ ok: false, reason: 'no-such-file', next: { command: 'extract', args: ['e.slides.html'] } });
+    write(join(d, 'x.slides.md'), T);
+    for (const key of ['--footer', '--author', '--transition', '--uid', '--lang']) expect(String(json(await cli(['assemble', 'x.slides.md', key, 'v', '--json'], d, env)).error), key).not.toMatch(/orz-slides new/);
+    for (const key of ['--title', '--theme', '--ratio']) expect(String(json(await cli(['assemble', 'x.slides.md', key, 'v', '--json'], d, env)).error), key).toMatch(new RegExp(`orz-slides new <file\\.slides\\.md> ${key}`));
+  }, 120_000);
+
+  it('[V.14] a text beside a file cut off inside its text is never told to bring the file\'s text in as browser changes: the advice says the file is cut off and names assemble --replaces (CLI-5); the record of the last sync is worded as a sync, never "wrote it from" a file orz-slides read', async () => {
+    const d = folder();
+    const whole = assemble(`${T}second part\n`, { delivery: 'cdn' });
+    write(join(d, 'c.slides.html'), whole.slice(0, whole.indexOf('second part') + 6));
+    write(join(d, 'c.slides.md'), `${T}second part\n`);
+    const r = json(await cli(['inspect', 'c.slides.md', '--json'], d, { XDG_CACHE_HOME: join(d, '.cache') }));
+    const advice = (r.advice as string[]).join('\n');
+    expect(advice).toMatch(/cut off inside its text/);
+    expect(advice).toMatch(/assemble c\.slides\.md --replaces [0-9a-f]{64}/);
+    expect(advice).not.toMatch(/saved in the browser/);
+    expect((await cli(['extract', 'c.slides.html', '-o', 'c.recovered.slides.md'], d, { XDG_CACHE_HOME: join(d, '.cache') })).code).toBe(0);
+    const a = json(await cli(['assemble', 'c.slides.md', '--json'], d, { XDG_CACHE_HOME: join(d, '.cache') }));
+    expect(String(a.error)).not.toMatch(/last wrote it from/);
+    expect(String(a.error)).toMatch(/last synced it with c\.recovered\.slides\.md/);
+  }, 120_000);
+});

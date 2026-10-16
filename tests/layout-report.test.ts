@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sha256 } from 'orz-markdown/carrier';
@@ -147,6 +147,31 @@ chrome('inspect --layout in real Chrome', () => {
     expect(old.layout.slides.length).toBe(7);
     expect(old.notes.join('\n')).toMatch(/layout: the deck as `orz-slides upgrade` would write it/);
   }, 300_000);
+
+  it('[I.9] `inspect --layout` run again and again, four at a time (a loaded machine): every run reports (exit 0, the same summary) — removing Chrome\'s profile never replaces a finished report — and no run leaves its temporary profile behind (final loop RR-1)', async () => {
+    const tmp = join(dir, 'tmp-rr1');
+    mkdirSync(tmp, { recursive: true });
+    writeFileSync(join(dir, 'rr1.slides.md'), DECK);
+    const runs: Run[] = [];
+    for (let round = 0; round < 3; round++) runs.push(...await Promise.all([0, 1, 2, 3].map(() => cli(['inspect', 'rr1.slides.md', '--layout', '--offline', '--json'], { TMPDIR: tmp }))));
+    const bad = runs.filter((r) => r.code !== 0).map((r) => `${r.code}: ${r.stdout.slice(0, 300)}${r.stderr.slice(0, 300)}`);
+    expect(bad).toEqual([]);
+    const summaries = new Set(runs.map((r) => JSON.stringify((JSON.parse(r.stdout) as { layout: LayoutReport }).layout.summary)));
+    expect(summaries.size).toBe(1);
+    expect(readdirSync(tmp).filter((f) => f.startsWith('orz-slides-layout-'))).toEqual([]);
+  }, 600_000);
+
+  it('[I.10] the README\'s library sample runs as written — copied verbatim from "## The library", against the built package by its own name (a 0.x fixture as `oldHtml`): every line runs, inspectLayout included (final loop RR-4)', async () => {
+    const readme = readFileSync('README.md', 'utf8');
+    const sample = /## The library\s+```ts\n([\s\S]*?)```/.exec(readme)![1]!;
+    const sub = mkdtempSync(join(process.cwd(), '.readme-sample-'));
+    try {
+      writeFileSync(join(sub, 'sample.ts'), `import { readFileSync } from 'node:fs';\nconst oldHtml = readFileSync(${JSON.stringify(join(process.cwd(), LEGACY_DIR, 'demo-0.8.5.slides.html'))}, 'utf8');\n${sample}\nconsole.log('SAMPLE-RAN');\n`);
+      const r = await new Promise<Run>((ok) => execFile(process.execPath, [join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs'), join(sub, 'sample.ts')], { cwd: sub, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: join(dir, '.cache') } }, (e, stdout, stderr) => ok({ code: e ? 1 : 0, stdout, stderr })));
+      expect(r.stderr, r.stdout).toBe('');
+      expect(r.stdout).toContain('SAMPLE-RAN');
+    } finally { rmSync(sub, { recursive: true, force: true }); }
+  }, 120_000);
 
   it('[V.13] a deck saved by the browser — the page as Chrome serializes it ("Save Page As", with its saved-from comment) — extracts byte for byte (CR LF and BOM kept) and inspects as an assembled deck holding the same text', async () => {
     const text = `﻿${DECK.replace(/\n/g, '\r\n')}`;

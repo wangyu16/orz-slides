@@ -211,7 +211,10 @@ export async function layoutReport(html: string, text: string, o: LayoutOptions)
   const p = presentationOf(text);
   const size = p.ratio === '4:3' ? { width: 960, height: 720 } : { width: 1280, height: 720 };
   const args = ['--headless=new', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-background-networking', '--disable-sync', '--mute-audio', '--hide-scrollbars', `--user-data-dir=${join(dir, 'profile')}`, `--window-size=${size.width},${size.height}`, ...(o.offline ? OFFLINE_ARGS : []), 'about:blank'];
-  const child = spawn(o.chrome, args, { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+  // its own process group (POSIX): the cleanup ends Chrome's helper processes too, which otherwise keep writing to the
+  // profile after the main process is killed (final loop RR-1: ENOTEMPTY replaced a finished report)
+  const group = process.platform !== 'win32';
+  const child = spawn(o.chrome, args, { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], detached: group });
   child.stderr?.resume();
   const pipe = new Pipe(child);
   const errors: string[] = [];
@@ -264,10 +267,40 @@ export async function layoutReport(html: string, text: string, o: LayoutOptions)
       } satisfies LayoutReport;
     })(), o.timeoutMs ?? 600_000, 'the layout report took too long');
   } finally {
-    child.kill('SIGKILL');
-    await new Promise<void>((ok) => { if (child.exitCode !== null || child.signalCode !== null) ok(); else { child.once('exit', () => ok()); setTimeout(ok, 2000); } });
-    rmSync(dir, { recursive: true, force: true });
+    await closeChrome(child, pipe, group);
+    removeProfile(dir);
   }
+}
+
+/** The process has exited (or `ms` passed). */
+function exited(child: ChildProcess, ms: number): Promise<boolean> {
+  return new Promise<boolean>((ok) => {
+    if (child.exitCode !== null || child.signalCode !== null) { ok(true); return; }
+    const t = setTimeout(() => ok(false), ms);
+    child.once('exit', () => { clearTimeout(t); ok(true); });
+  });
+}
+
+/**
+ * End Chrome: ask it to close (it stops its helpers and flushes the profile), then kill what is left — the whole
+ * process group where there is one. Never throws: the report is already made.
+ */
+async function closeChrome(child: ChildProcess, pipe: Pipe, group: boolean): Promise<void> {
+  try { await within(pipe.send('Browser.close'), 2000, 'close'); } catch { /* gone, or not answering */ }
+  const done = await exited(child, 3000);
+  const kill = (): void => {
+    try { if (group && child.pid !== undefined) process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); } catch { /* already gone */ }
+  };
+  if (!done) { kill(); await exited(child, 2000); }
+  else if (group) kill(); // helpers that outlived the main process
+}
+
+/**
+ * Remove the temporary profile, retrying while a late helper still writes to it; a folder that cannot be removed is
+ * left in the temporary folder, never a failure of the report (RR-1).
+ */
+function removeProfile(dir: string): void {
+  try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch { /* the OS cleans its temporary folder */ }
 }
 
 /** The layout report's advice: one line per clipped box or cut footer, and per slide whose fit did not settle. */
@@ -275,7 +308,15 @@ export function layoutAdvice(r: LayoutReport): string[] {
   const out: string[] = [];
   for (const s of r.slides) {
     const cut = s.boxes.filter((b) => b.clipped);
-    if (cut.length > 0) out.push(`slide ${s.slide}${s.title ? ` (${s.title})` : ''}: ${cut.map((b) => b.box).join(', ')} ${cut.length === 1 ? 'is' : 'are'} cut even at the smallest scale (0.6): shorten the text, split the slide, or give the box more room (a wider split ratio, another preset)`);
+    // what helps depends on the box (CLI-2): a float has its own size, a template page has no split, a region has its ratio
+    const at = `slide ${s.slide}${s.title ? ` (${s.title})` : ''}`;
+    const groups: Array<[string[], string]> = [
+      [cut.filter((b) => /^float /.test(b.box)).map((b) => b.box), 'make the float larger (its w= and h=) or shorten its text'],
+      [cut.filter((b) => b.box === 'template').map((b) => b.box), 'shorten the text or split the page'],
+      [cut.filter((b) => b.box === 'title').map((b) => b.box), 'shorten the title'],
+      [cut.filter((b) => !/^float /.test(b.box) && b.box !== 'template' && b.box !== 'title').map((b) => b.box), 'shorten the text, split the slide, or give the box more room (a wider split ratio, another preset)'],
+    ];
+    for (const [names, fix] of groups) if (names.length > 0) out.push(`${at}: ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} cut even at the smallest scale (0.6): ${fix}`);
     if (s.footerClipped) out.push(`slide ${s.slide}: the footer is cut to one line (ellipsized): shorten it`);
     if (s.settled === 'timeout') out.push(`slide ${s.slide}: its fit did not settle within 10 s (content still loading?): its numbers may be provisional`);
   }

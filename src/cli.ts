@@ -43,6 +43,7 @@ import {
 import { compareSemver } from 'orz-markdown/carrier/shell';
 import { storedText } from './assemble.js';
 import { presentationOf } from './presentation.js';
+import { textKindOf } from './inspect.js';
 import { findChrome, layoutAdvice, layoutReport, type LayoutReport } from './layout-report.js';
 import {
   assemble, extract, inspect, newDocument, readDocument, readLegacy, reportNotes, upgrade, upgradeReport, upgradeText, upgradeTextName,
@@ -256,7 +257,7 @@ whether it is light or dark (the default is marked). The orz-markdown theme ids 
 accepted as aliases of the themes derived from them.`,
   templates: `orz-slides templates [--json]
 
-Lists the deck templates \`orz-slides new --template\` takes (the default is marked).`,
+Lists the deck templates \`orz-slides new --template <id>\` takes (the default is marked).`,
 };
 
 // ── arguments ───────────────────────────────────────────────────────────────
@@ -299,7 +300,7 @@ function parse(command: string, argv: string[]): Parsed {
         const what = name.slice(2);
         throw new CliError(
           `${name} is not an assemble option: since 1.0 the ${what} comes from the text itself. `
-          + `Put \`${what}: …\` in the {{nyml}} header at the top of the text (a 0.x deck: \`orz-slides upgrade <deck.md>\` writes its format-1 text with a header; a new deck: \`orz-slides new <file.slides.md> ${name} …\`), then assemble again.`,
+          + `Put \`${what}: …\` in the {{nyml}} header at the top of the text (a 0.x deck: \`orz-slides upgrade <deck.md>\` writes its format-1 text with a header${['--title', '--theme', '--ratio'].includes(name) ? `; a new deck: \`orz-slides new <file.slides.md> ${name} …\`` : ''}), then assemble again.`,
           EXIT_USAGE,
         );
       }
@@ -425,6 +426,8 @@ function cmdAssemble(p: Parsed, o: Io): void {
   const token = replacesToken(p.values['--replaces']);
   const text = readText(input);
   if (looksHtml(text) && NODE.documentTextOf(text) !== null) {
+    // a 0.x file: extract refuses it (legacy-file); upgrade writes its format-1 text twin (CLI-7)
+    if (readLegacy(text) !== null) throw new CliError(`${file} is an orz-slides 0.x file, not a text: \`orz-slides upgrade ${sh(file)}\` writes its format-1 text twin and makes it a file of this version; then edit and assemble that text`, 'assembled-input', { command: 'upgrade', args: [file] });
     throw new CliError(`${file} is an assembled file, not a text: \`orz-slides extract ${sh(file)}\` gives its text; \`orz-slides upgrade ${sh(file)}\` re-assembles it with this version`, 'assembled-input', { command: 'extract', args: [file] });
   }
   const outArg = p.values['--out'];
@@ -433,9 +436,14 @@ function cmdAssemble(p: Parsed, o: Io): void {
   const out = toStdout ? null : outArg !== undefined ? resolve(outArg) : outputOf(input);
   if (!toStdout && out === null) throw new CliError(`cannot name the output of ${file} (a text twin's name ends in .slides.md, or a Markdown text's in .md): pass -o out.slides.html`, EXIT_USAGE);
   if (out === input) throw new CliError('the output would overwrite the input', EXIT_USAGE);
-  // the kind: a .slides.md name says slides; any other name: the header's carrier, else slides
-  const info = readDocument(text, kind === 'slides' ? { kind: 'slides' } : {});
-  if (info.kind !== 'slides') throw new CliError(`${file}: the header says carrier: ${info.kind}; use ${info.kind === 'md' ? 'orz-mdhtml' : `orz-${info.kind}`}`, 'other-kind');
+  // the kind, as inspect decides it (CLI-8): the header's carrier whatever the name, else the name, else slide markers
+  const declared = textKindOf(text, file);
+  if (declared !== 'slides' && !p.flags.has('--force')) {
+    const tool = declared === 'md' ? 'orz-mdhtml' : `orz-${declared}`;
+    const why = readHeader(text)?.fields['carrier'] !== undefined ? `the header says carrier: ${declared}` : 'it has no slide markers (`<!-- slide -->`) and no `carrier: slides` in a header: an orz md document';
+    throw new CliError(`${file}: ${why}; use ${tool} (to make it a deck: put \`carrier: slides\` in its header, or start slides with \`<!-- slide -->\`; --force assembles it as a deck as it is)`, 'other-kind');
+  }
+  const info = readDocument(text, { kind: 'slides' });
   if (info.format > 1) throw new CliError(`${file}: text format ${info.format} is newer than this tool writes (format 1); use a newer orz-slides (\`npx ${commandLine({ command: 'assemble', args: assembleArgs(callOf(p), file) }).replace(/^orz-slides /, 'orz-slides@latest ')}\`)`, 'newer-format');
   const force = p.flags.has('--force');
   // a 0.x text: its <!-- deck --> block (title, theme, ratio, footer) is not read in format 1 — upgrade it first
@@ -460,7 +468,8 @@ function cmdAssemble(p: Parsed, o: Io): void {
     message: `${names.out} was made by a newer orz-slides (${newerShell}) than this tool (${VERSION}): assembling here would replace its shell with an older one; not replaced. Use \`npx ${commandLine({ command: 'assemble', args: assembleArgs(callOf(p), names.input) }).replace(/^orz-slides /, 'orz-slides@latest ')}\` (or pass --force: the old file is kept as ${names.out}~)`,
     reason: 'newer-shell',
   };
-  if (!force) for (const r of [check.risk, shellRisk]) if (r !== null) throw new CliError(r.message, r.reason, r.next);
+  // a newer shell first: any assemble here would downgrade it, so a twin refusal's --replaces could not help (CLI-6)
+  if (!force) for (const r of [shellRisk, check.risk]) if (r !== null) throw new CliError(r.message, r.reason, r.next);
 
   // includes (FC-18 §8.3): the existing file's record kept for the directives the text still has; --resolve-includes
   // reads file includes from the text's folder; stale records and unresolved directives are named (the kit's plan)
@@ -632,10 +641,15 @@ function upgradeTextCommand(p: Parsed, o: Io, file: string, input: string, text:
   for (const f of ['--text', '--no-text', '--cdn', '--inline']) if (p.flags.has(f) || p.values[f] !== undefined) throw new CliError(`${f} applies to upgrading a file (old.slides.html); ${file} is a text: \`orz-slides upgrade ${sh(file)}\` writes its format-1 text, then \`orz-slides assemble\` it`, EXIT_USAGE);
   const kind = kindFromFilename(input);
   if (kind === 'paged') throw new CliError(`${file} is an orz paged text: use orz-paged`, 'other-kind');
-  const info = readDocument(text, kind === 'slides' ? { kind: 'slides' } : {});
-  if (info.kind !== 'slides') throw new CliError(`${file}: the header says carrier: ${info.kind}; use ${info.kind === 'md' ? 'orz-mdhtml' : `orz-${info.kind}`}`, 'other-kind');
-  if (info.format > 1) throw new CliError(`${file}: text format ${info.format} is newer than this tool writes (format 1); use a newer orz-slides (\`npx orz-slides@latest upgrade ${sh(file)}\`)`, 'newer-format');
   const force = p.flags.has('--force');
+  // the kind as inspect and assemble decide it (CLI-8): a header naming another carrier, or a plain .md without slides
+  const declared = textKindOf(text, file);
+  if (declared !== 'slides' && !force) {
+    const why = readHeader(text)?.fields['carrier'] !== undefined ? `the header says carrier: ${declared}` : 'it has no slide markers (`<!-- slide -->`) and no `carrier: slides` in a header: an orz md document';
+    throw new CliError(`${file}: ${why}; use ${declared === 'md' ? 'orz-mdhtml' : `orz-${declared}`} (--force upgrades it as a deck text as it is)`, 'other-kind');
+  }
+  const info = readDocument(text, { kind: 'slides' });
+  if (info.format > 1) throw new CliError(`${file}: text format ${info.format} is newer than this tool writes (format 1); use a newer orz-slides (\`npx orz-slides@latest upgrade ${sh(file)}\`)`, 'newer-format');
   const outArg = p.values['--out'];
   const textName = upgradeTextName(file);
   const out = outArg !== undefined ? resolve(outArg) : textName !== null ? resolve(textName) : null;
@@ -678,7 +692,23 @@ function upgradeTextCommand(p: Parsed, o: Io, file: string, input: string, text:
   if (moved.length > 0) o.say(`Moved into the header: ${moved.map((k) => `${k}: ${up.moved[k]}`).join('; ')}`);
   if (rep.report && rep.report.unexplained.length > 0) o.warn(`the upgraded deck differs from what 0.x showed in ${rep.report.unexplained.length} place${rep.report.unexplained.length === 1 ? '' : 's'} no decision explains (see the notes): check those slides`);
   for (const w of errors(after.lint)) o.warn(w);
-  o.say(`  sha256 ${sha256(up.text)} (of the text); next: ${commandLine({ command: 'assemble', args: [NODE.shown(out, outArg ?? textName ?? undefined)] })}`);
+  // the 0.x file beside the new text (0.x's layout: deck.md next to the deck.slides.html built from it, CLI-4): built from
+  // exactly this source, it is a known state of the pair, so the plain assemble replaces it; built from another text,
+  // it is named (assemble would refuse it as a 0.x file holding a different text)
+  const sibling = twinName(out);
+  const siblingHtml = sibling !== null && existsSync(sibling) ? readMaybe(sibling) : null;
+  const siblingLegacy = siblingHtml !== null && looksHtml(siblingHtml) ? readLegacy(siblingHtml) : null;
+  const siblingName = sibling !== null ? NODE.shown(sibling, twinName(outName) ?? undefined) : '';
+  if (siblingLegacy && siblingHtml !== null) {
+    const heldText = NODE.documentTextOf(siblingHtml) ?? siblingLegacy.text;
+    if (siblingLegacy.text === text) {
+      NODE.rememberPair(out, sibling!, heldText, up.text, o, { command: 'assemble', sha: sha256(heldText) });
+      o.say(`  ${siblingName} is the orz-slides ${siblingLegacy.version ?? '0.x'} file built from ${file}: assembling ${outName} replaces it (no --force needed)`);
+    } else {
+      o.warn(`${siblingName} is an orz-slides ${siblingLegacy.version ?? '0.x'} file holding another text than ${file} (edited in the browser?): \`${commandLine({ command: 'upgrade', args: [siblingName, '--text', NODE.otherName(outName)] })}\` gives its format-1 text; merge what you keep into ${outName}, then \`${commandLine({ command: 'assemble', args: [outName, '--replaces'] })} <sha256>\` with the sha256 that upgrade prints`);
+    }
+  }
+  o.say(`  sha256 ${sha256(up.text)} (of the text); next: ${commandLine({ command: 'assemble', args: [outName] })}`);
   emit(o, { command: 'upgrade', input, output: null, text: out, from: 'text', previous: null, changed, written: writes, shell: VERSION, uid: after.meta.uid ?? null, title: after.title, theme: after.theme ?? null, themeEffective: pres.theme.id, ratio: pres.ratio, slides: inspect(up.text, { filename: 'x.slides.md' }).slides, moved: up.moved, notes, report: rep.report, backups, sha256: sha256(up.text) });
 }
 
@@ -741,6 +771,14 @@ async function cmdInspect(p: Parsed, o: Io): Promise<void> {
   const file = one(p, 'a file', 'inspect');
   if (p.flags.has('--offline') && !p.flags.has('--layout')) throw new CliError('--offline applies to --layout (orz-slides inspect <file> --layout --offline)', EXIT_USAGE);
   const path = resolve(file);
+  // no text twin yet beside its file (CLI-9: the skill's first step): say so, and name the extract that writes it
+  if (!existsSync(path) && /\.slides\.md$/i.test(path)) {
+    const html = twinName(path);
+    if (html !== null && existsSync(html)) {
+      const htmlName = twinName(file) ?? basename(html);
+      throw new CliError(`${file}: no such file — but ${htmlName} is here: \`orz-slides extract ${sh(htmlName)}\` writes its text twin (exact, byte for byte); \`orz-slides inspect ${sh(htmlName)}\` reports on the file`, 'no-such-file', { command: 'extract', args: [htmlName] });
+    }
+  }
   const content = readText(path);
   // the sibling twin (x.slides.md <-> x.slides.html; a plain x.md -> x.slides.html): does it hold the same text, and which is newer?
   const sibling = /\.slides\.html$/i.test(path) ? twinName(path) : outputOf(path);

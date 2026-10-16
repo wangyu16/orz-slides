@@ -64,9 +64,10 @@ hold work the text twin lacks — even when `x.slides.md` is the newer file.
 Always compare first.
 
 1. **Compare before you edit.** `npx orz-slides@1 inspect x.slides.md --json`
-   (works with only `x.slides.html` too) and read `sha256` and `twin`:
-   - no `x.slides.md` yet → `npx orz-slides@1 extract x.slides.html` (exact,
-     byte for byte);
+   and read `sha256` and `twin`:
+   - no `x.slides.md` yet → the command fails with reason `no-such-file` and
+     `next` `extract x.slides.html`: run `npx orz-slides@1 extract
+     x.slides.html` (exact, byte for byte);
    - `twin.holds: "same"` → go on;
    - `twin.holds: "different"` with `twin.earlier` set → the file holds an
      earlier text of `x.slides.md`; go on (assemble replaces it);
@@ -339,9 +340,17 @@ it names the command to run, with your file names:
 
 - `legacy` (an orz-slides 0.x file) → `upgrade`; next to an existing
   `x.slides.md`: `upgrade x.slides.html --text x.browser.slides.md`, then
-  merge — `extract` does not read 0.x files;
+  merge and `assemble x.slides.md --replaces <sha256 upgrade printed>` —
+  `extract` does not read 0.x files. The 0.x file's own "Framework 1.x
+  available" banner cannot do this (it ends with "Update failed — check your
+  connection" and changes nothing): tell the user to dismiss it;
 - a 0.x **text** (a `<!-- deck -->` block; lint `deck-block`) → `upgrade
-  deck.md` (writes `deck.slides.md`), then assemble that;
+  deck.md` (writes `deck.slides.md`), then assemble that (a 0.x
+  `deck.slides.html` built from exactly that source is replaced without
+  `--replaces`);
+- `twin` of a text that names a file **cut off** inside its text → the
+  advice is `assemble x.slides.md --replaces <sha256>`: the text is the
+  complete one, never merge the cut file's text in;
 - `twin.holds: "different"` → extract and merge before assembling (unless
   `twin.earlier` is set: then assemble replaces it);
 - `checks.island: "unclosed"` → the file was cut off: `extract x.slides.html
