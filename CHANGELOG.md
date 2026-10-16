@@ -3,6 +3,166 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+<a id="100"></a>
+
+## [1.0.0] — unreleased (prepared on branch `rebuild/1.0`; the release step dates it)
+
+A rebuild on the orz-markdown carrier kit (orz text format 1), the shape of
+orz-mdhtml 1.0 and orz-paged 1.0 with slides added (family plan
+`docs/REBUILD.md` §3c). Requires `orz-markdown ^2.4.0` (FC-18 2.4.0 slides
+keys, FC-19 `applyEdits` / `select` / `setFocusRange` / `flash` /
+`getSelection`); reveal.js pinned at 5.2.1; released together with
+`orz-slides-browser` 1.0.0.
+
+### Breaking
+
+- The 0.x files, Node API and CLI shape are replaced. 0.x files are not
+  opened as they are: `orz-slides upgrade old.slides.html` writes a format-1
+  file and its text twin, and `orz-slides upgrade deck.md` a 0.x deck source
+  as a format-1 text — the `<!-- deck … -->` block (wherever it stood) and a
+  `kind: meta` block become one `{{nyml}}` header at the top with `carrier:
+  slides` and a `uid`; the theme 0.x showed is written explicitly; marker
+  spellings 0.x tolerated are normalised; every difference against what 0.8.5
+  showed is listed in the upgrade report (`--json` `report`, nothing
+  unexplained for the 0.7.1–0.8.5 fixtures). `orz-slides inspect` says what
+  any file or text is and what to do.
+- The header is the deck config, and the only one: a `<!-- deck … -->` block
+  in a format-1 text renders nothing (lint `deck-block`, error, `next:
+  upgrade`); `assemble` refuses a 0.x text (`legacy-file`).
+- The logical slide is 1280 × 720 (16:9) or 960 × 720 (4:3) — no longer
+  960 × 540; theme sizes are one set of numbers.
+- Removed: `buildSlidesHtml` and the 0.x library API (FC-09), the 0.x
+  in-file runtime (`assets/app.js`, the per-slide pop-out editor, the
+  morphdom preview, the auto-hiding deck bar, `window.orzslides`), the
+  `#orz-deck` / `text/orz-slides` island and `__ORZ_SLIDES__`, `build/shims`
+  and `path-browserify`, the `release` script (D-15: `prepublishOnly` in each
+  package, the browser package first), the presentation-only export and
+  vertical sub-slides; the 0.x CLI forms `orz-slides deck.md --theme … --title
+  …` (content comes only from the header: refused with the header or `new`
+  named; D-07).
+- Themes: 14 slide themes replace the 7. Derived from orz-markdown's themes:
+  Orchard (the default), Sky, Stationery, Preprint, Small Press, Notebook,
+  Sticker, Inscription, Copper, Nocturne; updated from 0.x: Architect, Chalk,
+  Neon, Paper. Executive, Poppy and Sage are dropped (`upgrade` maps them to
+  Sky, Sticker and Orchard); `light-academic-1` and `beige-decent-1` alias
+  Paper; the orz-markdown ids alias their derived themes.
+
+### The new file
+
+- A deck is its **text twin** `x.slides.md` and its **self-editing file**
+  `x.slides.html` = `assemble(text)`: the exact text in the `#orz-src`
+  island (BOM and line endings kept), an agent banner, `#orz-shell`
+  (`kind`, `format`, `shell`, `delivery`), `<meta name="generator"
+  content="orz-slides 1.0.0">`, `#orz-includes` for resolved includes. Node
+  and the browser write the same bytes (FC-18 law 2); `extract` gives the
+  text back byte for byte, also from a page the browser saved.
+- **The read view is the deck**, through one engine module that owns
+  reveal.js (its keyboard, controls, progress and print route off; keys
+  through the kit): theme chrome inside the slide (running head, slide
+  number, section, progress), sections numbered automatically (`plain`,
+  `roman`, `01`), the outline's current item marked (`here=N` overrides),
+  the closing page's lone `{{qr}}` in its own slot; **fit on every box, on
+  both axes, templates included** — a box shrinks to fit down to 60 %, then
+  is marked clipped (`data-scale`, `data-clipped`), never cut silently (D-46:
+  a long title-page title no longer spills or is cut); charts, diagrams and
+  molecules drawn when their slide is visible, at their box's size, in the
+  theme's colours (dark themes draw on dark).
+- **The pencil** (the kit's one control): Edit, **Present** (the deck alone,
+  full screen), **Print** and **Print with notes** (one slide per page at the
+  slide's size, every fragment shown; what paper cuts is marked on the page
+  and said), **Speaker view** (S: its own window with current and next slide,
+  notes, clock and timer), **Overview** (O), Save, Download a copy, New
+  document, Save as new copy, the header settings **Theme, Ratio, Slide
+  numbers, Progress bar, Section numbers** (FC-18 2.4.0 keys `slide_numbers`,
+  `progress`, `section_numbers`), host protocols and the quiet update
+  (re-assembles the same text with the SHA-384-verified bundle; D-53, D-56).
+- **Two ways to edit** (owner decision 1): the **whole deck** — the kit's
+  editor with the full text beside a **flattened** preview (a thin divider
+  per slide with its number, title and layout, regions labelled, notes and
+  footers set apart; scroll sync), the **live slide card** in the corner (the
+  caret's slide as it presents, with a fit badge; folds to a tab), deck
+  lints with quick fixes; and **single-slide editing** — the card enlarges
+  into the layout GUI over the slide: split a box into rows or columns,
+  delete a box (its content moves to the neighbour), drag dividers (snapping
+  to simple ratios), presets, rename and swap, floats (added where they cover
+  nothing, moved, resized, layered), a template's look (`v=`), the slide's
+  options, notes and footer, and a filmstrip to add, duplicate, delete and
+  reorder slides (drag to reorder, D-58). Every operation rewrites only
+  marker lines — one undo step, one history for both modes; the overlay is in
+  the trusted page, the stage in the sandboxed frame (D-47: no freeze, no
+  drift between the editor's slide and the shown one; a marker in a code
+  fence never splits a slide).
+- **Saves**: `assemble(text)` in place (Chromium), else a download; a save
+  over a file changed on disk asks first; New document and Save as new copy
+  assemble with the running shell (D-55).
+
+### CLI and library
+
+- `orz-slides new | assemble | extract | upgrade | inspect [--layout] |
+  themes | templates` on the kit's `carrier/node`: inline by default,
+  `--cdn` for the web, `--json` with stable reason codes and a `next`
+  command for every refusal (each tested verbatim), `--replaces <sha256>`,
+  known states (the CLI's pair records, git), backups `<file>~`, atomic
+  writes. `inspect --layout` renders a deck in the installed Chrome and
+  reports per slide and box the fit scale and clipping (refused with
+  `no-browser` without Chrome) — an agent's overflow check.
+- Deck templates for `new` (`starter`, `talk`, `minimal`).
+- The library exports `assemble`, `extract`, `readDocument`, `newDocument`,
+  `upgrade`, `upgradeText`, `inspect`, `inspectLayout`, the upgrade report,
+  `parseDeck`, `planDeck` and the per-slide editor's pure layout ops
+  (`applyOp`, `applyEdits`, `slideMap`, …) for apps and agents.
+
+### Web apps and agents
+
+- `orz-slides-browser`: the IIFE (`globalThis.OrzCarrier`, FC-19) and an ES
+  module build, `index.d.ts`, a `require()` shim that says how to load it,
+  `release.json` with the bundle's SHA-384, `scripts/check-release.mjs` as
+  its `prepublishOnly`; the bundle obeys the bundle rule (no `<script`, no
+  CR, ASCII only). `OrzCarrier.layout` (and the ES module's named exports)
+  carry the parser and the layout ops; `renderPreview` gives the flattened
+  deck (`document: true` themed, `nonce` for its styles).
+- `docs/embedding.md` (shipped in both packages) and `examples/webapp/`: two
+  editors on one page with every hook under a nonce CSP with
+  `'strict-dynamic'`, tested offline in real Chrome. App-side print of the
+  slides is not offered in 1.0 (the `print` event goes to the app).
+- The agent skill is rewritten for format 1 (both editing modes, the layout
+  GUI, capacity budgets re-measured at 1280 × 720 for all 14 themes,
+  `inspect --layout`, `upgrade` of files and texts, recovery, templates).
+  `PROTOCOL.md` points to orz-markdown's `spec/host-protocols.md`.
+
+### Quality
+
+- Tests: unit, the shared corpus round trip, CLI scenarios, real Chrome
+  (read view, fit, keys, print, themes, both editing modes, the layout GUI's
+  round trip over 2500 seeded decks, typing and drag latency, the web app),
+  and orz-markdown's carrier conformance harness (46 checks); claims in
+  `notes/CLAIMS.md`. Closed-loop rounds A and B (`notes/closed-loop.md`).
+- Examples regenerated with this shell (one inline, the rest cdn) and kept
+  fresh by a test; the 0.x test decks upgraded to format-1 review decks
+  (D-29). The 0.x design documents moved to `archive/`.
+
+## [0.8.3] – [0.8.5] — 2026-07-14 – 2026-07-17
+
+Release-process and documentation releases. `orz-slides-browser` is kept in
+lockstep with `orz-slides` by the build (0.8.1 and 0.8.2 had been published
+without their browser package, so `--cdn` decks made with them loaded a
+missing engine and showed an empty page); the README leads with "Markdown
+that edits itself"; package metadata (homepage, bugs) updated.
+
+## [0.8.2] — 2026-07-14
+
+### Fixed
+
+- Hosted decks: fragment stepping is off in the editor preview too.
+
+## [0.8.1] — 2026-07-14
+
+### Fixed
+
+- Edit mode reveals every fragment, so navigation goes slide to slide.
+
+<a id="080"></a>
+
 ## [0.8.0] — 2026-07-11
 
 ### Fixed

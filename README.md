@@ -1,228 +1,406 @@
 # orz-slides
 
-**Markdown that edits itself.**
+**Markdown that edits itself — as a slide deck.**
 
-Turn notes or Markdown into a single **`.slides.html`** — one portable file
-that presents like a slide deck in any browser, authored in
-[orz-markdown](https://www.npmjs.com/package/orz-markdown) with a small layout
-syntax, and edits itself in place: the source rides inside the file and saves
-back. Built on [reveal.js](https://revealjs.com) for the deck mechanics.
+A deck is its **text twin** — `talk.slides.md`, Markdown with a small header
+and comment markers that start slides and split them into boxes — and its
+**self-editing file** `talk.slides.html`, one HTML page that presents the deck
+in any browser (keys, overview, speaker view, timer, full screen), edits
+itself — the whole deck as text beside a live preview, or one slide at a time
+with a layout editor —, saves back in place and prints one slide per page.
+The file is always `assemble(text)`: the text inside it is the deck;
+everything else is a shell that can be regenerated. Built on the carrier kit
+of [orz-markdown](https://www.npmjs.com/package/orz-markdown) (orz text format
+1) and [reveal.js](https://revealjs.com) 5.2.1 for the deck mechanics.
 
-One file. Open it in a browser to present. Pop out a per-slide editor to change
-a slide. Save it back in place. Nothing to install for the audience.
+The deck sibling of [orz-mdhtml](https://www.npmjs.com/package/orz-mdhtml) (a
+continuous, themed web page) and [orz-paged](https://www.npmjs.com/package/orz-paged)
+(print pages): the same text twin, pencil, editor, saves, quiet update, host
+protocols, CLI and agent workflow; what slides adds is slides.
 
-> **Status: published (v0.8.5).** The authoring syntax, CLI, engine, and in-file
-> editor all work (see [DESIGN.md](./DESIGN.md)). Two packages publish in
-> lockstep: the [`orz-slides`](https://www.npmjs.com/package/orz-slides) CLI and
-> the [`orz-slides-browser`](https://www.npmjs.com/package/orz-slides-browser)
-> engine. Speaker view, step-reveal fragments, an on-deck timer, and slide
-> numbers are wired; **PDF export** is the remaining planned extra.
+## What a 1.0 `.slides.html` is
 
-## Install & generate
+- **The text twin inside.** The exact text (BOM and line endings kept) rides
+  in the file's `<script type="text/markdown" id="orz-src">` island.
+  `orz-slides extract` gives it back byte for byte; an agent banner at the top
+  of `<body>` tells tools how to read it.
+- **The deck, in the page.** Every slide at its logical size — 1280 × 720
+  (16:9) or 960 × 720 (4:3) — scaled to the window, on the theme's surround.
+  → ↓ Space PageDown next, ← ↑ PageUp previous, Home / End; **O** the
+  overview, **S** the speaker view (its own window: current and next slide,
+  notes, clock and timer), **T** the timer, **F** Present. A slide's
+  `step` option reveals its points one at a time.
+- **Nothing is cut silently.** Every box — regions, titles, template pages,
+  floats — shrinks its content to fit, down to 60 %; past that the box is
+  marked clipped, and the editor and `orz-slides inspect --layout` say so.
+- **One quiet control.** A small pencil at the bottom-left. Click it to edit;
+  hover it (tap it on a touch screen, or Tab to it and press ArrowUp) for the
+  list — **Edit, Present, Print, Print with notes, Speaker view, Overview,
+  Save, Download a copy, New document, Save as new copy**, the settings
+  **Theme, Ratio, Slide numbers, Progress bar, Section numbers**, and, when
+  there is one, the update. A dot on the pencil means unsaved changes.
+- **Settings are the deck's.** Theme, ratio, slide numbers, progress and
+  section numbering live in the text's header: choosing one from the pencil's
+  list (or the editor's bar) writes the header — one undoable edit, unsaved
+  until you Save — and the deck follows.
+- **Edit, two ways.** The pencil (or Cmd/Ctrl+E) opens the editor:
+  - **the whole deck** — CodeMirror beside a **flattened** preview (every
+    slide's content in order, a thin divider per slide with its number,
+    title and layout, regions labelled, notes and footers set apart), and in
+    its corner the **live slide card**: the slide under the caret as it
+    presents, with a badge (*fits*, *shrunk to 80%*, *footer cut*, *cut on
+    paper*). Issues lists the deck's lints with quick fixes. Fold the card to
+    a tab when it is in the way.
+  - **one slide at a time** — the card's **Edit** (Cmd/Ctrl+Shift+Enter)
+    enlarges it into the layout editor over the slide: split a box into rows
+    or columns, delete a box (its content moves to the neighbour), drag a
+    divider (it snaps to simple ratios), choose a preset, rename or swap
+    boxes, add, move, resize and layer floats, choose a template page's look,
+    set the slide's options, notes and footer; a filmstrip adds, duplicates,
+    deletes and reorders slides (drag, or Alt+Up/Down). Click a box to edit
+    its Markdown. Touch and keyboard work (`?` lists the keys). Every change
+    rewrites only the marker lines of the text — one undo step each, one
+    history for both ways. **Done** goes back to the deck, on the slide you
+    were editing. The bar ends, quietly, with the orz seal
+    (https://markdown.orz.how) and this tool's GitHub link.
+- **Print.** *Print* prints one slide per page at the slide's size, every
+  step shown; *Print with notes* puts each slide over its speaker notes.
+  Choose *Save as PDF* in the print dialog for a PDF. What does not fit on
+  paper is marked on its page and said.
+- **Save, New, Copy.** **Save** (Cmd/Ctrl+S) writes `assemble(text)` — never
+  the rendered deck — back to the file. A save never silently overwrites a
+  file that changed on disk since the page opened it: it asks — *Replace it*
+  or *Download a copy instead*. *New document* and *Save as new copy* make a
+  fresh file with this version's shell. The page asks before it closes with
+  unsaved changes.
+- **A quiet update.** A local file checks, at most once a day, whether a newer
+  release of its engine exists; if so, the pencil gets a small dot and its list
+  offers *Update to x.y.z*. *Update now* re-assembles the same text with the
+  new release (its bundle verified by SHA-384) and saves it; nothing changes
+  until the reader asks. Served pages, framed pages and pages with a host
+  never check.
 
-```bash
-npm install -g orz-slides          # or: npx orz-slides <deck.md>
-orz-slides deck.md                 # → deck.slides.html (inline engine + all 7 themes)
-orz-slides deck.md --cdn           # reference the engine + theme from jsDelivr instead
-orz-slides deck.md -o talk.slides.html --theme executive
-```
+Everything inside a box is orz-markdown — math, code, Mermaid diagrams,
+chemistry (SMILES), charts, QR codes, tables, callouts, columns, tabs.
 
-The `--inline` default embeds the engine, reveal's core CSS, and all seven themes,
-so a text deck presents (and switches themes) offline. `--cdn` keeps the file
-small by loading the engine + theme from jsDelivr.
+## A deck
 
-## What a `.slides.html` does
-
-1. **Presents in any browser.** The deck is a reveal.js presentation —
-   keyboard/touch navigation, slide overview (ESC), fullscreen (F) — with no
-   install for the viewer.
-2. **Authored in orz-markdown.** Every slide is Markdown (math, mermaid, smiles,
-   qr, charts, tabs, containers) — never hand-written HTML — divided into
-   regions by a small **comment-based layout syntax**.
-3. **Edits in place.** A per-slide **pop-out editor** (CodeMirror + live preview
-   of just that slide) lets you rewrite a slide and **Save** the whole file —
-   in-place on Chromium, or as a downloaded copy elsewhere.
-4. **Template-driven structure pages.** Title, section, outline, and closing
-   slides come from a small gallery of templates.
-5. **Self-contained.** The deck source is embedded in the file as the single
-   source of truth. By default the CLI **inlines** the engine, reveal's core CSS,
-   and all seven themes, so a deck **presents and switches themes even offline**.
-   Only KaTeX (math), Mermaid, SmilesDrawer, Chart.js, and the editor
-   (CodeMirror) load from CDN — so a deck that uses math/diagrams/charts, or
-   in-browser editing, needs internet. `--cdn` references the engine + theme from
-   jsDelivr instead.
-
-The deck source lives in the file as the single source of truth; Save
-re-serializes the whole document around it:
-
-```html
-<script type="text/orz-slides" id="orz-deck">
-  ...deck config + slides (this is what you write)...
-</script>
-```
-
-The deck config's `title:` and `author:` also become portable document metadata:
-the generator emits standard `<head>` tags plus an `#orz-meta` JSON island that
-survives in-browser saves and framework updates. Programmatic callers can pass a
-richer `metadata` object to `buildSlidesHtml` (license, canonical source, date,
-description, and keywords); host values win field by field without changing the
-visible deck or its footer.
-
-> "Self-contained" means *works as one file*. With the default `--inline`, the
-> engine, reveal's core CSS, and all themes are embedded — a text deck presents
-> offline. The math/diagram/chart libraries (KaTeX, Mermaid, SmilesDrawer,
-> Chart.js) and the editor (CodeMirror) load from CDN, so a deck that uses them,
-> or in-browser editing, needs internet. With `--cdn`, the engine + theme load
-> from jsDelivr too. Presenting works in all modern browsers; in-place Save needs
-> a Chromium browser.
-
-## Its place in the orz family
-
-orz-slides is the slide-deck sibling of
-[orz-mdhtml](https://www.npmjs.com/package/orz-mdhtml), sharing the same
-philosophy — deck-first, quietly editable, self-contained, CDN-delivered
-renderer — and the same in-file editor stack (CodeMirror with a dark theme on
-dark decks, live preview, File System Access save, theme picker, and
-copy-as-markdown — selecting rendered slide content copies its Markdown source).
-Both render content through **orz-markdown**:
-
-- **orz-markdown** — the Markdown renderer (parser, plugins, themes) that turns
-  region bodies into HTML.
-- **orz-mdhtml** — produces an editable `.md.html` *document* to read and
-  annotate.
-- **orz-slides** — produces an editable `.slides.html` *deck* to present.
-
-Reach for `.md.html` when the output is a document to read; reach for
-`.slides.html` when it is a deck to present.
-
-## Authoring example
-
-A deck source is plain text: an optional leading `<!-- deck … -->` config block,
-then a sequence of slides. **Every slide begins with a `<!-- slide … -->`
-marker** — that marker is also the slide separator. There is no bare `---`.
-
-```
-<!-- deck
-  title: Controlled Polymerization
-  theme: executive
-  ratio: 16:9
-  author: Dr. Yu Wang
-  footer: Internal · v3 · 2026
--->
+```markdown
+{{nyml
+kind: document
+carrier: slides
+uid: doc-7kq2m9x4p1r8s3t5
+title: Controlled Radical Polymerization
+author: Yu Wang
+theme: orchard
+ratio: 16:9
+footer: CHEM 512 · RAFT
+}}
 
 <!-- slide template=title -->
-# Controlled Polymerization
-## RAFT vs ATRP
-**Dr. Yu Wang** · University of Louisiana · 2026
-
-<!-- slide -->
-## Why controlled polymerization
-- Narrow dispersity, predictable chain length
-- Block copolymers by sequential addition
-- The tradeoff: rate vs control
+# Controlled Radical Polymerization
+## How RAFT keeps every chain growing together
+Yu Wang · October 2026
 
 <!-- slide 2col 3/2 -->
 ## Results at a glance
 <!-- @left -->
-- Accuracy **92%** across all runs
-- Latency under **40 ms**
+- Dispersity below **1.2** in every run
+- Molecular weight grows linearly with conversion
 <!-- @right -->
-{{smiles C(=S)(SC)SC}}
+{{chart
+type: line
+labels: 10, 30, 50, 70
+series: Mn = 4, 11, 19, 27
+}}
 <!-- @notes -->
-Lead with accuracy; the latency number is the surprise — pause here.
+Lead with dispersity; the linear growth is the point.
 ```
 
-The leading `## h2` becomes each slide's title band automatically; layout
-presets (`2col`, `3col`, `main-side`, `quad`, …) and raw `row/col` splits divide
-the content area into named regions filled by `<!-- @name -->`. See
-[orz-slides-skills/SKILL.md](./orz-slides-skills/SKILL.md) for the full layout
-grammar, templates, and per-container capacity budgets.
+- **The header** (`{{nyml kind: document}}` at the very top) is the deck's
+  config — `title`, `theme`, `ratio` (`16:9` / `4:3`), `author`, `footer`,
+  `transition`, `slide_numbers`, `progress`, `section_numbers` — and the only
+  one.
+- **`<!-- slide … -->`** starts a slide: a layout (a preset — `2col`, `3col`,
+  `2row`, `main-side`, `quad`, with an optional ratio such as `3/2` — or a
+  split of your own, `row auto/1 { head; col 1/1 { a; b } }`), a template
+  page (`template=title|section|outline|closing`, `v=N` for its look) and
+  options (`step`, `fit=`, `bg=`, `t=`, `class=`, `id=`, `here=`).
+- **`<!-- @name -->`** fills a box; the leading `##` of a normal slide is its
+  title. `<!-- @notes -->` (speaker notes), `<!-- @footer -->` (this slide's
+  footer) and `<!-- @float left=60% top=10% w=35% h=40% -->` (an overlay) are
+  the reserved markers. Markers count only as top-level lines: one inside a
+  code fence or a list is text.
 
-## Use with an AI agent
+Examples (each text twin with its file): [`examples/starter.slides.md`](examples/starter.slides.md)
+→ [`starter.slides.html`](examples/starter.slides.html) (a tour of every
+kind of slide; inline — it opens offline),
+[`examples/raft.slides.md`](examples/raft.slides.md) →
+[`raft.slides.html`](examples/raft.slides.html) (a chemistry lecture: formulas,
+charts, molecules, diagrams), [`examples/talk.slides.md`](examples/talk.slides.md)
+→ [`talk.slides.html`](examples/talk.slides.html) (the skeleton of a talk,
+Nocturne), [`examples/demo.slides.md`](examples/demo.slides.md) →
+[`demo.slides.html`](examples/demo.slides.html) (the 0.x demo, upgraded).
+The last three are small cdn files for the web.
 
-The package ships an **agent skill** that teaches an AI agent the deck format — the
-layout grammar, structure templates, regions, and floats. The quickest way to build a
-deck is to let an agent do it:
+## Themes and templates
 
-- **Any agent** — point it at the skill, then describe what you want:
-  `https://cdn.jsdelivr.net/npm/orz-slides/orz-slides-skills/SKILL.md`
-- **Claude Code** — copy `orz-slides-skills/` into `~/.claude/skills/orz-slides/`.
+Fourteen **slide themes** (`orz-slides themes`), light and dark, each
+carrying the components only decks have (title band, title, section, outline
+and closing pages, slide number, progress, footer, fragments, regions,
+floats). Ten are derived from orz-markdown's themes — **Orchard** (the
+default), **Sky**, **Stationery**, **Preprint**, **Small Press**,
+**Notebook** (a ruled exercise book), **Sticker**, and the dark
+**Inscription**, **Copper**, **Nocturne** —; four come from 0.x, updated:
+**Architect** (a drafting sheet), **Chalk** (a chalkboard, dark), **Neon** (an
+instrument panel, dark) and **Paper** (a finely printed book). Dark themes
+draw charts and diagrams on dark. The themes ship inside the engine, so a
+`--cdn` file styles exactly like an inline one. The orz-markdown theme ids
+(`light-neat-3`, …) are accepted as aliases.
 
-More install routes: <https://markdown.orz.how/agents.html> · layout reference:
-<https://markdown.orz.how/slides.html>
+Three **deck templates** for `orz-slides new` (`orz-slides templates`):
+`starter` (a tour of every kind of slide; the default), `talk` (title,
+outline, three sections, closing) and `minimal` (a title page and one slide).
+The file's *New document* starts from `minimal`.
 
-## Key features
+## Install
 
-- **Portable & self-contained** — one `.slides.html` opens and presents in any
-  modern browser; with the default `--inline`, the engine and all themes are
-  embedded (math/diagram libraries still load from CDN).
-- **Markdown-native slides** — orz-markdown content (math, mermaid, smiles, qr,
-  charts) in every region, never hand-written HTML.
-- **Layout by space division** — a recursive `row`/`col` split grammar, with
-  terse preset aliases for the common cases.
-- **In-browser per-slide editor** — pop-out CodeMirror + live preview; deck ops
-  (add / duplicate / delete / reorder / theme).
-- **Structure templates** — `title` / `section` / `outline` / `closing` pages
-  with multiple theme-aware variants.
-- **Presenter tools** — navigation, slide overview, fullscreen, slide numbers,
-  and a progress bar from reveal.js; a self-contained **speaker view** (press
-  **S** — current/next slide, your `@notes`, clock + timer) and an on-deck
-  **clock/timer** overlay (press **T**). Speaker notes are authored with
-  `<!-- @notes -->` and stored per slide.
-- **Step-reveal fragments** — `<!-- slide step -->` reveals a slide's content
-  one piece at a time (lists per item); or tag individual blocks with
-  `{{attrs[.fragment]}}`.
-- **Overflow that behaves** — scale-to-fit per region (with `fit=scroll|off`),
-  backed by agent capacity budgets so slides are authored within their bounds.
+Node 20.16 or newer. Run the CLI with `npx` (nothing to install) or install
+it:
+
+```bash
+npx orz-slides@1 new talk.slides.md --title "RAFT in five minutes" --theme nocturne   # a new text twin
+npx orz-slides@1 talk.slides.md                                                         # → talk.slides.html
+npm i -g orz-slides@1                                                                   # or: the orz-slides command
+```
+
+For a web app, the browser engine and editor component:
+`npm i orz-slides-browser@1` (see [In web apps](#in-web-apps)).
+
+## The CLI
+
+```
+orz-slides new [file.slides.md] [--template id] [--title T] [--theme id] [--ratio 16:9|4:3] [--html] [--cdn]
+orz-slides assemble <file.slides.md> [-o out.slides.html] [--cdn] [--resolve-includes | --no-includes] [--replaces sha256]   (also: orz-slides <file.slides.md>)
+orz-slides extract <file.slides.html> [-o out.slides.md] [--replaces sha256]
+orz-slides upgrade <old.slides.html> [-o out.slides.html] [--text out.slides.md | --no-text] [--cdn | --inline]
+orz-slides upgrade <old.md> [-o out.slides.md]          (a 0.x deck source)
+orz-slides inspect <file> [--layout [--offline]] [--json]
+orz-slides themes
+orz-slides templates
+```
+
+| Command | What it does |
+|---|---|
+| `new` | writes a new text twin from a deck template: its header (`kind: document`, `carrier: slides`, a fresh `uid`, the given `--title`, `--theme`, `--ratio`), then the template's slides (default `starter`). `--html` also assembles it; without a file name the text goes to stdout. A slides text twin's name ends in `.slides.md`. |
+| `assemble` | writes `x.slides.html` (or the `-o` path; missing folders are created) from `x.slides.md` (exact text in, the same bytes every time). A plain Markdown deck `x.md` assembles to `x.slides.html` too. Keeps the delivery and the includes the existing file holds (`--cdn` / `--inline` choose the delivery); `--resolve-includes` reads file includes from the text's folder. Lints are reported as warnings with their lines; the file is still written. A 0.x text (a `<!-- deck -->` block) is refused with `upgrade` as the next step. |
+| `extract` | writes the exact text twin of an assembled file (`x.slides.html` → `x.slides.md`) — also of a page the browser saved — and reports its includes. Replaces an existing, different `x.slides.md` only when it is a known state (below). A 0.x file is refused with the advice to run `upgrade`; a cut-off file gives a warning. |
+| `upgrade` | turns a 0.x file (or a file of an older 1.x shell) into a file of this version, in place by default, and writes its text twin unless `--no-text`; keeps the file's delivery unless `--cdn` / `--inline`; repairs a damaged engine. Given a 0.x **text** (`deck.md`), writes its format-1 text (`deck.slides.md`). Either way with an upgrade report: what the upgraded deck shows against what 0.8.5 showed (`--json` `report`). Refuses (unless `--force`) to downgrade a newer shell or to upgrade a file cut off inside its text. |
+| `inspect` | diagnoses a text or a file of any version: kind, text format, shell version and how it compares to this tool, delivery, uid, title, theme (as written and as shown), ratio, number of slides, header keys and settings, includes, lint with lines, the file's structure (cut off? engine intact?), the SHA-256 of the text it holds, whether the sibling twin holds the same text and which is newer, advice in plain sentences naming the files, and for a 0.x deck what `upgrade` changes. **`--layout`** renders the deck in the installed Chrome (headless) and reports per slide and box the fit scale and whether its content is cut — an agent's overflow check (`--offline` blocks every host; without Chrome: refused, `no-browser`; `ORZ_SLIDES_CHROME` names a Chrome). |
+| `themes` | lists the slide theme ids a header may name, light or dark, the default marked. |
+| `templates` | lists the deck templates, the default marked. |
+
+**Delivery.** Files are **inline** by default: the browser engine (with
+reveal.js and the 14 themes) is inside the file (about 2.2 MB), so it opens
+and presents without fetching the engine. `--cdn` writes a small file that
+loads the engine from
+`https://cdn.jsdelivr.net/npm/orz-slides-browser@<version>/orz-slides.browser.js`
+(the file's own version) — for decks you publish on the web. Either way the
+themes' webfonts, KaTeX's and highlight.js's styles, the content libraries
+(Mermaid, SMILES, Chart.js) and the editor (CodeMirror) load from CDNs: a
+deck with formulas, diagrams or charts, and editing, need a network
+connection the first time. Without one the deck still presents (system
+fonts; the drawings wait), and fit settles again when late fonts arrive.
+
+**For scripts and agents.** Every command takes `--json` (one JSON object on
+stdout), `--help` and `--force`. Exit status: 0 done, 1 refused or failed, 2
+usage error. `assemble` has no content options (`--theme`, `--title`,
+`--ratio`, `--footer` are refused with the header named). Nothing that could
+hold other work is overwritten without `--force`: an output that is not an
+orz file, a `.slides.html` that holds a different text than the one being
+assembled (it may hold work saved in the browser), an `x.slides.md` that
+differs from the text being extracted, unless what is replaced is a known
+state (below); a file made by a newer orz-slides; another document; or (for
+`new`) any existing file. With `--force` the replaced file is kept as
+`<file>~` (or `<file>~1`, `~2`, … — a backup is never overwritten). Files are
+replaced through a temporary file and a rename, keeping their mode; a
+symbolic link stays a link. Every command prints the `sha256` of the text it
+wrote or read (`--json`: `sha256`).
+
+**Known states.** `orz-slides assemble x.slides.md` replaces `x.slides.html`
+(or the `-o` output) without `--force` when the file holds the same text, or
+an earlier state of `x.slides.md` the CLI can prove; `orz-slides extract`
+replaces `x.slides.md` when it is a known state. Known are: a committed
+version of the twin in git (HEAD, staged, or one of its 20 most recent
+commits; a shallow clone knows only HEAD); the text `orz-slides` itself last
+wrote or read for that pair (records in `$XDG_CACHE_HOME/orz-slides/`, else
+`~/.cache/orz-slides/`); and **`--replaces <sha256>`** — a portable
+compare-and-swap for agents in a fresh sandbox: `inspect --json` prints
+`sha256` (the text a file holds) and `twin.sha256`; `assemble x.slides.md
+--replaces <h>` replaces `x.slides.html` only while its text has hash `h`. A
+text is replaced as a known state only when both texts carry the same `uid`.
+
+**Refusals, for machines.** A `--json` failure is
+`{ "ok": false, "command", "error", "reason", "next"?, "exitCode" }`. `reason`
+is a stable code (`bad-usage`, `no-such-file`, `unreadable`, `not-utf8`,
+`exists`, `not-orz`, `twin-differs`, `output-differs`, `replaces-mismatch`,
+`legacy-file`, `newer-shell`, `newer-format`, `unclosed-island`,
+`other-kind`, `assembled-input`, `invalid-text`, `no-browser`,
+`engine-unavailable`, `write-failed`, `failed`); `next` (when one command
+resolves it) is `{ "command", "args" }` — run `orz-slides <command> <args…>`
+verbatim: it is built from your own arguments and names a copy
+(`x.browser.slides.md`, …) that does not exist yet.
+
+**Editing an existing deck (the safe loop).** Before you edit
+`x.slides.md`, run `orz-slides inspect x.slides.md`: if it says
+`x.slides.html` holds a different text (and not an earlier text of
+`x.slides.md`), someone saved in the browser — `orz-slides extract
+x.slides.html -o x.browser.slides.md`, merge it into `x.slides.md`, then
+`orz-slides assemble x.slides.md --replaces <twin.sha256>`.
+
+## The library
+
+```ts
+import { assemble, extract, readDocument, newDocument, inspect, inspectLayout, upgrade, upgradeText, parseDeck, applyOp, THEMES } from 'orz-slides';
+
+const text = newDocument({ template: 'talk', title: 'RAFT in five minutes', theme: 'nocturne' });
+const html = assemble(text);                     // inline (this release's engine); { delivery: 'cdn' } for the web
+extract(html)?.text === text;                    // true: the exact text back
+readDocument(text).title;                        // 'RAFT in five minutes' (header and derived facts, no rendering)
+parseDeck(text).slides.length;                   // the deck: slides, regions, notes, lints
+applyOp(text, 2, { type: 'split', box: 'body', dir: 'col' }).text;   // a layout op: minimal edits on marker lines
+inspect(html).advice;                            // what to do next, for any version
+await inspectLayout(text);                       // per slide and box: fit scale and clipping (installed Chrome)
+upgrade(oldHtml);                                // { text, html, from, moved, notes } for a 0.x file (upgradeReport: what changed)
+```
+
+Exports (types included): `assemble`, `extract`, `readDocument`,
+`newDocument`, `storedText`, `upgrade`, `upgradeText`, `readLegacy`,
+`inspect`, `inspectLayout`, `findChrome`, `layoutAdvice`, `upgradeReport`,
+`reportNotes`, `parseDeck`, `scanMarkers`, `planDeck`, `deckConfig`, the
+layout ops (`applyOp`, `applyEdits`, `slideMap`, `partAt`, `blockingProblem`,
+`placeFloat`, `presetOf`, `snapTracks`, `stepTracks`, `LayoutOpError`,
+`PRESET_CHOICES`, `SLIDE_SIZE`), `TEMPLATES`, `DEFAULT_TEMPLATE`, `THEMES`,
+`DEFAULT_THEME`, `DROPPED_THEMES`, `resolveTheme`, `isThemeId`, `sha256`,
+`engineSource`, `VERSION`, `ORZ_MARKDOWN_VERSION`. The Node library writes
+the same bytes as the browser engine's `OrzCarrier.assemble` for the same
+text and options; an inline assembly carries this release's engine (checked
+against its `release.json`). Includes (`{{md part.md}}`, `{{md https://…}}`)
+are shown by a file only from its `#orz-includes` record: pass them resolved
+as `assemble(text, { includes })`.
+
+## In web apps
+
+The editor every `.slides.html` carries is also a component for web apps:
+[`orz-slides-browser`](browser/README.md) (`npm i orz-slides-browser@1`; ES
+module or a plain `<script>` that sets `globalThis.OrzCarrier`). An app
+mounts any number of editors — each with the flattened preview, the live
+slide card and single-slide editing in a sandboxed frame — keeps the text
+wherever it likes through its own hooks (save, AI with a review step,
+includes, assets, links, ids), works under a nonce Content-Security-Policy,
+can run the layout operations itself (`applyOp` → `editor.applyEdits`), and
+assembles `.slides.html` files only when it needs one. See
+[docs/embedding.md](docs/embedding.md) (shipped in both packages) and the
+working example in [`examples/webapp/`](examples/webapp/).
+
+A platform that shows assembled files in an iframe speaks the host protocols
+(`orz-host-save@1`, `orz-host-ai@1`, `orz-host-include@1`; canonical spec:
+orz-markdown `spec/host-protocols.md`, see [PROTOCOL.md](PROTOCOL.md)).
+
+## With an AI agent
+
+- **Every file explains itself.** The agent banner (an HTML comment before
+  the `#orz-src` island) says where the text is, how to unescape it, and links
+  the agent skill.
+- **The skill.** [`orz-slides-skills/SKILL.md`](orz-slides-skills/SKILL.md)
+  (shipped in the package; also at
+  `https://cdn.jsdelivr.net/npm/orz-slides@1/orz-slides-skills/SKILL.md`) tells
+  an agent how to create, edit, extract, inspect and upgrade decks, the
+  header keys, the slide grammar, templates and themes, and how much fits in
+  a box (capacity budgets measured at 1280 × 720 in all 14 themes). For
+  Claude Code, copy `orz-slides-skills/` into `~/.claude/skills/orz-slides/`.
+- **The loop.** Edit the text twin, never the HTML; `orz-slides assemble`
+  again; `orz-slides inspect --layout x.slides.md --json` to check that every
+  box fits. When unsure what a file is, `orz-slides inspect --json <file>` and
+  follow its `advice`; an old file or text gets `orz-slides upgrade`.
 
 ## Browser support
 
-| Feature | Support |
-|---|---|
-| Present, navigation, overview, fullscreen, theme switch | All modern browsers |
-| Per-slide pop-out editor (CodeMirror, live preview) | All modern browsers |
-| **Save in place** (File System Access API) | Chromium (Chrome/Edge); others fall back to download a copy |
+| | Chromium (Chrome, Edge, …) | Firefox, Safari |
+|---|---|---|
+| Present, overview, speaker view, timer, themes | yes | yes |
+| Print (and Save as PDF from the print dialog) | yes | yes |
+| Edit (both ways), settings | yes | yes |
+| Save in place (File System Access API) | yes | — Save downloads the file instead |
+| Download a copy | download | download |
+| New document, Save as new copy | file picker | download |
+| Quiet update | saved in place | downloaded |
 
-A deck that uses math/diagrams/charts needs internet for those content
-libraries, cached after first open. With `--inline` (default), the engine,
-reveal's core CSS, and all themes are embedded.
+Only writing to a file on disk needs Chromium's File System Access API;
+everything else works in every modern browser. A printed PDF is the
+browser's own (Chromium gives the most faithful result). A page served over
+http(s) is never saved in place: Save says to use *Download a copy*.
 
-## Host embedding
+## Migrating from 0.x
 
-`.slides.html` files conform to **`orz-host-save@1`**: a platform can embed a
-deck in an iframe, announce itself with a `postMessage` handshake, and receive
-saves (`{ source, html, theme }`) instead of the file-system path — standalone
-behavior and Export are unchanged, and nothing activates without the
-handshake. Files also speak **`orz-host-ai@1`**: when the host advertises AI
-operations, the editor shows an assistant (a chip on the current selection and a
-toolbar button) that sends the passage to the host and applies the suggestion it
-returns — the file owns the UI, the host owns the model. Both protocols are
-documented in this repo's [PROTOCOL.md](./PROTOCOL.md) (the shared spec
-originates in orz-mdhtml).
+The 0.x files and deck sources (orz-slides up to 0.8.5) predate text format
+1; 1.0 does not open them as they are. Upgrade each once:
 
-## Security — treat these as programs, not documents
+```bash
+npx orz-slides@1 inspect old.slides.html        # what it is, and what upgrade changes
+npx orz-slides@1 upgrade old.slides.html        # → old.slides.html (format 1) and old.slides.md (its text twin)
+npx orz-slides@1 upgrade old.slides.html --text old.browser.slides.md   # when old.slides.md exists: then merge
+npx orz-slides@1 upgrade deck.md                # a 0.x deck source → deck.slides.md (format 1)
+```
 
-A `.slides.html` is **self-contained executable HTML**: opening one runs the
-JavaScript embedded in it (the engine, the editor, and — because the parser allows
-raw HTML in the source — potentially anything in the content). The trust model is
-the same as **running a downloaded program**, not opening a PDF.
+`upgrade` keeps the deck: its `<!-- deck … -->` block (wherever 0.x found it)
+and a `{{nyml kind: meta}}` block become ONE header at the top (with
+`carrier: slides` and a `uid`), the 0.x file's `#orz-meta` metadata and title
+move into it, and the theme the deck showed is written explicitly — the
+deck block's, else the file's own `--theme`, else 0.x's implicit `paper`;
+`executive`, `poppy` and `sage` become `sky`, `sticker` and `orchard`. Marker
+spellings 0.x tolerated are normalised and markers a block swallowed are
+repaired, each with a note. The upgrade report lists every difference against
+what 0.8.5 showed (slides, titles, regions, layouts, notes, footers, floats,
+options, theme), each explained. The slides are now 1280 × 720: content
+sized for 0.x's 960 × 540 has more room, and fit shrinks what still does not
+fit. The 0.x API (`buildSlidesHtml`) and CLI forms (`--theme`, `--title` on a
+deck) are gone: content lives in the header.
 
-- **Only open or edit files from sources you trust.** Anyone can craft a file that
-  looks authentic (same chrome, logo, layout) but contains hostile code. The
-  format has no built-in authenticity — appearance proves nothing.
-- **What the browser limits.** A page can't run native code or read your disk
-  silently (Save uses the File System Access prompt and is scoped to the file you
-  pick). Realistic harm from a hostile file is web-context — phishing, exfiltrating
-  what you type or paste, beaconing — within the browser sandbox.
-- **The one-click update is opt-in and fixed-source.** It only checks for and
-  fetches a new framework after you enter edit mode and click **Update**, always
-  from the canonical jsDelivr packages over HTTPS (the source is hardcoded in the
-  engine — a tampered file cannot redirect it), and it shows the exact URLs for
-  confirmation first. Clicking Update places trust in npm + jsDelivr for those
-  packages.
-- **Integrity can't be self-verified.** A file cannot prove its own integrity (a
-  forgery would just lie). If you need authenticity, verify it out-of-band — a
-  checksum or signature from the publisher over a trusted channel.
+## Versions
+
+> **Release status.** 1.0.0 is prepared on branch `rebuild/1.0` and not
+> published yet; it depends on `orz-markdown ^2.4.0`, which is published
+> first. The 0.x line (up to 0.8.5) is described in
+> [Migrating from 0.x](#migrating-from-0x).
+
+Two packages, released together with the same version: `orz-slides` (the CLI
+and the Node library) and `orz-slides-browser` (the browser engine and editor
+component). **Each file carries its own shell**: the version that assembled
+it is recorded in the file (`#orz-shell`, `<meta name="generator">`) and keeps
+working whatever is installed later; the text format (format 1) is the only
+contract between files, tools and apps. `inspect` says when a file's shell is
+older or newer than the tool, and the quiet update (or `upgrade`) moves a file
+to a newer shell without touching its text. reveal.js is pinned at 5.2.1
+(behind one engine module).
+
+## Security — treat these files as programs
+
+A `.slides.html` is executable HTML: opening one runs the engine inside it
+and, because Markdown may contain raw HTML, anything in the content. Open and
+edit files only from sources you trust; a file cannot prove its own
+integrity. The quiet update only fetches from the hard-coded jsDelivr package
+of this engine, checks the bundle's SHA-384 from the release manifest, and
+runs nothing until the reader clicks *Update now*. In the editor, the deck's
+own scripts run only in the sandboxed preview frame, and the layout editor
+takes its operations only from the reader's own input in the trusted page.
+
+## Development
+
+See [CLAUDE.md](CLAUDE.md) for the architecture, commands and conventions,
+[CHANGELOG.md](CHANGELOG.md) for releases, [notes/CLAIMS.md](notes/CLAIMS.md)
+for what the tests prove, [docs/dom-contract.md](docs/dom-contract.md) for the
+slide DOM and theme contract, and [archive/](archive/) for the 0.x design.
 
 ## License
 

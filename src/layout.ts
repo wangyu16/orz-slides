@@ -5,7 +5,7 @@
  * preset alias), so this module depends only on ./types — nothing else.
  * Pure string building; no DOM API.
  *
- * See BUILD-PLAN.md WP2 and docs/dom-contract.md ("Layout grid (WP2 output)").
+ * See archive/BUILD-PLAN.md WP2 (0.x) and docs/dom-contract.md ("Layout grid (WP2 output)").
  */
 import type { LayoutNode, GridRender, Track } from './types.js';
 
