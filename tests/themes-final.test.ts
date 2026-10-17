@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { assemble } from '../src/lib.js';
 import { THEMES } from '../src/themes.js';
 import { TEMPLATES } from '../src/deck/parse.js';
-import { checkDeck } from './fit-oracle.js';
+import { checkDeck, reportBoxes } from './fit-oracle.js';
 import { goTo, launchChrome, openDeck, type PageGlobal } from './helpers.js';
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { textOverlaps } from './support/overprint.js';
@@ -45,7 +45,10 @@ for (const [template, n] of Object.entries(TEMPLATES)) for (let v = 1; v <= n; v
 const bareDeck = (theme: string, ratio: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: bare\ntheme: ${theme}\nratio: ${ratio}\nfooter: a footer line\n}}\n\n${BARE.map((b) => `<!-- slide template=${b.template} v=${b.v} -->\n# ${b.long ? LONG : SHORT[b.template]}\n${b.template === 'outline' ? '\n1. One\n2. Two\n' : ''}`).join('\n')}`;
 
 /** Pixels of the current slide that change when its template box paints past its edge (what the box cuts off). */
-async function cutByTemplate(page: Page): Promise<number> {
+const cutByTemplate = (page: Page): Promise<number> => cutByBoxes(page, '.orz-template');
+
+/** Pixels of the current slide that change when its boxes (`sel`) paint past their edges (what the boxes cut off). */
+async function cutByBoxes(page: Page, sel: string): Promise<number> {
   const clip = await page.evaluate(() => {
     const r = document.querySelector('.reveal .slides > section.present')!.getBoundingClientRect();
     return { x: Math.max(0, r.left - 40), y: Math.max(0, r.top - 40), width: r.width + 80, height: r.height + 80 };
@@ -53,7 +56,7 @@ async function cutByTemplate(page: Page): Promise<number> {
   const a = await page.screenshot({ clip });
   // the clip widened, not removed: overflow: visible would lay the box out again (a flex item's minimum size) and refit
   // it, so the pictures would differ where nothing was cut; a wider overflow-clip-margin only paints more
-  const open = await page.addStyleTag({ content: '.reveal .slides > section.present .orz-template { overflow-clip-margin: 4000px !important; }' });
+  const open = await page.addStyleTag({ content: `.reveal .slides > section.present :is(${sel}) { overflow-clip-margin: 4000px !important; }` });
   await page.waitForTimeout(60);
   const b = await page.screenshot({ clip });
   await open.evaluate((el) => (el as Element).remove());
@@ -102,7 +105,7 @@ real('final loop: theme probes (real Chrome, offline)', () => {
         await ctx.close();
       }
       expect(bad, t.id).toEqual([]);
-    }, 240_000);
+    }, 480_000); // chalk takes ~290 s on a busy machine (base too)
   }
 
   const NOTES = 'Plain sentence. **Strong** and *em* and `code` and [a link](https://example.com).\n\n- an item\n\n> a quote\n\n```\ncode block\n```';
@@ -235,6 +238,120 @@ real('final loop: theme probes (real Chrome, offline)', () => {
           await goTo(page, i);
           for (const x of await textOverlaps(page)) bad.push(`${ratio} slide ${i + 1}: ${x}`);
         }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 240_000);
+  }
+  // ---------- step 10, the confirming round ----------
+
+  const URL = 'https://example.com/a/very/long/path/that/never/breaks/because/it/has/no/spaces/at/all/index.html';
+  const urlDeck = (theme: string, ratio: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: url\ntheme: ${theme}\nratio: ${ratio}\n}}\n\n<!-- slide -->\n## Link\n\nSee ${URL} for details.\n\n<!-- slide -->\n## Link in a list\n\n- See ${URL} for details.\n- A second item.\n`;
+
+  for (const t of THEMES) {
+    it(`[T.18] ${t.id}: body text breaks a long URL (overflow-wrap: break-word) — a paragraph or a list item holding one is never scaled and never cut (16:9 and 4:3)`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) {
+        const { page, ctx, errors } = await openDeck(browser!, fileFor(`url-${t.id}-${ratio.replace(':', 'x')}`), assemble(urlDeck(t.id, ratio)));
+        const boxes = await checkDeck(page, `${t.id} ${ratio}`);
+        for (const b of boxes.filter((x) => /orz-region/.test(x.box))) {
+          if (b.clipped) bad.push(`${ratio} slide ${b.slide + 1}: clipped at ${b.scale}`);
+          else if (Number(b.scale) < 1) bad.push(`${ratio} slide ${b.slide + 1}: scaled to ${b.scale}`);
+        }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 240_000);
+  }
+
+  const META = '**Yu Wang** · Department of Chemistry, University of Louisiana at Lafayette\\\nCHEM 512 · October 16, 2026 · yu.wang@example.edu';
+  const PICTURE = '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="500" viewBox="0 0 1600 500"><rect width="1600" height="500" fill="#3b82f6"/><text x="800" y="270" font-size="80" text-anchor="middle" fill="#fff">PICTURE</text></svg>';
+  /** Template pages with their content, callouts / a quote / code as a box's first child, and pictures. */
+  const FULL: string[] = [
+    ...[1, 2, 3, 4, 5, 6].map((v) => `<!-- slide template=title v=${v} -->\n# Polymer Chemistry in Practice: Controlled Radical Polymerization\n## A one-semester graduate seminar, week 7\n${META}\n`),
+    ...[1, 2, 3, 4].map((v) => `<!-- slide template=section v=${v} -->\n# Kinetics and molecular-weight control\nWhy $M_n$ follows conversion, and how to read a GPC trace\n`),
+    ...[1, 2, 3].map((v) => `<!-- slide template=outline v=${v} -->\n## Today's plan\n1. Mechanism and kinetics of RAFT\n2. Molecular-weight control and dispersity\n3. Choosing a chain transfer agent\n4. RAFT in the lab: practical tips\n5. Block copolymers and end-group fidelity\n6. Outlook and open questions\n`),
+    ...[1, 2, 3].map((v) => `<!-- slide template=closing v=${v} -->\n# Thank you\n## Questions and discussion\n**Yu Wang** · yu.wang@example.edu\\\nSlides: markdown.orz.how {{qr https://markdown.orz.how}}\n`),
+    ...['info', 'warning', 'danger', 'success'].map((k) => `<!-- slide -->\n## ${k} first\n::: ${k}\nA ${k} callout as the first thing on the slide.\n:::\n`),
+    '<!-- slide -->\n## Quote first\n> A quote as the first thing on the slide.\n',
+    '<!-- slide -->\n## Code first\n```\ncode first\n```\n',
+    '<!-- slide -->\n## A picture\n\n![a picture](pic.svg)\n',
+    '<!-- slide 2col -->\n## A picture beside text\n<!-- @left -->\n![a picture](pic.svg)\n<!-- @right -->\n- The picture takes the room left\n- A second line\n',
+    '<!-- slide -->\n## Pictures side by side\n\n![a](pic.svg) ![b](pic.svg)\n',
+  ];
+  const fullDeck = (theme: string, ratio: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: full\ntheme: ${theme}\nratio: ${ratio}\nfooter: a footer line\n}}\n\n${FULL.join('\n')}`;
+
+  for (const t of THEMES) {
+    it(`[T.19] ${t.id}: no box cuts what the theme draws once it holds content — template pages with a subtitle and two meta lines, a section's subtitle, an outline, a closing {{qr}}, a callout, quote or code block as a box's first child, a picture alone, beside text and in a row: the page with every box's clip widened looks the same, and nothing is cut silently (16:9 and 4:3)`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) {
+        const file = fileFor(`full-${t.id}-${ratio.replace(':', 'x')}`);
+        writeFileSync(join(file, '..', 'pic.svg'), PICTURE, 'utf8');
+        const { page, ctx, errors } = await openDeck(browser!, file, assemble(fullDeck(t.id, ratio)));
+        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+        await checkDeck(page, `${t.id} ${ratio}`);
+        for (let i = 0; i < FULL.length; i++) {
+          await goTo(page, i);
+          // a real cut repeats; a late paint (a picture decoded, a font swapped between the shots) does not
+          let cut = await cutByBoxes(page, '.orz-region, .orz-template, .orz-float');
+          if (cut > 40) { await page.waitForTimeout(300); cut = Math.min(cut, await cutByBoxes(page, '.orz-region, .orz-template, .orz-float')); }
+          if (cut > 40) bad.push(`${ratio} slide ${i + 1} (${FULL[i].split('\n')[0]}): the boxes cut ${cut} px of what the theme draws`);
+        }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 300_000);
+  }
+
+  /** 20 sections numbered I…XX, in four decks that turn the variants round, so every long or wide numeral meets every variant. */
+  const LONG_SECS = [4, 8, 9, 10, 13, 15, 18, 20]; // IV, VIII, IX, X, XIII, XV, XVIII, XX (I…III, V…VII: T.16's pages)
+  const secV = (n: number, turn: number): number => ((n - 1 + turn) % 4) + 1;
+  const secDeck = (theme: string, ratio: string, turn: number): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: sections\ntheme: ${theme}\nratio: ${ratio}\nsection_numbers: roman\n}}\n\n${Array.from({ length: 20 }, (_, i) => `<!-- slide template=section v=${secV(i + 1, turn)} -->\n# Section ${i + 1}\n`).join('\n')}`;
+
+  for (const t of THEMES) {
+    it(`[T.20] ${t.id}: a roman section number of any length — IV, VIII, IX, X, XIII, XV, XVIII (the longest), XX — on every section variant is never cut by its box, never overprints the heading, and a one-line page is never scaled (16:9 and 4:3)`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) for (let turn = 0; turn < 4; turn++) {
+        const { page, ctx, errors } = await openDeck(browser!, fileFor(`sec-${t.id}-${turn}-${ratio.replace(':', 'x')}`), assemble(secDeck(t.id, ratio, turn)));
+        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+        for (const n of LONG_SECS) {
+          const where = `${ratio} section ${n} v${secV(n, turn)}`;
+          await goTo(page, n - 1);
+          for (const b of await reportBoxes(page, n - 1)) {
+            if (b.clipped) bad.push(`${where}: clipped at ${b.scale}`);
+            else if (Number(b.scale) < 1) bad.push(`${where}: scaled to ${b.scale}`);
+            if (!b.clipped && b.outside.length) bad.push(`${where}: cut silently — ${b.outside.join('; ')}`);
+          }
+          for (const x of await textOverlaps(page)) bad.push(`${where}: ${x}`);
+          let cut = await cutByTemplate(page); // a real cut repeats; a late paint does not
+          if (cut > 40) { await page.waitForTimeout(300); cut = Math.min(cut, await cutByTemplate(page)); }
+          if (cut > 40) bad.push(`${where}: the template box cuts ${cut} px of the number or heading`);
+        }
+        expect(errors, `${t.id} ${ratio}`).toEqual([]);
+        await ctx.close();
+      }
+      expect(bad, t.id).toEqual([]);
+    }, 400_000);
+  }
+
+  const F3 = '`'.repeat(3);
+  const codeDeck = (theme: string, ratio: string): string => `{{nyml\nkind: document\ncarrier: slides\ntitle: code\ntheme: ${theme}\nratio: ${ratio}\n}}\n\n<!-- slide -->\n## Code\n\n${F3}js\nexport async function fetchEverything(urls, { retries = 3, timeoutMs = 10000, onProgress = () => {} } = {}) { return 1; }\n${F3}\n\n<!-- slide -->\n## Code, 80 columns\n\n${F3}python\n    results = [compute_moment(sample, order=k, weights=w) for k in range(1, 5)]\n${F3}\n`;
+
+  for (const t of THEMES) {
+    it(`[T.21] ${t.id}: code wraps the same in every theme (white-space: pre-wrap, a long line breaks anywhere) — a block holding a 110- or an 80-column line is never scaled and never cut (16:9 and 4:3)`, async () => {
+      const bad: string[] = [];
+      for (const ratio of ['16:9', '4:3']) {
+        const { page, ctx, errors } = await openDeck(browser!, fileFor(`code-${t.id}-${ratio.replace(':', 'x')}`), assemble(codeDeck(t.id, ratio)));
+        const boxes = await checkDeck(page, `${t.id} ${ratio}`);
+        for (const b of boxes.filter((x) => /orz-region/.test(x.box))) {
+          if (b.clipped) bad.push(`${ratio} slide ${b.slide + 1}: clipped at ${b.scale}`);
+          else if (Number(b.scale) < 1) bad.push(`${ratio} slide ${b.slide + 1}: scaled to ${b.scale}`);
+        }
+        const ws = await page.evaluate(() => Array.from(document.querySelectorAll('.reveal .slides > section pre code')).map((c) => `${getComputedStyle(c).whiteSpace}/${getComputedStyle(c).overflowWrap}`));
+        for (const w of ws) if (w !== 'pre-wrap/anywhere') bad.push(`${ratio}: code is ${w}`);
         expect(errors, `${t.id} ${ratio}`).toEqual([]);
         await ctx.close();
       }

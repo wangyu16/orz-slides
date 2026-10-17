@@ -1135,3 +1135,78 @@ Verification (2026-10-16):
 - The hub (`output/orz-test/slides/`): the 14 decks, sample, stress and
   surround decks, sheets, the editor sample and the web-app copy
   regenerated; the hub-only CodeMirror path (`/slides/cm/`) re-applied.
+
+## Confirming round — 2026-10-16 (step 10; rebuild/1.0@b2f62e8, kit orz-markdown@9588335)
+
+Three audits of the fix pass (CLI/agents, editor/isolation, engine/themes),
+each finding verified by an independent agent: 1 HIGH (rare), 4 MEDIUM, 10
+LOW. Every finding has a probe that fails on the round's base (worktrees at
+b2f62e8 / 9588335 with the new tests copied in) and passes now.
+
+| Id | Sev. | What | Fix (class) | Probe |
+|---|---|---|---|---|
+| C-H1 | HIGH (rare) | a file cut off inside its text beside a twin unchanged since the sync: `assemble` named `extract x.slides.html` (also `-o`), which replaced the complete text with the truncated one, no backup | kit: `assemble` over a cut file → `unclosed-island`, next `assemble x.slides.md --replaces <its hash>`; `textOutputCheck({ fileHtml })` never lets a cut file's text replace another text without `--force` (next `extract -o x.recovered.slides.md`) | kit N.12; V.15 |
+| C-L1 | LOW | in-place `extract` of a file holding an earlier commit of a newer committed twin replaced it, no backup | kit: the file holding a known earlier state of a changed twin → `twin-differs`, next `assemble` | kit N.13; V.16 |
+| C-L2 | LOW | in-place `upgrade` of a 0.x file kept no backup | `old.slides.html~` kept (`backups`) | V.16 |
+| C-L3 | trivial | docs named the 0.x banner "Framework 1.x / 1.0.x available" | docs quote it as it reads, "Framework 1.0.0 available" | — (docs) |
+| E-M1 | MED | uploads named with spaces / non-ASCII letters broken on every surface: `resolveAsset` got the percent-encoded form | kit: every reference decoded once (`assetPath`), inserted Markdown also encodes `%`; slides' live card, stage, fit checks and `bg=` resolve through `shell.preview.resolveAsset(s)` | kit E.47; X.8 |
+| E-M2 | MED | `blob:` uploads re-embedded as base64 into every render (ten 4 MB pictures: preview 19 s behind typing on the base, 47–52 s with twenty) | kit: each Blob crosses ONCE per frame document over the port (`orz-preview-assets`), the bridge swaps its own object URL in (`__orzPreview.assets`), only URLs `resolveAsset` gave, unused ones released; slides' surfaces share through `shell.preview.shareAssets` | kit E.46; X.9 (within 2 s, no long task > 1 s) |
+| E-L1 | LOW | includes fetched twice (the live card's own cache) | kit: `shell.preview.context` = the render context; the live card resolves through it | kit E.48; X.10 |
+| E-M3 | docs | STATUS D-65 ✅ was wrong for orz-mdhtml (its own guard copy) | D-65 reopened for orz-mdhtml; D-66 records C-H1/C-L1 downstream | — (STATUS) |
+| T-M1 | MED | Architect, Chalk, Neon, Paper: a long URL shrank the box to 0.6 and was cut | deck.css: `overflow-wrap: break-word` on every `.markdown-body` | T.18 |
+| T-L1 | LOW | decorations cut once a box holds content: Nocturne's closing QR outline, Notebook's first-slip tape (and the danger tape on the left), Inscription's picture hairline, Sticker's tilted outline label in a full outline | the decoration's room inside the box (QR slot `right: 11px`; first slip `margin-top`, danger tape at the note's edge; picture paragraph padding; outline label `margin-top`, last item no margin); dom-contract §7 | T.19 (every box's clip widened, every theme, both ratios) |
+| T-L2 | LOW | Paper's single drop numeral X (X, XV, XX at 4:3) cut ~12 px | numeral sized by `data-sec-len` on the template's width, for the widest numerals | T.20 |
+| T-L3 | LOW | Preprint, roman, section v2: XVIII overprinted the heading | the number's room by `data-sec-len` | T.20 |
+| T-L4 | LOW | code wrapped in 5 themes, not in 9 (deck.css said it wraps) | one rule in deck.css: `pre-wrap; overflow-wrap: anywhere` (nothing cut; fit still scales a too-tall block) | T.21 |
+| T-L5 | docs | README "inline — it opens offline" over-promised for math | README and skill: inline holds the engine, not the content libraries | — (docs) |
+
+Visual changes (the frozen design kept; each is the smallest change that
+removes the cut or overprint):
+- every theme: a long unbreakable word (a URL) breaks at the box's edge —
+  new for Architect, Chalk, Neon and Paper; code blocks wrap (`pre-wrap`,
+  a token longer than the line breaks anywhere) — new for Architect, Chalk,
+  Copper, Inscription, Neon, Nocturne, Notebook, Paper and Sticker (their
+  long code lines shrank the whole box);
+- Nocturne: the closing page's QR slip stands 11 px further in from the
+  right edge;
+- Notebook: a callout that is a box's first block keeps 16 px above it (a
+  danger note 24 px), a first quote 0.9 em; on slides the danger note's tape
+  starts at the note's left edge (it stood 14 px outside);
+- Inscription: a picture's paragraph has 7 px padding, so the hairline frame
+  6 px out stays inside the box;
+- Sticker: the outline's tilted label has 0.3 em above it and the last item
+  no space below it; the title page paints 16 px past its box (the name
+  card's shadow; no layout change);
+- Paper: the section drop numeral is sized on the template's width with
+  factors for the widest numeral of each length (X, XV, XX, XVIII smaller,
+  most visibly at 4:3);
+- Preprint: a section number of 3+ characters indents the heading by its
+  own room (2.6 / 3.1 / 3.6 / 4.2 em instead of 2.1 em), the meta line
+  aligned with it.
+
+Not taken: fit's 6 px painted slack stays (a wider slack would let text
+out); decorations get room per theme instead.
+
+Verification (2026-10-16/17):
+- Probes on the base fail: kit N.12, N.13, E.46, E.47, E.48 at 9588335
+  (E.46: the frame showed data: copies); slides V.15, V.16, X.8, X.9 (19.2 s
+  behind typing on the base), X.10 (`parts/units.md` fetched twice), and
+  T.18 (Architect, Chalk, Neon, Paper), T.19 (Inscription, Nocturne,
+  Notebook, Sticker), T.20 (Paper, Preprint), T.21 (the nine non-wrapping
+  themes) at b2f62e8 (worktrees, the new tests copied in).
+- Kit (orz-markdown@5cb79c7): 2121 tests, 2118 green in the full run; the
+  three others pinned the old bridge string and bundle bound (updated, green
+  alone).
+- orz-slides full `npm test`: 509/513; the four were timing: P.14, L.6
+  (green alone, 58/58), L.10 GUI-11 (211–225 ms against 200 ms at 4×
+  CPU throttle — the base b2f62e8 measures 213–217 ms on the same machine
+  now: not a regression) and T.16 chalk (a 240 s timeout; green alone in
+  293 s, base also times out; its budget raised to 480 s). The theme file
+  alone: 111/112, then nocturne T.20 green twice alone after the cut
+  measure was made robust to a late paint (re-measured once).
+- Downstream against the linked kit (worktrees): orz-mdhtml 152/154 (E.1
+  stale examples; X.1 its example policy lacks `connect-src blob:` — STATUS
+  D-67), orz-paged 372/374 (T.18 wording D-64, D.1 stale examples).
+- The hub (`output/orz-test/slides/`): engine decks, stress and surround
+  decks, sample and editor decks, sheets and the web-app copy regenerated;
+  the hub-only CodeMirror path (`/slides/cm/`) re-applied.

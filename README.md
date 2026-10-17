@@ -134,7 +134,9 @@ Lead with dispersity; the linear growth is the point.
 
 Examples (each text twin with its file): [`examples/starter.slides.md`](examples/starter.slides.md)
 → [`starter.slides.html`](examples/starter.slides.html) (a tour of every
-kind of slide; inline — it opens offline),
+kind of slide; inline — it opens and presents offline in system fonts, as
+it holds no formula, code, diagram or chart: those load their styles and
+libraries from CDNs, see **Delivery**),
 [`examples/raft.slides.md`](examples/raft.slides.md) →
 [`raft.slides.html`](examples/raft.slides.html) (a chemistry lecture: formulas,
 charts, molecules, diagrams), [`examples/talk.slides.md`](examples/talk.slides.md)

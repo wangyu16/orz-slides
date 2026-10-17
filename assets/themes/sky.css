@@ -1610,7 +1610,6 @@
 .reveal .markdown-body :is(thead th, tbody td) { padding: 0.38em 0.62em; }
 .reveal .markdown-body th .katex { text-transform: none; }
 .reveal .markdown-body pre { padding: 0.75em 0.95em; }
-.reveal .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .reveal .markdown-body .task-list-item-checkbox:not(:checked) { border: 2px solid var(--accent); }
 /* table heads: the source's spaced capitals cost a column on a slide; set them in the heading face instead */
 .reveal .markdown-body thead th { text-transform: none; letter-spacing: 0; font-family: var(--font-heading); font-size: 0.86em; }

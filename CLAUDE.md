@@ -35,8 +35,8 @@ Two npm packages live here, **versioned in lockstep**:
 > `rebuild/1.0` (plan `../docs/REBUILD.md` §3c): steps 1–9 done (base,
 > format-1 parser and assembler, engine, 14 themes, both editing modes, CLI
 > and library, web apps / agents / docs, the owner's UI/theme freeze),
-> closed-loop rounds A and B closed and the final loop's fix pass (step 10)
-> applied (`notes/closed-loop.md`); next its confirming round, then the
+> closed-loop rounds A and B closed, the final loop's fix pass and its
+> confirming round (step 10) applied (`notes/closed-loop.md`); next the
 > release (step 11). The package version stays
 > `0.8.5` until the release step bumps both packages to 1.0.0. Claims in
 > `notes/CLAIMS.md` (bound by `tests/claims.test.ts`).

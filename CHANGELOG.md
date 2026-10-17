@@ -161,6 +161,19 @@ keys, FC-19 `applyEdits` / `select` / `setFocusRange` / `flash` /
   `blob:` URLs and stored `bg=` pictures show on every editor surface; file
   includes go to the app's `fetchInclude`; a read-only editor's setting
   pickers change nothing; `inspect --layout` is robust to its own cleanup.
+- Confirming round (step 10): a file cut off inside its text is never read
+  as browser work — `assemble` names `assemble … --replaces` (the repair)
+  and `extract` from it never replaces another text without `--force`; an
+  `extract` never puts an older text over a newer committed twin; an
+  in-place upgrade of a 0.x file keeps `old.slides.html~`; uploads named
+  with spaces or non-ASCII letters show on every editor surface, and the
+  app's `resolveAsset` is asked for the path its `uploadAsset` returned;
+  `blob:` uploads cross into the preview once (ten 4 MB pictures froze the
+  editor for seconds per keystroke); the live card shares the shell's
+  include cache; long URLs and code lines wrap in every theme (one rule); decorations keep their room
+  once a box holds content (Nocturne's QR outline, Notebook's tape, Sticker's
+  card, Inscription's frame); Paper's wide drop numerals and Preprint's long
+  roman section numbers fit.
 - The release gate (`scripts/release-check.ts`, both packages'
   `prepublishOnly`): the `orz-markdown` range must be at least the kit the
   code needs and installed (not linked), the two versions in lockstep, the
@@ -168,7 +181,8 @@ keys, FC-19 `applyEdits` / `select` / `setFocusRange` / `flash` /
 
 ### Known limits
 
-- A 0.x file's own "Framework 1.0.x available" banner cannot update it:
+- A 0.x file's own "Framework 1.0.0 available" banner (the newest
+  release's number) cannot update it:
   its in-file updater fetches `orz-slides@<latest>/assets/app.js`, which 1.0
   no longer has, so it ends with "Update failed — check your connection" and
   changes nothing (the file keeps working as 0.x). Dismiss it and run

@@ -151,7 +151,6 @@
     font-size: 0.78em;
     line-height: 1.5;
     color: var(--code-color, var(--ink, #222));
-    white-space: pre;
 }
 
 /* ---------- Blockquote ---------- */

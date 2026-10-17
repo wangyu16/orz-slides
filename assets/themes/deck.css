@@ -162,7 +162,8 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
    a CDN outage: final loop T.17), so the box measures it and fit shrinks it, never a 4em share it spills out of */
 .reveal .orz-region > .markdown-body > div.mermaid:not(:has(svg)) { flex: 0 0 auto; padding-block: 0.2em; }   /* room for a fallback font's tall ascent: the div scrolls */
 
-/* code and tables never scroll on a slide: they wrap, fit scales them, else they are marked clipped */
+/* code and tables never scroll on a slide: code wraps (below: pre-wrap in every theme), a table's columns wrap their
+   text; what is still too wide or tall is scaled by fit, else marked clipped */
 .reveal .orz-slide:not([data-fit="scroll"]) .markdown-body pre { overflow: hidden; }
 .reveal .orz-slide:not([data-fit="scroll"]) .markdown-body .table-wrapper { overflow: hidden; }
 /* a display formula clips sideways only: its ink may stand above or below its line box (a tall fraction),
@@ -177,6 +178,12 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .orz-float .markdown-body { margin: 0; padding: 0; font-size: 1em; }
 .reveal .orz-float > .markdown-body > :first-child { margin-top: 0; }
 .reveal .orz-float > .markdown-body > :last-child { margin-bottom: 0; }
+
+/* ---------- body text breaks what has no break (step 10, confirming round T-M1) ----------
+   a long URL or identifier breaks at the box's edge in every theme, as orz-markdown's common.css does for the ten
+   derived themes (the four updated ones — Architect, Chalk, Neon, Paper — kept one unbreakable line: the box shrank
+   to the floor and the URL was cut) */
+.reveal .markdown-body { overflow-wrap: break-word; }
 
 /* ---------- graphics never overflow their box ---------- */
 .reveal .markdown-body img { max-width: 100%; }
@@ -295,7 +302,10 @@ html.orz-slides-page body { background-color: var(--sl-viewport, var(--sl-bg, #f
 .reveal .markdown-body sup { top: -0.5em; }
 .reveal .markdown-body s, .reveal .markdown-body del { text-decoration: line-through; }
 .reveal .markdown-body code, .reveal .markdown-body pre { font-family: var(--sl-mono, ui-monospace, Menlo, monospace); }
-.reveal .markdown-body pre code { display: block; white-space: pre; background: transparent; border: 0; padding: 0; }
+/* code wraps in every theme (step 10, confirming round T-L4: five themes wrapped, nine kept one line, so a long
+   line shrank the whole box — at 4:3 to the floor, then cut): a long line breaks at its spaces, a token longer
+   than the line anywhere; indentation and blank lines stay */
+.reveal .markdown-body pre code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; border: 0; padding: 0; }
 .reveal .markdown-body table { border-collapse: collapse; }
 
 /* ---------- template slides: a bounded, centred box (D-46: never spills past the slide) ---------- */

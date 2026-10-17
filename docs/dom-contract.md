@@ -335,7 +335,23 @@ rotation drawn below or beside the heading must have room of its own inside
 the box — padding or a margin on the part that draws it — never the room a
 subtitle or meta line happens to leave. A page that holds only its heading
 (every variant, one- and two-line headings, 16:9 and 4:3) is neither scaled
-nor cut, and nothing the theme draws is clipped by the box.
+nor cut, and nothing the theme draws is clipped by the box. The same holds
+for every box once it holds content (step 10, confirming round, claim T.19):
+fit measures layout, not ink — a shadow, an outline, a tape or a tilt that
+stands past its element is not overflow — so it must stand inside the box: a
+closing `{{qr}}` set against the box's edge keeps its outline's room, a
+box's first slip (Notebook's taped callout, its paperclipped quote) a top
+margin, a framed picture (Inscription's hairline) padding on its
+paragraph, a card's offset shadow and tilt (Sticker's name sticker) a wider
+`overflow-clip-margin` on its template (fit still lets content pass only
+6 px); a tilted label (Sticker's outline heading) a margin above it. A section number keeps a room sized by its length
+(`data-sec-len`): Paper's drop numeral is set to fit its room, Preprint's
+number indents the heading by it (claim T.20).
+
+Code wraps in every theme, one rule in deck.css (`white-space: pre-wrap;
+overflow-wrap: anywhere`, claim T.21) and body text breaks an unbreakable
+word (`overflow-wrap: break-word`, claim T.18); a layer does not set either
+back.
 
 An outline's column is a measure, the same at 16:9 and 4:3, that grows to
 the slide's width for a longer item (`width: fit-content; min-width:

@@ -97,7 +97,11 @@ Always compare first.
    --force` (the replaced file is kept as `x.slides.html~`, or `~1`, `~2`…).
 
 Delivery: `assemble` keeps the existing file's delivery unless you pass
-`--cdn` or `--inline`; a new file is inline. Includes: `assemble` keeps the
+`--cdn` or `--inline`; a new file is inline. Inline holds the engine, not
+the content libraries: formulas (KaTeX's styles and fonts), code colours,
+diagrams, charts, molecules and the themes' webfonts load from CDNs, so a deck
+that uses them needs a network connection the first time (offline it presents
+in system fonts; an undrawn diagram shows its source). Includes: `assemble` keeps the
 includes the old file recorded; `--resolve-includes` reads `{{md part.md}}`
 files from the text's folder; each include left unresolved is a warning
 (`--json` `unresolved`). Lints are reported as warnings with their lines and

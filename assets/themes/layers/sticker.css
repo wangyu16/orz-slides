@@ -263,6 +263,10 @@
   width: fit-content;
   max-width: 92%;
 }
+/* the card's offset shadow (8px) and tilt stand below its box: fit lets a full page's content reach 6px past the
+   template (painted), so the template paints 16px past its edge for the shadow (fit still counts only 6px; confirming
+   round T-L1: title v4, v6 at 4:3 cut the card's shadow) */
+.reveal .orz-template-title { overflow-clip-margin: 16px; }
 .reveal .orz-title-meta::before {
   content: 'hello!';
   position: absolute;
@@ -338,6 +342,10 @@
   transform: rotate(-2deg);
 }
 .reveal .orz-outline ol { list-style: none; counter-reset: c; padding: 0; margin: 0; }
+/* the tilted label keeps its tilt's room above it (it stood 5px out of a full template: a six-item outline at 16:9),
+   and the last item no space below it (confirming round T-L1) */
+.reveal .orz-outline h2 { margin-top: 0.3em; }
+.reveal .orz-outline li:last-child { margin-bottom: 0; }
 .reveal .orz-outline li {
   counter-increment: c;
   position: relative;

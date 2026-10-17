@@ -173,7 +173,7 @@
 /* closing: the QR as an info diagnostic, set on the right */
 .reveal .orz-template-closing .orz-title-main { font-size: 2.5em; }
 .reveal .orz-template-closing > .orz-qr-slot {
-  position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0;
+  position: absolute; right: 11px; top: 50%; transform: translateY(-50%); margin: 0;   /* its outline (1px, 10px out) inside the box (confirming round T-L1) */
   --sl-qr: 5em; border-radius: 4px; outline: 1px solid var(--info-border); outline-offset: 10px;
 }
 .reveal .orz-template-closing > .orz-qr-slot .qrcode { padding: 10px; border-radius: 4px; }

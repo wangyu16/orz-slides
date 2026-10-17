@@ -1357,6 +1357,8 @@
 .reveal .markdown-body .orz-chart-frame { background: transparent; border: 0; box-shadow: none; padding: 0; }
 /* the white figure becomes a plate held by corner brackets */
 .reveal .markdown-body :is(p.orz-pic > img, p.orz-pics img) { border-radius: 1px; outline: 1px solid var(--border); outline-offset: 6px; }
+/* the frame (a hairline 6px out) stands inside the picture's paragraph, so its box never trims it (confirming round T-L1) */
+.reveal .markdown-body :is(p.orz-pic, p.orz-pics) { padding: 7px; }
 
 /* code and table */
 .reveal .markdown-body pre { border-radius: 2px; padding: 0.6em 0.6em; font-size: 0.7em; }

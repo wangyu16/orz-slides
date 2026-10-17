@@ -102,7 +102,15 @@
 /* the molecule slip sits apart from its caption */
 .reveal .orz-region .markdown-body > .smiles-render + p { font-family: var(--heading-font); font-size: 1.12em; color: var(--accent-blue); }
 
-/* notes/quotes/code keep the source's slips; keep their tape inside the region */
+/* notes/quotes/code keep the source's slips; keep their tape inside the region — a box's first slip too: a callout's
+   tape stands 11px above it (the danger tape, tilted, 15px), a quote's paperclip 0.85em; the room is kept in the box
+   (step 10, confirming round T-L1: the first child's margin was 0, so the box cut the tape) */
+.reveal .orz-region > .markdown-body > :is(.info, .success, .warning, .danger):first-child { margin-top: 16px; }
+/* the danger tape (64px, tilted 38°) sat 14px left of its note and 23px above it: on a slide it starts at the note's
+   left edge, and a first danger note keeps the room above (confirming round T-L1) */
+.reveal .orz-region .markdown-body div.danger::before { left: 0; }
+.reveal .orz-region > .markdown-body > div.danger:first-child { margin-top: 24px; }
+.reveal .orz-region > .markdown-body > blockquote:first-child { margin-top: 0.9em; }
 .reveal .orz-region .markdown-body > :is(.info, .success, .warning, .danger) { line-height: 1.45; padding-top: 0.9em; padding-bottom: 0.8em; }
 .reveal .orz-region .markdown-body > blockquote { line-height: 1.35; }
 .reveal .orz-region .markdown-body > pre { line-height: 1.5; }

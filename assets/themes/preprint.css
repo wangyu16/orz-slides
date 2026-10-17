@@ -1213,9 +1213,8 @@
 .reveal .orz-region ul > li.fragment.current-fragment { list-style-type: square; }
 
 /* content tweaks for the projected page */
-/* code: 21px Fira Mono, long lines wrap instead of running out of the column */
+/* code: 21px Fira Mono (long lines wrap: deck.css, every theme) */
 .reveal .orz-region .markdown-body pre { font-size: 0.72em; padding: 0.8em 1em; line-height: 1.45; }
-.reveal .orz-region .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .reveal .markdown-body ul > li::marker { color: var(--text-muted); }
 .reveal .orz-region .markdown-body > div:is(.info, .success, .warning, .danger) { margin-top: 0.2em; }
 .reveal .markdown-body .katex-display { padding: 0.3em 0.3em; }
@@ -1272,11 +1271,18 @@
 
 /* ───────── section: a numbered paper section ───────── */
 .reveal .orz-template-section { align-items: flex-start; padding: 0 4% 0 0; }
+/* the number's room in the title's em, by the number's length (`data-sec-len`): 01 and I…XII in 2.1em, a longer roman
+   numeral wider — XVIII overprinted the title (step 10, confirming round T-L3) */
+.reveal .orz-template-section { --pp-sec-w: 2.1; }
+.reveal .orz-template-section:has(.orz-section-main[data-sec-len="3"]) { --pp-sec-w: 2.6; }
+.reveal .orz-template-section:has(.orz-section-main[data-sec-len="4"]) { --pp-sec-w: 3.1; }
+.reveal .orz-template-section:has(.orz-section-main[data-sec-len="5"]) { --pp-sec-w: 3.6; }
+.reveal .orz-template-section:has(.orz-section-main:not([data-sec-len="0"], [data-sec-len="1"], [data-sec-len="2"], [data-sec-len="3"], [data-sec-len="4"], [data-sec-len="5"])) { --pp-sec-w: 4.2; }
 .reveal .orz-section-main {
-  --sl-sec-indent: 2.1em; /* the number's room, kept by deck.css's section variants */
+  --sl-sec-indent: calc(var(--pp-sec-w, 2.1) * 1em); /* the number's room, kept by deck.css's section variants */
   position: relative; font-family: var(--header-font); font-weight: 700; color: var(--heading);
   font-size: 2.1em; line-height: 1.12; letter-spacing: -0.018em;
-  padding: 0.45em 0 0.4em 2.1em; border-top: 2px solid var(--border-color);
+  padding: 0.45em 0 0.4em var(--sl-sec-indent); border-top: 2px solid var(--border-color);
   align-self: stretch;
 }
 .reveal .orz-section-main::before {
@@ -1286,7 +1292,7 @@
 .reveal .orz-section-meta {
   margin-top: 0.1em; padding-top: 0.55em; font-size: 1em; color: var(--text-soft); font-style: italic;
   border-top: 1px solid var(--border-soft); align-self: stretch;
-  padding-left: 4.41em; /* aligns with the title text (2.1em at 2.1em) */
+  padding-left: calc(var(--pp-sec-w, 2.1) * 2.1em); /* aligns with the title text (the number's room at 2.1em) */
 }
 
 /* ───────── outline: Contents as a booktabs table, the current row tinted navy ───────── */

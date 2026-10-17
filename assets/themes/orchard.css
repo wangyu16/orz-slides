@@ -1556,7 +1556,6 @@
 .reveal .markdown-body :is(thead th, tbody td) { padding: 0.38em 0.62em; }
 .reveal .markdown-body th .katex { text-transform: none; }
 .reveal .markdown-body pre { padding: 0.75em 0.95em; }
-.reveal .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .reveal .markdown-body .task-list-item-checkbox:not(:checked) { border: 2px solid var(--accent); }
 
 /* breathing room between the content and the chrome line (fit scales into it) */

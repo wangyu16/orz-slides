@@ -105,7 +105,6 @@
 /* the cut-out badges sit over the callout's top-left corner: give them room */
 .reveal .orz-region .markdown-body > div:is(.info, .success, .warning, .danger) { margin: 0.85em 0 0.5em 0.85em; padding: 0.8em 1.1em 0.75em 1.5em; }
 .reveal .orz-region .markdown-body pre { font-size: 0.7em; padding: 0.85em 1.05em; line-height: 1.45; }
-.reveal .orz-region .markdown-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .reveal .orz-region .markdown-body > blockquote { padding: 0.7em 1em; font-size: 1em; }
 .reveal .orz-region .markdown-body table { font-size: 0.8em; }
 .reveal .orz-region .markdown-body :is(th, td) { padding: 0.6em 0.75em 0.45em; }

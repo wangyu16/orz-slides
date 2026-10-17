@@ -443,12 +443,15 @@
   border-right: 1px solid var(--hair);
 }
 /* the numeral stands in the box's left 30 %: a long one is set smaller to stay in it — at most the room over its
-   length (`data-sec-len`; IV and VI at 4:3, III at section v2, VII, VIII: final loop T.16) */
-.reveal .orz-section-main[data-sec-len="1"]::before { font-size: min(3.1em, calc(var(--sl-w, 1280px) * 0.23)); }
-.reveal .orz-section-main[data-sec-len="2"]::before { font-size: min(3.1em, calc(var(--sl-w, 1280px) * 0.14)); }
-.reveal .orz-section-main[data-sec-len="3"]::before { font-size: min(3.1em, calc(var(--sl-w, 1280px) * 0.1)); }
-.reveal .orz-section-main[data-sec-len="4"]::before { font-size: min(3.1em, calc(var(--sl-w, 1280px) * 0.078)); }
-.reveal .orz-section-main:not([data-sec-len="0"], [data-sec-len="1"], [data-sec-len="2"], [data-sec-len="3"], [data-sec-len="4"])::before { font-size: min(3.1em, calc(var(--sl-w, 1280px) * 0.064)); }
+   length (`data-sec-len`; IV and VI at 4:3, III at section v2, VII, VIII: final loop T.16), the room measured on the
+   template's width (the slide less its sides), not the slide's, and for the widest numerals of each length — X, XV,
+   XX, XVIII at 4:3 were cut at the box's left edge (step 10, confirming round T-L2) */
+.reveal .orz-section-main { --pp-room: calc(var(--sl-w, 1280px) - 2 * var(--sl-pad-x, 72px)); }
+.reveal .orz-section-main[data-sec-len="1"]::before { font-size: min(3.1em, calc(var(--pp-room) * 0.235)); }
+.reveal .orz-section-main[data-sec-len="2"]::before { font-size: min(3.1em, calc(var(--pp-room) * 0.155)); }
+.reveal .orz-section-main[data-sec-len="3"]::before { font-size: min(3.1em, calc(var(--pp-room) * 0.112)); }
+.reveal .orz-section-main[data-sec-len="4"]::before { font-size: min(3.1em, calc(var(--pp-room) * 0.087)); }
+.reveal .orz-section-main:not([data-sec-len="0"], [data-sec-len="1"], [data-sec-len="2"], [data-sec-len="3"], [data-sec-len="4"])::before { font-size: min(3.1em, calc(var(--pp-room) * 0.072)); }
 .reveal .orz-section-meta { margin-top: 0.55em; font-size: 1em; font-style: italic; color: var(--muted); max-width: 26em; }
 .reveal .orz-section-meta::after { content: '\2766'; display: block; font-style: normal; color: var(--taupe); margin-top: 0.7em; font-size: 0.85em; }
 
