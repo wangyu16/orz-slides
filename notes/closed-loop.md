@@ -1210,3 +1210,30 @@ Verification (2026-10-16/17):
 - The hub (`output/orz-test/slides/`): engine decks, stress and surround
   decks, sample and editor decks, sheets and the web-app copy regenerated;
   the hub-only CodeMirror path (`/slides/cm/`) re-applied.
+
+## Final check — 2026-10-17 (step 10 closes; rebuild/1.0@0f21d77, kit orz-markdown@5cb79c7)
+
+One context-limited pass over the confirming round's fixes only, run as a
+user or agent would (real Chrome, offline; a 0.8.5 deck built with the
+published CLI; the base b2f62e8 built beside it for comparison). Every fix
+held: a cut-off file's `next` repairs it verbatim, and extract/upgrade
+refuse; older-vs-newer refuses with or without the pair cache; 0.x
+upgrade keeps a byte-identical `~` and never replaces one; `Screen Shot
+1.png` and `图表.png` show on every surface and as `bg=` in all three
+spellings; ten 3.6 MB uploads leave no long task, and the preview catches up
+in 0.2–0.6 s; each include is fetched once; isolation holds (an opaque
+origin, no parent `blob:` readable). Long URLs, words and code break or
+wrap in all 14 themes × 2 ratios with nothing clipped; the decoration fixes
+are whole; the sample deck fits the same as or better than at base.
+
+Found: one LOW, rare. `inspect` on a cut-off file beside a complete text
+gives the correct cut-off advice first, then adds the generic
+browser-changes bullet (extract, merge, `--replaces`), which does not fit a
+cut file. Nothing is lost, and `assemble`'s own message there is right.
+Left for 1.0.x (stop rule: no HIGH, rare LOW only). These are older than
+the base, not regressions: the numeral against the frame in Preprint section
+v4, Notebook's paperclip touching a quote's first letter, Sticker v6's
+square sticker over the kicker, and wrapped code with no hanging indent
+(intended, T-L4).
+
+Step 10 is closed. Next: step 11 (release).
