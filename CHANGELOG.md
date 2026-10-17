@@ -5,7 +5,7 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 
 <a id="100"></a>
 
-## [1.0.0] — unreleased (prepared on branch `rebuild/1.0`; the release step dates it)
+## [1.0.0] — 2026-10-17
 
 A rebuild on the orz-markdown carrier kit (orz text format 1), the shape of
 orz-mdhtml 1.0 and orz-paged 1.0 with slides added (family plan

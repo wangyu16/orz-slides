@@ -379,10 +379,9 @@ failed — check your connection" and changes nothing. Dismiss it and run
 
 ## Versions
 
-> **Release status.** 1.0.0 is prepared on branch `rebuild/1.0` and not
-> published yet; it depends on `orz-markdown ^2.4.0`, which is published
-> first. The 0.x line (up to 0.8.5) is described in
-> [Migrating from 0.x](#migrating-from-0x).
+> **Release status.** 1.0.0 (2026-10-17) is the rebuild on text format 1;
+> it depends on `orz-markdown ^2.4.0`. The 0.x line (up to 0.8.5) is
+> described in [Migrating from 0.x](#migrating-from-0x).
 
 Two packages, released together with the same version: `orz-slides` (the CLI
 and the Node library) and `orz-slides-browser` (the browser engine and editor

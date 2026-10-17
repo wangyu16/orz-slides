@@ -1,6 +1,6 @@
 {
   "name": "orz-slides",
-  "version": "0.8.5",
+  "version": "1.0.0",
   "description": "Single-file, self-editing HTML slide decks authored in Markdown with layout grammar, themes, and presenter tools.",
   "type": "module",
   "main": "./dist/lib.js",
@@ -54,7 +54,7 @@
   "homepage": "https://markdown.orz.how/family.html#slides",
   "bugs": "https://github.com/wangyu16/orz-slides/issues",
   "dependencies": {
-    "orz-markdown": "^2.3.0",
+    "orz-markdown": "^2.4.0",
     "reveal.js": "5.2.1"
   },
   "devDependencies": {

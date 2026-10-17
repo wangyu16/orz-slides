@@ -1,10 +1,10 @@
 /**
- * Rebuild step 1 — the base (claims B.1–B.7): orz-markdown ^2.3.0 from the
+ * Rebuild step 1 — the base (claims B.1–B.7): orz-markdown ^2.4.0 from the
  * registry, reveal.js pinned, no shims and no copied shell code, one theme
  * list, the version constant, the test setup, prepublishOnly (D-15).
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { THEMES, DEFAULT_THEME, THEME_VALUES, DROPPED_THEMES, isThemeId, resolveTheme } from '../src/themes.js';
 import { VERSION } from '../src/version.js';
@@ -13,13 +13,12 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: strin
 const sources = (dir: string): string[] => readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.(ts|js|cjs|mjs)$/.test(f)).map((f) => join(dir, f));
 
 describe('base', () => {
-  it('[B.1] depends on orz-markdown ^2.3.0 (installed from the registry, or — until 2.4.0 is published — linked to the 2.4.0 checkout) and reveal.js pinned exactly; no shims, aliases, path-browserify or package.json walk', () => {
-    expect(pkg.dependencies['orz-markdown']).toMatch(/^\^2\.[34]\.0$/);
-    if (lstatSync('node_modules/orz-markdown').isSymbolicLink()) {
-      // KIT LINK (rebuild step 3): the prepared, unpublished orz-markdown 2.4.0 checkout (as orz-paged used 2.3.0)
-      expect(realpathSync('node_modules/orz-markdown')).toBe(realpathSync('../orz-markdown'));
-      expect((JSON.parse(readFileSync('node_modules/orz-markdown/package.json', 'utf8')) as { version: string }).version).toBe('2.4.0');
-    }
+  it('[B.1] depends on orz-markdown ^2.4.0 installed from the registry (a real install, not a link to a checkout) and reveal.js pinned exactly; no shims, aliases, path-browserify or package.json walk', () => {
+    expect(pkg.dependencies['orz-markdown']).toMatch(/^\^2\.([4-9]|\d\d+)\.\d+$/);
+    expect(lstatSync('node_modules/orz-markdown').isSymbolicLink()).toBe(false);
+    const installed = (JSON.parse(readFileSync('node_modules/orz-markdown/package.json', 'utf8')) as { version: string }).version.split('.').map(Number);
+    expect(installed[0]).toBe(2);
+    expect(installed[1]!).toBeGreaterThanOrEqual(4);
     expect(pkg.dependencies['reveal.js']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(existsSync('build/shims')).toBe(false);
     expect({ ...pkg.dependencies, ...pkg.devDependencies }).not.toHaveProperty('path-browserify');
@@ -100,8 +99,8 @@ describe('base', () => {
     one({ changelog: '## [Unreleased]\n' }, /no "## \[1\.0\.0\] — <date>" entry/);
     expect(releaseProblems({ ...ok, changelog: '## [1.0.0] — 2026-10-17\n' })).toEqual([]);
     one({ clean: false }, /uncommitted/);
-    // the repository now (the kit linked, ^2.3.0, the entry not dated): refused, naming the kit
+    // the repository now (1.0.0 release step: the registry kit ^2.4.0): nothing about the kit stops a release
     const { releaseState } = await import('../scripts/release-check.js');
-    expect(releaseProblems(releaseState(process.cwd())).join('\n')).toMatch(/orz-markdown/);
+    expect(releaseProblems(releaseState(process.cwd())).filter((p) => /orz-markdown/.test(p))).toEqual([]);
   });
 });

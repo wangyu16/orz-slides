@@ -31,23 +31,13 @@ Two npm packages live here, **versioned in lockstep**:
   that throws), `docs/embedding.md` (copied), `scripts/check-release.mjs`
   (its `prepublishOnly`).
 
-> **Status: 1.0.0 prepared, not released** — the rebuild on branch
-> `rebuild/1.0` (plan `../docs/REBUILD.md` §3c): steps 1–9 done (base,
-> format-1 parser and assembler, engine, 14 themes, both editing modes, CLI
-> and library, web apps / agents / docs, the owner's UI/theme freeze),
-> closed-loop rounds A and B closed, the final loop's fix pass and its
-> confirming round (step 10) applied (`notes/closed-loop.md`); next the
-> release (step 11). The package version stays
-> `0.8.5` until the release step bumps both packages to 1.0.0. Claims in
-> `notes/CLAIMS.md` (bound by `tests/claims.test.ts`).
->
-> **orz-markdown is linked, not installed**, while 2.4.0 is unpublished:
-> `node_modules/orz-markdown` is a symlink to `../../orz-markdown` (the
-> prepared 2.4.0 checkout); `package.json` still says `^2.3.0`. The bundle
-> resolves the kit's dependencies from its real directory (one KaTeX:
-> `build/bundle.ts`). Never release from a link: once 2.4.0 is published,
-> `npx npm@11 install orz-markdown@^2.4.0` replaces it and refreshes the
-> lockfile.
+> **Status: 1.0.0 on `main`** (dated 2026-10-17; npm publishing of both
+> packages is the owner's step, "Releasing" below) — the rebuild (plan `../docs/REBUILD.md`
+> §3c, steps 1–11) on orz-markdown **^2.4.0**, installed from the registry
+> (never a link: the release check refuses one). Closed-loop rounds A, B and
+> the final loop are recorded in `notes/closed-loop.md`; claims in
+> `notes/CLAIMS.md` (bound by `tests/claims.test.ts`). The branch
+> `rebuild/1.0` is kept for reference; work continues on `main`.
 
 ## Commands
 
@@ -222,9 +212,10 @@ channel `chrome`) — such a run verifies nothing "real".
 
 ## Releasing (two packages, same version)
 
-1. Publish orz-markdown 2.4.0 first; replace the link with the registry
-   package (`npx npm@11 install orz-markdown@^2.4.0` — it writes `^2.4.0`;
-   the release check refuses a lower range, a link or an older install).
+1. orz-markdown 2.4.0 is published (2026-10-17) and installed from the
+   registry (`^2.4.0`). For a later kit, `npx npm@11 install
+   orz-markdown@^X.Y.Z` (the release check refuses a lower range than
+   `KIT_REQUIRED`, a link or an older install).
 2. Bump **both** `package.json` and `browser/package.json` to the same
    version; date the CHANGELOG entry (`## [1.0.0] — YYYY-MM-DD`, no
    "unreleased").
@@ -244,8 +235,13 @@ channel `chrome`) — such a run verifies nothing "real".
    `npm publish --ignore-scripts`: the build is deterministic and step 5's
    run checked it. (A green-run stamp that spares the second run is Phase 4
    work, REBUILD §4: not before.)
-6. Token: granular with bypass-2FA in a temp `.npmrc`, deleted after; never
-   commit.
+6. Token: a granular token with bypass-2FA in a file **outside the repo** —
+   `~/.orz-npmrc` (`chmod 600`), then `export
+   NPM_CONFIG_USERCONFIG="$HOME/.orz-npmrc"` in that terminal; delete the
+   file right after publishing; never commit a token. A `.npmrc` inside the
+   repo is not git-ignored and makes the tree dirty, so the release check
+   refuses. The owner's runbook: family `docs/publish.html` (status hub
+   `/publish/`).
 7. **Network note**: IPv6 is unreliable on this machine — prefix npm/git
    network commands with
    `NODE_OPTIONS="--dns-result-order=ipv4first --no-network-family-autoselection"`.

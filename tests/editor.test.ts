@@ -1,8 +1,8 @@
 /**
  * Editing mode (a), whole deck (rebuild step 5; claims W.1–W.9), in real
  * Chrome, OFFLINE (D-63: no host resolves; only CodeMirror is served from
- * the installed orz-markdown, as its pinned jsDelivr URL — the kit's
- * 2.4.0 is not on the CDN yet). The editor is the kit's shell with the
+ * the installed orz-markdown, as its pinned jsDelivr URL, so the test
+ * never depends on the CDN). The editor is the kit's shell with the
  * flattened preview, the live view of the caret's slide, the lints with
  * their quick fixes, and the per-slide mode's entry point.
  */
