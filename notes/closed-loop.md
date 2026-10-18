@@ -1237,3 +1237,24 @@ square sticker over the kicker, and wrapped code with no hanging indent
 (intended, T-L4).
 
 Step 10 is closed. Next: step 11 (release).
+
+## Release prep — 2026-10-17 (step 11; `86c5998`, kit orz-markdown 2.4.0 from the registry)
+
+- `86c5998`: orz-markdown `^2.4.0` installed from the registry (a real
+  install, not a link; claim B.1 now says so), both packages 1.0.0, the
+  CHANGELOG dated, examples regenerated, CLAUDE.md "Releasing" with the
+  family token method (`~/.orz-npmrc` outside the repo).
+- Full `npm test` on `86c5998`: 510/513. The three were green alone: P.14
+  (40/40), F.6 (settle 16/16), T.20 nocturne (14/14, twice). L.10 GUI-11
+  passed in this run.
+- `npm run prepublishOnly` on `86c5998`: build and release check passed;
+  suite 510/513: P.14 and L.6 were green alone (40/40, 18/18), but T.16
+  orchard also failed alone 2 runs in 3 ("4:3 title v3 long: the template box
+  cuts 200 px"). Probe: the 200 px were one row, the box's last pixel row,
+  where Orchard's v3 panel draws its own 1 px border. Widening the clip
+  sometimes re-rasterises that antialiased row; nothing past the edge
+  differed, and the two pictures look the same. This was the oracle, not the
+  product. Fix: `cutByBoxes` (T.16, T.19, T.20) ignores pixels within 1 px of
+  the measured boxes' own edges. A probe confirmed the fix both ways: 8
+  renders of that page stay at ≤ 40 px, and a heading pushed 220 px past the
+  box is still reported (> 1000 px). T.16 orchard is now green 3 of 3 alone.

@@ -47,12 +47,23 @@ const bareDeck = (theme: string, ratio: string): string => `{{nyml\nkind: docume
 /** Pixels of the current slide that change when its template box paints past its edge (what the box cuts off). */
 const cutByTemplate = (page: Page): Promise<number> => cutByBoxes(page, '.orz-template');
 
-/** Pixels of the current slide that change when its boxes (`sel`) paint past their edges (what the boxes cut off). */
+/**
+ * Pixels of the current slide that change when its boxes (`sel`) paint past their edges (what the boxes cut off).
+ * Pixels within 1 px of a box's own edge do not count: a box that draws its own 1 px border on its edge (Orchard's
+ * title v3 panel) is re-rasterised there now and then when its clip is widened — one antialiased row, nothing past
+ * the edge (step 11: 200 px on the panel's last row, 2 runs in 3) — while anything the box really cuts lies beyond it.
+ */
 async function cutByBoxes(page: Page, sel: string): Promise<number> {
-  const clip = await page.evaluate(() => {
-    const r = document.querySelector('.reveal .slides > section.present')!.getBoundingClientRect();
-    return { x: Math.max(0, r.left - 40), y: Math.max(0, r.top - 40), width: r.width + 80, height: r.height + 80 };
-  });
+  const { clip, edges } = await page.evaluate((s) => {
+    const slide = document.querySelector('.reveal .slides > section.present')!;
+    const r = slide.getBoundingClientRect();
+    const clip = { x: Math.max(0, r.left - 40), y: Math.max(0, r.top - 40), width: r.width + 80, height: r.height + 80 };
+    const edges = [...slide.querySelectorAll(s)].map((el) => {
+      const b = el.getBoundingClientRect();
+      return { l: b.left - clip.x, t: b.top - clip.y, r: b.right - clip.x, b: b.bottom - clip.y };
+    });
+    return { clip, edges };
+  }, `:is(${sel})`);
   const a = await page.screenshot({ clip });
   // the clip widened, not removed: overflow: visible would lay the box out again (a flex item's minimum size) and refit
   // it, so the pictures would differ where nothing was cut; a wider overflow-clip-margin only paints more
@@ -64,23 +75,29 @@ async function cutByBoxes(page: Page, sel: string): Promise<number> {
   const a2 = await page.screenshot({ clip });
   // a pixel counts only when the widened page differs from the page both before and after (a late refit or a
   // transition between the shots is no cut)
-  return page.evaluate(async ({ x, y, z }) => {
+  return page.evaluate(async ({ x, y, z, edges }) => {
+    let w = 0;
     const load = async (d: string): Promise<Uint8ClampedArray> => {
       const img = new Image();
       img.src = `data:image/png;base64,${d}`;
       await img.decode();
       const c = document.createElement('canvas');
-      c.width = img.width; c.height = img.height;
+      c.width = img.width; c.height = img.height; w = img.width;
       const g = c.getContext('2d')!;
       g.drawImage(img, 0, 0);
       return g.getImageData(0, 0, c.width, c.height).data;
     };
     const [p, q, r] = [await load(x), await load(y), await load(z)];
     const differs = (u: Uint8ClampedArray, v: Uint8ClampedArray, i: number): boolean => Math.abs(u[i] - v[i]) + Math.abs(u[i + 1] - v[i + 1]) + Math.abs(u[i + 2] - v[i + 2]) > 48;
+    // on a box's edge: within 1 px of one of its four sides, along that side
+    const onEdge = (px: number, py: number): boolean => edges.some((e) => {
+      const nearX = px >= e.l - 1 && px <= e.r + 1, nearY = py >= e.t - 1 && py <= e.b + 1;
+      return (nearX && (Math.abs(py - e.t) <= 1 || Math.abs(py + 1 - e.b) <= 1)) || (nearY && (Math.abs(px - e.l) <= 1 || Math.abs(px + 1 - e.r) <= 1));
+    });
     let n = 0;
-    for (let i = 0; i < p.length; i += 4) if (differs(p, q, i) && differs(r, q, i)) n++;
+    for (let i = 0; i < p.length; i += 4) if (differs(p, q, i) && differs(r, q, i)) { const k = i / 4; if (!onEdge(k % w, Math.floor(k / w))) n++; }
     return n;
-  }, { x: a.toString('base64'), y: b.toString('base64'), z: a2.toString('base64') });
+  }, { x: a.toString('base64'), y: b.toString('base64'), z: a2.toString('base64'), edges });
 }
 
 real('final loop: theme probes (real Chrome, offline)', () => {
