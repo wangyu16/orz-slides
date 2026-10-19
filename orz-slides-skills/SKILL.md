@@ -19,6 +19,33 @@ A deck has two forms:
 HTML** — everything but the island is regenerated, and a save in the browser
 rewrites the whole file from the text. Never serialize the rendered deck.
 
+> **Common mistakes** (check these before you assemble):
+>
+> - **Diagrams, charts, chemistry and QR codes are directives, not code
+>   fences.** Write `{{mermaid` … `}}`, `{{chart` … `}}`, `{{smiles C1=CC=CC=C1}}`,
+>   `{{qr https://…}}`. A ```` ```mermaid ```` (or ```` ```chart ````,
+>   ```` ```smiles ````) fence is shown as a code block, with no warning:
+>
+>   ````markdown
+>   Wrong:              Right:
+>   ```mermaid          {{mermaid
+>   graph TD            graph TD
+>     A --> B             A --> B
+>   ```                 }}
+>   ````
+> - **`#` only on template pages.** A normal slide starts with ONE `##`
+>   title; `#` (h1) belongs on `template=title|section|closing` pages. An
+>   `#` or a second `##` on a normal slide is a lint error.
+> - **No `---` between slides.** Every slide starts with its own
+>   `<!-- slide … -->` line; markers must be alone on their line, at top level.
+> - **Reserved names.** `notes`, `footer` and `float` are markers
+>   (`<!-- @notes -->`, `<!-- @footer -->`, `<!-- @float … -->`), never box
+>   names in a layout (`reserved-region`, error).
+> - **Too much per slide.** Stay within the capacity budgets below and run
+>   `inspect --layout`; split a crowded slide in two.
+> - **Settings as CLI options.** `assemble --title/--theme/--ratio/--footer`
+>   is refused: they live in the header.
+
 The CLI is `orz-slides` (Node ≥ 20.16; `npx orz-slides@1 …` needs no install;
 this skill is for 1.x). Use `--json` on any command for one machine-readable
 object on stdout. Exit codes: 0 done, 1 refused or failed, 2 usage error.
@@ -104,7 +131,13 @@ that uses them needs a network connection the first time (offline it presents
 in system fonts; an undrawn diagram shows its source). Includes: `assemble` keeps the
 includes the old file recorded; `--resolve-includes` reads `{{md part.md}}`
 files from the text's folder; each include left unresolved is a warning
-(`--json` `unresolved`). Lints are reported as warnings with their lines and
+(`--json` `unresolved: [{ target, kind, reason }]` — `not-recorded` (pass
+`--resolve-includes`), `url` (the CLI fetches no URLs), `no-such-file`,
+`outside-folder` (a path outside the text's folder: never read),
+`unreadable`, `not-utf8`, `folder-unreadable`); a recorded include whose file
+has changed since is a warning too (`--json` `stale`: run `assemble
+--resolve-includes` again); `--no-includes` stores none (the file shows an
+"Included file not available" note for each). Lints are reported as warnings with their lines and
 the file is still written — fix errors anyway (an error means something does
 not show as written).
 
@@ -185,7 +218,7 @@ and unique per slide, whatever the nesting.
 | Marker | What |
 |---|---|
 | `<!-- @notes -->` | speaker notes — never on the slide; in the speaker view (S) and on *Print with notes* |
-| `<!-- @footer -->` | this slide's footer, replacing the header's `footer` (which shows on every normal slide; title pages show none) |
+| `<!-- @footer -->` | this slide's footer, replacing the header's `footer` on this slide (also on a title page). The header's `footer` shows on every slide except the title page — section, outline and closing pages show it too |
 | `<!-- @float left=58% top=10% w=36% h=44% -->` | an overlay box over the layout: any of `left right top bottom w h` (`%` of the slide, or `px`, `em`…) and `z=` (stacking; default declaration order). Floats are unnamed: told apart by their order. Use them rarely (a badge, a callout, a logo). |
 
 ### The layout grammar
@@ -290,7 +323,14 @@ renders the deck in the installed Chrome (headless) and reports, per slide
 and box (`title`, a box's name, `template`, `float 1`…), `scale` (1 =
 unscaled; 0.6 = the floor) and `clipped`, whether the footer is cut, and
 `summary` (`scaled`, `clipped`, `minScale`) plus `advice` for every clipped
-box. Aim for `clipped: 0` and no scale below ~0.85. `--offline` blocks the
+box. Aim for `clipped: 0` and no scale below ~0.85. The JSON's `layout`:
+`browser`, `network`, `theme`, `ratio`, `size` (`width`, `height`),
+`slides[]` — `{ slide, title, template, settled ("yes" | "timeout": still
+loading after 10 s, numbers provisional), boxes: [{ box, scale, clipped,
+scroll }], footerClipped }` — `summary` (`slides`, `boxes`, `scaled`,
+`clipped`, `footersClipped`, `minScale`) and `errors` (page errors seen
+while rendering). It checks the header's theme only: to check another,
+change `theme:` and run it again. `--offline` blocks the
 network (fallback fonts: numbers shift a little); without Chrome it is
 refused (`no-browser`; set `ORZ_SLIDES_CHROME` to a Chrome binary).
 
@@ -368,7 +408,7 @@ it names the command to run, with your file names:
 
 ## When a command refuses (`--json`)
 
-A failure is `{ "ok": false, "error", "reason", "next"?, "exitCode" }`. `next`
+A failure is `{ "ok": false, "command", "error", "reason", "next"?, "exitCode" }`. `next`
 is `{ "command", "args" }`: run `npx orz-slides@1 <command> <args…>` verbatim
 (it never replaces a text with another line of work). Stable `reason` codes:
 `twin-differs` (extract to `x.browser.slides.md`, merge, assemble with
@@ -404,7 +444,21 @@ against what 0.8.5 showed (slides, titles, regions, layouts, notes, footers,
 floats, options, theme), each explained. 0.x slides were 960 × 540; 1.0
 slides are 1280 × 720 (16:9), so content has more room — still run `inspect
 --layout`. A format-1 file of an older shell is re-assembled with its text
-and includes unchanged. Upgrading twice changes nothing more.
+and includes unchanged. Upgrading twice changes nothing more. `upgrade
+old.slides.html --no-text` writes the file only (no text twin).
+
+**After upgrading a 0.x text.** `upgrade deck.md` leaves `deck.md` (the 0.x
+source) untouched and writes the new text twin `deck.slides.md`: from now on
+edit and assemble **`deck.slides.md`** only. Do not `assemble deck.md` (it
+is refused as a 0.x text, `legacy-file`) and ignore `inspect deck.md`'s
+advice for it; once `deck.slides.md` assembles and looks right, delete
+`deck.md` (or ask the user to keep it as an archive under another name).
+
+**After a merge.** Once you have merged `x.browser.slides.md` (from
+`extract … -o x.browser.slides.md` or `upgrade … --text …`) into
+`x.slides.md` and assembled, delete `x.browser.slides.md`: it is a scratch
+copy, and a later `extract -o` to the same name is refused (`twin-differs`)
+while it exists.
 
 ## Recover the text from any version by hand
 
@@ -425,12 +479,16 @@ and includes unchanged. Upgrading twice changes nothing more.
 
 ## What the file does for its reader
 
-The deck in the page — → / Space next, ← previous, **O** overview, **S**
-speaker view (its own window), **T** timer, **F** Present — and ONE control:
-a pencil at the bottom-left (click: Edit; hover or tap: Edit, Present, Print,
-Print with notes, Speaker view, Overview, Save, Download a copy, New
-document, Save as new copy, Theme, Ratio, Slide numbers, Progress bar,
-Section numbers). Settings write the header (undoable, unsaved until Save).
+The deck in the page — → ↓ Space PageDown N next, ← ↑ Shift+Space PageUp P
+Backspace previous, Home / End, **O** overview (Enter or Esc leaves it),
+**S** speaker view (its own window: current and next slide, notes, clock, a
+timer with Pause / Reset; a blocked pop-up is said), **T** timer, **F**
+Present (Esc leaves it; Esc elsewhere opens the overview) — and ONE control:
+a pencil at the bottom-left (click: Edit; hover, tap, or Tab to it and press
+ArrowUp: Edit, Present, Save, Download a copy, New document, Save as new
+copy, Theme, Ratio, Slide numbers, Progress bar, Section numbers, Print,
+Print with notes, Speaker view, Overview). Settings write the header
+(undoable, unsaved until Save).
 
 **Edit** (Cmd/Ctrl+E) has two ways, on the one text with one undo history:
 
@@ -446,15 +504,19 @@ Section numbers). Settings write the header (undoable, unsaved until Save).
   snaps to simple ratios), pick a preset, rename or swap boxes, add / move /
   resize / layer floats, pick a template page's look, set the slide's
   options, notes and footer, and a filmstrip to add, duplicate, delete and
-  drag-reorder slides; click a box to edit its text. Each change rewrites
+  drag-reorder slides (or Alt+Up/Down); click a box to edit its text; `?`
+  lists the layout editor's keys. Each change rewrites
   only marker lines (one undo step) — so a deck edited this way is still a
   clean text for you.
 
-**Save** (Cmd/Ctrl+S) writes `assemble(text)` in place in Chromium,
+**Save** (Cmd/Ctrl+S) writes `assemble(text)` in place in Chromium (the
+first Save asks for the file with a picker; later saves write directly),
 downloads elsewhere; a save over a file changed on disk asks first. **Print**
 puts one slide per page at the slide's size (every step shown); *Print with
 notes* adds the notes under each slide; what paper cuts is marked. A quiet,
-once-a-day update offer on local files.
+once-a-day update offer on local files. There is no "Export" (0.x): use
+*Download a copy*, or *Print* → Save as PDF. Copying text from a presented
+slide gives plain text, not Markdown — take Markdown from the text twin.
 
 ## In a web app
 
@@ -467,7 +529,10 @@ can run: `applyOp(text, slideIndex, { type: 'split', box: 'body', dir: 'col'
 })` → minimal edits (library `orz-slides`, the ES module, or
 `OrzCarrier.layout`). Store the text; call `assemble(text)` only when a file
 is needed. Hooks and the CSP recipe: `docs/embedding.md`, shipped in both
-packages. Platforms that show assembled files in an iframe use the host
+packages. **No app-side print** in 1.0: in an app, Cmd/Ctrl+P in the editor is its
+`print` event (without a listener the browser prints the app's page); the
+deck's print document comes only from an assembled `.slides.html`'s *Print*
+— offer the file. Platforms that show assembled files in an iframe use the host
 protocols (orz-markdown `spec/host-protocols.md`).
 
 ## Gotchas

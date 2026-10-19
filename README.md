@@ -26,19 +26,21 @@ protocols, CLI and agent workflow; what slides adds is slides.
   of `<body>` tells tools how to read it.
 - **The deck, in the page.** Every slide at its logical size — 1280 × 720
   (16:9) or 960 × 720 (4:3) — scaled to the window, on the theme's surround.
-  → ↓ Space PageDown next, ← ↑ PageUp previous, Home / End; **O** the
-  overview, **S** the speaker view (its own window: current and next slide,
-  notes, clock and timer), **T** the timer, **F** Present. A slide's
-  `step` option reveals its points one at a time.
+  → ↓ Space PageDown N next, ← ↑ PageUp Shift+Space P Backspace previous,
+  Home / End; **O** the overview (Enter or Esc leaves it), **S** the speaker
+  view (its own window: current and next slide, notes, clock and a timer
+  with Pause / Reset; if the browser blocks the pop-up, the page says so),
+  **T** the timer, **F** Present (Esc leaves it; Esc elsewhere opens the
+  overview). A slide's `step` option reveals its points one at a time.
 - **Nothing is cut silently.** Every box — regions, titles, template pages,
   floats — shrinks its content to fit, down to 60 %; past that the box is
   marked clipped, and the editor and `orz-slides inspect --layout` say so.
 - **One quiet control.** A small pencil at the bottom-left. Click it to edit;
   hover it (tap it on a touch screen, or Tab to it and press ArrowUp) for the
-  list — **Edit, Present, Print, Print with notes, Speaker view, Overview,
-  Save, Download a copy, New document, Save as new copy**, the settings
-  **Theme, Ratio, Slide numbers, Progress bar, Section numbers**, and, when
-  there is one, the update. A dot on the pencil means unsaved changes.
+  list — **Edit, Present, Save, Download a copy, New document, Save as new
+  copy**, the settings **Theme, Ratio, Slide numbers, Progress bar, Section
+  numbers**, then **Print, Print with notes, Speaker view, Overview**, and,
+  when there is one, the update. A dot on the pencil means unsaved changes.
 - **Settings are the deck's.** Theme, ratio, slide numbers, progress and
   section numbering live in the text's header: choosing one from the pencil's
   list (or the editor's bar) writes the header — one undoable edit, unsaved
@@ -46,7 +48,7 @@ protocols, CLI and agent workflow; what slides adds is slides.
 - **Edit, two ways.** The pencil (or Cmd/Ctrl+E) opens the editor:
   - **the whole deck** — CodeMirror beside a **flattened** preview (every
     slide's content in order, a thin divider per slide with its number,
-    title and layout, regions labelled, notes and footers set apart), and in
+    title and layout, boxes labelled, notes and footers set apart), and in
     its corner the **live slide card**: the slide under the caret as it
     presents, with a badge (*fits*, *shrunk to 80%*, *footer cut*, *cut on
     paper*). Issues lists the deck's lints with quick fixes. Fold the card to
@@ -68,7 +70,8 @@ protocols, CLI and agent workflow; what slides adds is slides.
   Choose *Save as PDF* in the print dialog for a PDF. What does not fit on
   paper is marked on its page and said.
 - **Save, New, Copy.** **Save** (Cmd/Ctrl+S) writes `assemble(text)` — never
-  the rendered deck — back to the file. A save never silently overwrites a
+  the rendered deck — back to the file (in Chromium the first Save asks for
+  the file with a picker; later saves write it directly). A save never silently overwrites a
   file that changed on disk since the page opened it: it asks — *Replace it*
   or *Download a copy instead*. *New document* and *Save as new copy* make a
   fresh file with this version's shell. The page asks before it closes with
@@ -128,21 +131,23 @@ Lead with dispersity; the linear growth is the point.
   options (`step`, `fit=`, `bg=`, `t=`, `class=`, `id=`, `here=`).
 - **`<!-- @name -->`** fills a box; the leading `##` of a normal slide is its
   title. `<!-- @notes -->` (speaker notes), `<!-- @footer -->` (this slide's
-  footer) and `<!-- @float left=60% top=10% w=35% h=40% -->` (an overlay) are
-  the reserved markers. Markers count only as top-level lines: one inside a
+  footer) and `<!-- @float left=60% top=10% w=35% h=40% -->` (an overlay;
+  `z=` sets its stacking) are the reserved markers — `notes`, `footer` and
+  `float` are never box names. The header's `footer` shows on every slide
+  but the title page. Markers count only as top-level lines: one inside a
   code fence or a list is text.
 
-Examples (each text twin with its file): [`examples/starter.slides.md`](examples/starter.slides.md)
-→ [`starter.slides.html`](examples/starter.slides.html) (a tour of every
+Examples (each text twin with its file): [`examples/starter.slides.md`](https://github.com/wangyu16/orz-slides/blob/main/examples/starter.slides.md)
+→ [`starter.slides.html`](https://github.com/wangyu16/orz-slides/blob/main/examples/starter.slides.html) (a tour of every
 kind of slide; inline — it opens and presents offline in system fonts, as
 it holds no formula, code, diagram or chart: those load their styles and
 libraries from CDNs, see **Delivery**),
-[`examples/raft.slides.md`](examples/raft.slides.md) →
-[`raft.slides.html`](examples/raft.slides.html) (a chemistry lecture: formulas,
-charts, molecules, diagrams), [`examples/talk.slides.md`](examples/talk.slides.md)
-→ [`talk.slides.html`](examples/talk.slides.html) (the skeleton of a talk,
-Nocturne), [`examples/demo.slides.md`](examples/demo.slides.md) →
-[`demo.slides.html`](examples/demo.slides.html) (the 0.x demo, upgraded).
+[`examples/raft.slides.md`](https://github.com/wangyu16/orz-slides/blob/main/examples/raft.slides.md) →
+[`raft.slides.html`](https://github.com/wangyu16/orz-slides/blob/main/examples/raft.slides.html) (a chemistry lecture: formulas,
+charts, molecules, diagrams), [`examples/talk.slides.md`](https://github.com/wangyu16/orz-slides/blob/main/examples/talk.slides.md)
+→ [`talk.slides.html`](https://github.com/wangyu16/orz-slides/blob/main/examples/talk.slides.html) (the skeleton of a talk,
+Nocturne), [`examples/demo.slides.md`](https://github.com/wangyu16/orz-slides/blob/main/examples/demo.slides.md) →
+[`demo.slides.html`](https://github.com/wangyu16/orz-slides/blob/main/examples/demo.slides.html) (the 0.x demo, upgraded).
 The last three are small cdn files for the web.
 
 ## Themes and templates
@@ -279,15 +284,22 @@ await inspectLayout(text);                       // per slide and box: fit scale
 upgrade(oldHtml);                                // { text, html, from, version, moved, notes } for a 0.x file (upgradeReport: what changed)
 ```
 
-Exports (types included): `assemble`, `extract`, `readDocument`,
-`newDocument`, `storedText`, `upgrade`, `upgradeText`, `readLegacy`,
-`inspect`, `inspectLayout`, `findChrome`, `layoutAdvice`, `upgradeReport`,
-`reportNotes`, `parseDeck`, `scanMarkers`, `planDeck`, `deckConfig`, the
-layout ops (`applyOp`, `applyEdits`, `slideMap`, `partAt`, `blockingProblem`,
-`placeFloat`, `presetOf`, `snapTracks`, `stepTracks`, `LayoutOpError`,
-`PRESET_CHOICES`, `SLIDE_SIZE`), `TEMPLATES`, `DEFAULT_TEMPLATE`, `THEMES`,
-`DEFAULT_THEME`, `DROPPED_THEMES`, `resolveTheme`, `isThemeId`, `sha256`,
-`engineSource`, `VERSION`, `ORZ_MARKDOWN_VERSION`. The Node library writes
+Exports (types included; `dist/lib.d.ts` documents each): the documents —
+`assemble`, `extract`, `readDocument`, `newDocument`, `storedText`,
+`upgrade`, `upgradeText`, `readLegacy`, `inspect`, `inspectLayout`,
+`upgradeReport`, `reportNotes`, `browserName`, `upgradeTextName`; Chrome —
+`findChrome`, `chromeCandidates`, `layoutAdvice`; the deck — `parseDeck`,
+`scanMarkers`, `planDeck`, `deckConfig`, `parseLayoutSpec`,
+`serialiseLayout`, `expandPreset`, `slideMarker`, `PRESETS`,
+`PRESET_REGIONS`, `RATIOS`, `SECTION_NUMBERS`, `SLIDE_OPTIONS`,
+`SLIDE_TEMPLATES`; the layout ops — `applyOp`, `applyEdits`, `slideMap`,
+`partAt`, `blockingProblem`, `placeFloat`, `floatBox`, `presetOf`,
+`snapTracks`, `stepTracks`, `nameProblem`, `freshName`, `LayoutOpError`,
+`PRESET_CHOICES`, `PRESET_LABEL`, `TEMPLATE_LABEL`, `SLIDE_SIZE`; templates
+and themes — `TEMPLATES`, `TEMPLATE_IDS`, `DEFAULT_TEMPLATE`, `THEMES`,
+`DEFAULT_THEME`, `DROPPED_THEMES`, `resolveTheme`, `isThemeId`; the
+package — `sha256`, `engineSource`, `engineFiles`, `cdnBundleUrl`,
+`BUNDLE_FILE`, `FORMATS`, `VERSION`, `ORZ_MARKDOWN_VERSION`. The Node library writes
 the same bytes as the browser engine's `OrzCarrier.assemble` for the same
 text and options; an inline assembly carries this release's engine (checked
 against its `release.json`). Includes (`{{md part.md}}`, `{{md https://…}}`)
@@ -297,7 +309,7 @@ as `assemble(text, { includes })`.
 ## In web apps
 
 The editor every `.slides.html` carries is also a component for web apps:
-[`orz-slides-browser`](browser/README.md) (`npm i orz-slides-browser@1`; ES
+[`orz-slides-browser`](https://github.com/wangyu16/orz-slides/blob/main/browser/README.md) (`npm i orz-slides-browser@1`; ES
 module or a plain `<script>` that sets `globalThis.OrzCarrier`). An app
 mounts any number of editors — each with the flattened preview, the live
 slide card and single-slide editing in a sandboxed frame — keeps the text
@@ -306,11 +318,17 @@ includes, assets, links, ids), works under a nonce Content-Security-Policy,
 can run the layout operations itself (`applyOp` → `editor.applyEdits`), and
 assembles `.slides.html` files only when it needs one. See
 [docs/embedding.md](docs/embedding.md) (shipped in both packages) and the
-working example in [`examples/webapp/`](examples/webapp/).
+working example in [`examples/webapp/`](https://github.com/wangyu16/orz-slides/tree/main/examples/webapp).
 
 A platform that shows assembled files in an iframe speaks the host protocols
 (`orz-host-save@1`, `orz-host-ai@1`, `orz-host-include@1`; canonical spec:
 orz-markdown `spec/host-protocols.md`, see [PROTOCOL.md](PROTOCOL.md)).
+
+**No app-side print** (a deliberate 1.0 limit): in an app, Cmd/Ctrl+P in the
+editor is its `print` event — without a listener the browser prints the
+app's page. The slides' print document (one slide per page, with or without
+notes) comes from an assembled `.slides.html`'s *Print*: offer the file
+([docs/embedding.md](docs/embedding.md), "Printing").
 
 ## With an AI agent
 
@@ -336,7 +354,7 @@ orz-markdown `spec/host-protocols.md`, see [PROTOCOL.md](PROTOCOL.md)).
 | Present, overview, speaker view, timer, themes | yes | yes |
 | Print (and Save as PDF from the print dialog) | yes | yes |
 | Edit (both ways), settings | yes | yes |
-| Save in place (File System Access API) | yes | — Save downloads the file instead |
+| Save in place (File System Access API) | yes — the first Save asks for the file (a picker), later saves write it directly | — Save downloads the file instead |
 | Download a copy | download | download |
 | New document, Save as new copy | file picker | download |
 | Quiet update | saved in place | downloaded |
@@ -345,6 +363,8 @@ Only writing to a file on disk needs Chromium's File System Access API;
 everything else works in every modern browser. A printed PDF is the
 browser's own (Chromium gives the most faithful result). A page served over
 http(s) is never saved in place: Save says to use *Download a copy*.
+Copying text from a presented slide copies plain text, not Markdown: the
+text twin is the Markdown.
 
 ## Migrating from 0.x
 
@@ -370,7 +390,14 @@ what 0.8.5 showed (slides, titles, regions, layouts, notes, footers, floats,
 options, theme), each explained. The slides are now 1280 × 720: content
 sized for 0.x's 960 × 540 has more room, and fit shrinks what still does not
 fit. The 0.x API (`buildSlidesHtml`) and CLI forms (`--theme`, `--title` on a
-deck) are gone: content lives in the header.
+deck) are gone: content lives in the header. The 0.x **Export** (a
+presentation-only copy) is gone too: use *Download a copy* (the same
+self-editing file) or *Print* → *Save as PDF*.
+
+After `upgrade deck.md`, the new text twin is **`deck.slides.md`**: edit and
+assemble that one. The 0.x `deck.md` is left as it was; delete it (or keep
+it under another name as an archive) once `deck.slides.md` looks right —
+`assemble deck.md` is refused as a 0.x text.
 
 A 0.x file opened in its own editor offers "Framework 1.0.0 available" (the newest release's number): that
 in-file update cannot move a 0.x deck to format 1 — it ends with "Update
@@ -379,8 +406,9 @@ failed — check your connection" and changes nothing. Dismiss it and run
 
 ## Versions
 
-> **Release status.** 1.0.0 (2026-10-17) is the rebuild on text format 1;
-> it depends on `orz-markdown ^2.4.0`. The 0.x line (up to 0.8.5) is
+> **Release status.** 1.0.0 (on npm since 2026-10-19; the CHANGELOG dates
+> its release commit, 2026-10-17) is the rebuild on text format 1; it
+> depends on `orz-markdown ^2.4.0`. The 0.x line (up to 0.8.5) is
 > described in [Migrating from 0.x](#migrating-from-0x).
 
 Two packages, released together with the same version: `orz-slides` (the CLI
@@ -406,10 +434,10 @@ takes its operations only from the reader's own input in the trusted page.
 
 ## Development
 
-See [CLAUDE.md](CLAUDE.md) for the architecture, commands and conventions,
-[CHANGELOG.md](CHANGELOG.md) for releases, [notes/CLAIMS.md](notes/CLAIMS.md)
-for what the tests prove, [docs/dom-contract.md](docs/dom-contract.md) for the
-slide DOM and theme contract, and [archive/](archive/) for the 0.x design.
+See [CLAUDE.md](https://github.com/wangyu16/orz-slides/blob/main/CLAUDE.md) for the architecture, commands and conventions,
+[CHANGELOG.md](https://github.com/wangyu16/orz-slides/blob/main/CHANGELOG.md) for releases, [notes/CLAIMS.md](https://github.com/wangyu16/orz-slides/blob/main/notes/CLAIMS.md)
+for what the tests prove, [docs/dom-contract.md](https://github.com/wangyu16/orz-slides/blob/main/docs/dom-contract.md) for the
+slide DOM and theme contract, and [archive/](https://github.com/wangyu16/orz-slides/tree/main/archive) for the 0.x design.
 
 ## License
 

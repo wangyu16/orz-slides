@@ -354,9 +354,11 @@ chrome('the example web app (real Chrome, offline)', () => {
   it('[X.6] the CSP recipe of docs/embedding.md, taken literally (its policy block, and the style-src-elem line it gives for diagrams): the app\'s own stylesheet applies, and neither the page nor the preview frame reports a style violation for its own sheet, KaTeX, highlight.js or the webfonts (final loop EI-3)', async () => {
     const doc = readFileSync('docs/embedding.md', 'utf8');
     const block = /## Content-Security-Policy[\s\S]*?```\n([\s\S]*?)```/.exec(doc)![1]!;
-    const directives = block.split('\n').map((l) => l.replace(/\s+\(.*$/, '').trim()).filter((l) => l.endsWith(';'));
+    // the block is one copy-pasteable header value (surface round 1): one line, no notes inside, ASCII
+    expect(block.trim().split('\n')).toHaveLength(1);
+    expect(/[()…]|[^\x00-\x7f]/.test(block)).toBe(false);
     const elem = /```\n(style-src-elem [^\n]+;)\n```/.exec(doc)![1]!;
-    const policy = [...directives, elem].join(' ').replace(/RANDOM/g, 'orz-demo-nonce');
+    const policy = `${block.trim().replace(/;$/, '')}; ${elem}`.replace(/RANDOM/g, 'orz-demo-nonce');
     expect(policy).toMatch(/^default-src 'none'; script-src 'nonce-orz-demo-nonce' 'strict-dynamic';/);
     const html = readFileSync('examples/webapp/index.html', 'utf8').replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, `<meta http-equiv="Content-Security-Policy" content="${policy}">`);
     const log: string[] = [];

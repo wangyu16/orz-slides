@@ -98,7 +98,7 @@ source of truth (no hidden layout data).
   fitted, with a badge (*fits*, *shrunk to 80%*, *footer cut*, *cut on paper*). The card can be
   folded to a small tab (a reader preference) so it never covers the text.
 - **Single-slide editing**: the card's **Edit** (or Cmd/Ctrl+Shift+Enter)
-  enlarges it into the layout GUI over that slide — split a box into rows or
+  enlarges it into the layout editor over that slide — split a box into rows or
   columns, delete a box (its content moves to the neighbour), drag a divider
   (it snaps to simple ratios), choose a preset, rename or swap boxes, add,
   move, resize and layer floats, choose a template's look (`v=`), set the
@@ -142,7 +142,7 @@ its `scale` — 1 unscaled, the floor 0.6 — and `clipped`; `footerCut`) ·
 
 ### Layout operations of your own
 
-The layout GUI's operations are pure functions of the text, exported for apps
+The layout editor's operations are pure functions of the text, exported for apps
 and agents: `OrzCarrier.layout` on the IIFE's global (and on the ES module's
 `OrzCarrier`), or by name from the ES module — `parseDeck`, `applyOp`,
 `applyEdits`, `slideMap`, `LayoutOpError`, `PRESET_CHOICES`, `SLIDE_SIZE`.
@@ -256,18 +256,31 @@ CodeMirror's `<script>` and `<style>` and on every script and style of the
 preview frame — the bridge, the content libraries, the live slide's runtime,
 the deck structure and the slide theme. Without it, a nonce or hash policy
 blocks the preview frame's inline scripts and the editor reports it (`error`
-event, source `render`). The example's policy:
+event, source `render`). The example's policy (one header value; replace
+`RANDOM` with a fresh nonce per response):
 
 ```
-default-src 'none';
-script-src 'nonce-RANDOM' 'strict-dynamic';
-style-src 'self' 'nonce-RANDOM' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
-style-src-attr 'unsafe-inline';          (fit, the single-slide overlay, KaTeX and the diagram libraries write style attributes)
-font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:;   (the slide themes' webfonts: Google Fonts; KaTeX's)
-img-src 'self' data: blob: https:;       (wherever resolveAsset points)
-connect-src 'self' blob: https://cdn.jsdelivr.net;   (blob: only if resolveAsset gives blob: URLs: the editor reads their bytes for the preview)
-frame-src https://www.youtube.com;      (only if your decks embed YouTube videos, `{{youtube …}}`: the player is a youtube.com/embed frame)
+default-src 'none'; script-src 'nonce-RANDOM' 'strict-dynamic'; style-src 'self' 'nonce-RANDOM' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' blob: https://cdn.jsdelivr.net; frame-src https://www.youtube.com
 ```
+
+Why each part:
+
+- `script-src` with `'strict-dynamic'`: the nonce also covers the scripts the
+  component loads (CodeMirror, the preview libraries).
+- `style-src-attr 'unsafe-inline'`: fit, the single-slide overlay, KaTeX and
+  the diagram libraries write style attributes.
+- `font-src`: the slide themes' webfonts (Google Fonts) and KaTeX's.
+- `img-src`: must cover wherever `hooks.resolveAsset` points.
+- `connect-src`: `blob:` only if `resolveAsset` gives `blob:` URLs (the editor
+  reads their bytes for the preview).
+- `frame-src https://www.youtube.com`: only if your decks embed YouTube
+  videos (`{{youtube …}}`: the player is a youtube.com/embed frame); drop it
+  otherwise.
+
+The same value works in a `<meta http-equiv="Content-Security-Policy">` tag
+(the example does that). Tested in Chrome: the editor (CodeMirror 6), math,
+code highlighting, Mermaid, Chart.js and SMILES render in the preview with
+no violation but one — Mermaid's run-time `<style>` (below).
 
 What loads from where: CodeMirror 6 from
 `cdn.jsdelivr.net/npm/orz-markdown@<version>/vendor/codemirror6.js` (pinned,
