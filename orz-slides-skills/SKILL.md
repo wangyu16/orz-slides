@@ -1,6 +1,6 @@
 ---
 name: orz-slides
-description: Create, edit, inspect and upgrade orz-slides decks — a Markdown text twin (x.slides.md, orz text format 1, with a {{nyml kind document}} header) and its single-file, self-editing x.slides.html that presents in any browser (reveal.js: keys, overview, speaker view, timer, full screen), edits itself (the whole deck beside a flattened preview with a live slide card, or one slide at a time with a layout editor), saves itself and prints one slide per page. Use when a user wants a slide deck or presentation from notes or Markdown, when you meet a .slides.html (or a 0.x deck.md with a <!-- deck --> block) and need its text, when a deck must be changed, checked for overflow or moved to a newer version, or when a web app should embed the slides editor. Covers the header keys, the slide grammar (slide markers, options, regions, the split grammar and presets, floats, notes, footers, fragments), the template pages, the 14 themes, the deck templates, capacity budgets measured at 1280×720 and the overflow check `inspect --layout`. Edit the text, never the HTML; assemble with the orz-slides CLI.
+description: "Create, edit, inspect and upgrade orz-slides decks — a Markdown text twin (x.slides.md, orz text format 1, {{nyml kind document}} header) and its single-file, self-editing x.slides.html that presents in any browser (reveal.js; overview, speaker view, timer), edits itself (the whole deck beside a flattened preview with a live slide card, or one slide in a layout editor), saves itself and prints one slide per page. Use when a user wants a slide deck or presentation from notes or Markdown, when you meet a .slides.html (or a 0.x deck.md) and need its text, when a deck must be changed, checked for overflow or upgraded, or when a web app should embed the slides editor. Covers the header keys, the slide grammar (markers, options, regions, splits and presets, floats, notes, footers, fragments), the template pages, the 14 themes, the deck templates, capacity budgets at 1280×720 and the overflow check `inspect --layout`. Edit the text, never the HTML; assemble with the orz-slides CLI."
 ---
 
 # orz-slides — Markdown that edits itself, as a slide deck
@@ -515,8 +515,9 @@ downloads elsewhere; a save over a file changed on disk asks first. **Print**
 puts one slide per page at the slide's size (every step shown); *Print with
 notes* adds the notes under each slide; what paper cuts is marked. A quiet,
 once-a-day update offer on local files. There is no "Export" (0.x): use
-*Download a copy*, or *Print* → Save as PDF. Copying text from a presented
-slide gives plain text, not Markdown — take Markdown from the text twin.
+*Download a copy*, or *Print* → Save as PDF. Copying text from a slide
+(reading or presenting) gives Markdown, as in every orz file; the whole
+deck's Markdown, with its markers, is the text twin.
 
 ## In a web app
 

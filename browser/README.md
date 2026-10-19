@@ -58,8 +58,9 @@ inlined byte for byte and checked against `release.json`.
 - **No app-side print** (1.0): in an app, Cmd/Ctrl+P in the editor is its
   `print` event; the slides' print document (one slide per page, with or
   without notes) comes from an assembled `.slides.html`'s *Print*.
-- **Deliberate limits**: floats are unnamed (told apart by their order);
-  copying from a presented slide gives plain text, not Markdown.
+- **Deliberate limits**: floats are unnamed (told apart by their order).
+  (Copying from a slide, reading or presenting, gives Markdown, as in every
+  orz file.)
 - **Files are programs.** A `.slides.html` runs the engine and any raw HTML
   in its deck: open only trusted files; show `renderPreview` output only in a
   sandboxed frame.

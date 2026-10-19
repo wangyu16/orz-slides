@@ -363,8 +363,9 @@ Only writing to a file on disk needs Chromium's File System Access API;
 everything else works in every modern browser. A printed PDF is the
 browser's own (Chromium gives the most faithful result). A page served over
 http(s) is never saved in place: Save says to use *Download a copy*.
-Copying text from a presented slide copies plain text, not Markdown: the
-text twin is the Markdown.
+Copying text from a slide (reading or presenting) puts Markdown on the
+clipboard (*Copy as Markdown*, as in every orz file: `Some *emph* text`);
+the whole deck's Markdown, with its slide markers, is the text twin.
 
 ## Migrating from 0.x
 
