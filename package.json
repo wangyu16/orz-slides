@@ -51,7 +51,7 @@
     "type": "git",
     "url": "git+https://github.com/wangyu16/orz-slides.git"
   },
-  "homepage": "https://markdown.orz.how/family.html#slides",
+  "homepage": "https://markdown.orz.how/slides.html",
   "bugs": "https://github.com/wangyu16/orz-slides/issues",
   "dependencies": {
     "orz-markdown": "^2.4.0",
