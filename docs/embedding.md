@@ -256,8 +256,11 @@ CodeMirror's `<script>` and `<style>` and on every script and style of the
 preview frame — the bridge, the content libraries, the live slide's runtime,
 the deck structure and the slide theme. Without it, a nonce or hash policy
 blocks the preview frame's inline scripts and the editor reports it (`error`
-event, source `render`). The example's policy (one header value; replace
-`RANDOM` with a fresh nonce per response):
+event, source `render`; its message may name the kit's option
+`preview.nonce` — here the option is `nonce` on `mountEditor`). A tested
+policy (one header value; replace `RANDOM` with a fresh nonce per response;
+`examples/webapp/` uses the same without `frame-src`, plus
+`base-uri 'none'; form-action 'none'`, which you may add too):
 
 ```
 default-src 'none'; script-src 'nonce-RANDOM' 'strict-dynamic'; style-src 'self' 'nonce-RANDOM' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' blob: https://cdn.jsdelivr.net; frame-src https://www.youtube.com
@@ -278,7 +281,14 @@ Why each part:
   otherwise.
 
 The same value works in a `<meta http-equiv="Content-Security-Policy">` tag
-(the example does that). Tested in Chrome: the editor (CodeMirror 6), math,
+(the example does that).
+
+**Use a nonce, not hashes.** `mountEditor` takes no hash list. An app that
+builds its own preview frame with the kit (`orz-markdown/carrier/editor`'s
+`PREVIEW_BRIDGE_HASH`, `previewScriptHashes`) must take the hash from the
+same orz-markdown version its frame runs: the bridge, and so its hash,
+differs between kit versions (2.3.0 and 2.4.0 differ; orz-slides 1.0 embeds
+2.4.0). Tested in Chrome: the editor (CodeMirror 6), math,
 code highlighting, Mermaid, Chart.js and SMILES render in the preview with
 no violation but one — Mermaid's run-time `<style>` (below).
 
@@ -290,7 +300,8 @@ bundle (no theme fetch), their webfonts from Google Fonts
 from jsDelivr, highlight.js from cdnjs, Mermaid / Chart.js from jsDelivr,
 SMILES from unpkg (the preview libraries; with `'strict-dynamic'` the nonce
 covers them). Mermaid inserts `<style>` elements at run time that nobody
-stamps: if your decks use diagrams, add
+stamps; a nonce policy blocks them and the diagram is drawn unreadable
+(black shapes, no theme styling). If your decks use diagrams, add
 
 ```
 style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
