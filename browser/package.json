@@ -32,7 +32,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepublishOnly": "node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts"
+    "prepublishOnly": "node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts && npx tsx scripts/test-release.ts --check"
   },
   "keywords": [
     "orz-markdown",

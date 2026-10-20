@@ -458,7 +458,7 @@ describe('the app author\'s guide and the browser package', () => {
     const cli = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; files: string[] };
     expect(out).toContain(`orz-slides-browser ${pkg.version}: release.json matches the files`);
     expect(pkg.version).toBe(cli.version);
-    expect(pkg.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts');
+    expect(pkg.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts && npx tsx scripts/test-release.ts --check');
     expect(pkg.types).toBe('index.d.ts');
     expect(pkg.exports['.']).toEqual({ types: './index.d.ts', import: './esm/orz-slides.browser.mjs', require: './require.cjs', default: './orz-slides.browser.js' });
     expect(pkg.files.sort()).toEqual(['LICENSE', 'README.md', 'docs/embedding.md', 'esm/orz-slides.browser.mjs', 'index.d.ts', 'orz-slides.browser.js', 'release.json', 'require.cjs']);

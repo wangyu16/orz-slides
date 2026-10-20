@@ -34,7 +34,10 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "release:check": "tsx scripts/release-check.ts",
-    "prepublishOnly": "npm run build && tsx scripts/release-check.ts && npm test"
+    "prepublishOnly": "npm run build && tsx scripts/release-check.ts --after-build && tsx scripts/test-release.ts --check",
+    "test:fast": "tsx scripts/test-release.ts --fast",
+    "test:changed": "tsx scripts/test-release.ts --changed",
+    "test:release": "tsx scripts/test-release.ts"
   },
   "keywords": [
     "slides",

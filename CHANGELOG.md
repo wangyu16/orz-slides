@@ -3,6 +3,19 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Release tooling
+
+- Publishing no longer re-runs the 2–3 h suite: `npm run test:release` runs
+  it once on the release commit and writes a green-run stamp
+  (`.release/green.json`, git-ignored); both `prepublishOnly`s run the family
+  release gate (`scripts/release-check.ts`, now shared by every orz package,
+  facts in `release.config.json`; it also checks the bundled kit and the
+  release manifest) and the stamp check, in seconds. New scripts `test:fast`,
+  `test:changed`, `test:release`. Development tooling only; nothing shipped
+  changes.
+
 <a id="100"></a>
 
 ## [1.0.0] — 2026-10-17

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { THEMES, DEFAULT_THEME, THEME_VALUES, DROPPED_THEMES, isThemeId, resolveTheme } from '../src/themes.js';
 import { VERSION } from '../src/version.js';
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> };
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string>; files: string[] };
 const sources = (dir: string): string[] => readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.(ts|js|cjs|mjs)$/.test(f)).map((f) => join(dir, f));
 
 describe('base', () => {
@@ -75,32 +75,42 @@ describe('base', () => {
     expect(existsSync('tests/claims.test.ts')).toBe(true);
   });
 
-  it('[B.6] both prepublishOnlys run the release check (the browser package\'s before anything is published); the root\'s then builds and runs the full suite; the release script that published the CLI first is gone (D-15)', () => {
-    expect(pkg.scripts['prepublishOnly']).toBe('npm run build && tsx scripts/release-check.ts && npm test');
+  it('[B.6] both prepublishOnlys run the family release gate (the browser package\'s after its own manifest check) and the stamp check; the root\'s builds first and never runs the suite (the green-run stamp of `npm run test:release` stands for it); the tiers are scripts; the release script that published the CLI first is gone (D-15)', () => {
+    expect(pkg.scripts['prepublishOnly']).toBe('npm run build && tsx scripts/release-check.ts --after-build && tsx scripts/test-release.ts --check');
     expect(pkg.scripts['release:check']).toBe('tsx scripts/release-check.ts');
+    expect(pkg.scripts['test:release']).toBe('tsx scripts/test-release.ts');
+    expect(pkg.scripts['test:fast']).toBe('tsx scripts/test-release.ts --fast');
+    expect(pkg.scripts['test:changed']).toBe('tsx scripts/test-release.ts --changed');
     const browser = JSON.parse(readFileSync('browser/package.json', 'utf8')) as { scripts: Record<string, string> };
-    expect(browser.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts');
+    expect(browser.scripts['prepublishOnly']).toBe('node scripts/check-release.mjs && cd .. && npx tsx scripts/release-check.ts && npx tsx scripts/test-release.ts --check');
     expect(pkg.scripts['release']).toBeUndefined();
+    expect(readFileSync('.gitignore', 'utf8').split('\n')).toContain('.release/');
+    for (const f of pkg.files) expect(f, 'the release tooling is never shipped').not.toMatch(/^(scripts|\.release|release\.config\.json)/);
   });
 
-  it('[B.7] the release check refuses what would ship a broken or half-published release: an orz-markdown range below the kit the code needs (2.3.0 crashes at import), a linked kit, an older installed kit, versions out of lockstep, an undated CHANGELOG entry, a dirty tree — and passes a release state (final loop RR-2, RR-5)', async () => {
-    const { KIT_REQUIRED, releaseProblems } = await import('../scripts/release-check.js');
+  it('[B.7] the release check refuses what would ship a broken or half-published release: an orz-markdown range below the kit the code needs (2.3.0 crashes at import), a linked kit, an older installed kit, a bundle of another kit, versions out of lockstep, an undated CHANGELOG entry, a dirty tree, a stale manifest — and passes a release state (final loop RR-2, RR-5; the family gate, scripts/release-check.ts)', async () => {
+    const { KIT_REQUIRED, loadConfig, releaseProblems, releaseState } = await import('../scripts/release-check.js');
+    const config = loadConfig(process.cwd());
     expect(KIT_REQUIRED).toBe('2.4.0');
-    const ok = { version: '1.0.0', browserVersion: '1.0.0', kitRange: '^2.4.0', kitLinked: false, kitInstalled: '2.4.0', changelog: '## [1.0.0] - 2026-10-17\n', head: 'abc', clean: true };
-    expect(releaseProblems(ok)).toEqual([]);
-    const one = (patch: Record<string, unknown>, re: RegExp): void => { const p = releaseProblems({ ...ok, ...patch }); expect(p, JSON.stringify(patch)).toHaveLength(1); expect(p[0], JSON.stringify(patch)).toMatch(re); };
+    expect(config.kit).toEqual({ name: 'orz-markdown', required: '2.4.0' });
+    expect(config.checks).toEqual([['node', 'browser/scripts/check-release.mjs']]);
+    const ok = { name: 'orz-slides', version: '1.0.0', browserVersion: '1.0.0', kitRange: '^2.4.0', kitLinked: false, kitInstalled: '2.4.0', kitLocked: 'https://registry.npmjs.org/orz-markdown/-/orz-markdown-2.4.0.tgz', bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: ['2.4.0'] }], manifestKit: null, changelog: '## [1.0.0] - 2026-10-17\n', head: 'abc', clean: true, dirty: [], checkFailures: [] };
+    expect(releaseProblems(ok, config)).toEqual([]);
+    const one = (patch: Record<string, unknown>, re: RegExp): void => { const p = releaseProblems({ ...ok, ...patch }, config); expect(p, JSON.stringify(patch)).toHaveLength(1); expect(p[0], JSON.stringify(patch)).toMatch(re); };
     one({ kitRange: '^2.3.0' }, /needs orz-markdown 2\.4\.0/);
     one({ kitRange: '2.4.0' }, /write it as \^2\.4\.0/);
     one({ kitLinked: true }, /never release from a link/);
-    one({ kitInstalled: '2.3.0' }, /installed orz-markdown is 2\.3\.0/);
+    one({ kitLocked: 'file:../orz-markdown' }, /not the npm registry/);
+    one({ kitInstalled: '2.3.0', bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: ['2.3.0'] }] }, /installed orz-markdown is 2\.3\.0/);
+    one({ bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: ['2.3.0'] }] }, /embeds orz-markdown 2\.3\.0, but the installed orz-markdown is 2\.4\.0/);
     one({ browserVersion: '0.8.5' }, /same version/);
     one({ changelog: '## [1.0.0] — 2026-10-13 (prepared; not yet published)\n' }, /still marked/);
     one({ changelog: '## [1.0.0] — unreleased (prepared on branch rebuild/1.0)\n' }, /not dated/);
     one({ changelog: '## [Unreleased]\n' }, /no "## \[1\.0\.0\] — <date>" entry/);
-    expect(releaseProblems({ ...ok, changelog: '## [1.0.0] — 2026-10-17\n' })).toEqual([]);
-    one({ clean: false }, /uncommitted/);
-    // the repository now (1.0.0 release step: the registry kit ^2.4.0): nothing about the kit stops a release
-    const { releaseState } = await import('../scripts/release-check.js');
-    expect(releaseProblems(releaseState(process.cwd())).filter((p) => /orz-markdown/.test(p))).toEqual([]);
+    expect(releaseProblems({ ...ok, changelog: '## [1.0.0] — 2026-10-17\n' }, config)).toEqual([]);
+    one({ clean: false, dirty: [' M src/cli.ts'] }, /uncommitted/);
+    one({ checkFailures: [{ command: 'node browser/scripts/check-release.mjs', output: 'stale' }] }, /release manifest does not match/);
+    // the repository now (the registry kit ^2.4.0, the built bundle): nothing about the kit stops a release
+    expect(releaseProblems(releaseState(process.cwd(), config), config).filter((p) => /orz-markdown/.test(p))).toEqual([]);
   });
 });

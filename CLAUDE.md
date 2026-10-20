@@ -51,7 +51,9 @@ npm run gen -- new x.slides.md --template talk   # the CLI from source (tsx src/
 npm run examples         # regenerate examples/*.slides.html from examples/*.slides.md (after a build; S.2 fails when stale)
 npx tsx scripts/build-themes.ts --check   # the generated themes are fresh (also in prebuild/pretest)
 npx tsx scripts/theme-sheets.ts           # a review page of every theme
-npm run release:check    # what both prepublishOnlys check first (kit range and install, lockstep, dated entry, clean tree)
+npm run release:check    # the family release gate alone (kit range/install/bundle, lockstep, dated entry, clean tree, manifest)
+npm run test:fast        # project main only (no Chrome); test:changed adds the Chrome files that import what changed
+npm run test:release     # the green-run stamp (.release/green.json) that prepublishOnly checks — "Releasing"
 npm run clean
 ```
 
@@ -212,43 +214,58 @@ channel `chrome`) — such a run verifies nothing "real".
 
 ## Releasing (two packages, same version)
 
-1. orz-markdown 2.4.0 is published (2026-10-17) and installed from the
-   registry (`^2.4.0`). For a later kit, `npx npm@11 install
-   orz-markdown@^X.Y.Z` (the release check refuses a lower range than
-   `KIT_REQUIRED`, a link or an older install).
+The family release pipeline (Phase 4): `scripts/release-check.ts` (the gate)
+and `scripts/test-release.ts` (the green-run stamp and the test tiers) are
+the family's shared tooling — **identical in every orz package**, canonical
+in the family root's `scripts/release-tooling/` (change it there, then
+`node --experimental-strip-types scripts/tooling-sync.ts --write` in the
+family root; never edit the copy here alone). This package's facts are in
+`release.config.json` (kit floor `kit.required`, bundles, manifest check,
+fast lane).
+
+1. orz-markdown is installed from the registry (`^2.4.0`). For a later kit,
+   `npx npm@11 install orz-markdown@^X.Y.Z` (the gate refuses a lower range
+   than `kit.required`, a link, a non-registry lockfile entry, an older
+   install, or a bundle that embeds another kit).
 2. Bump **both** `package.json` and `browser/package.json` to the same
-   version; date the CHANGELOG entry (`## [1.0.0] — YYYY-MM-DD`, no
-   "unreleased").
-3. `npm run build`, `npm run examples`, commit; then `npm test` on that
-   commit (green, conformance included; a timing file that fails under the
-   full run is re-run alone, green).
-4. Merge `rebuild/1.0` into `main` (fast-forward) and push `main` (the
-   release notes link `blob/main/CHANGELOG.md#100`, the guide links
-   `docs/embedding.md` and `examples/webapp/` on main).
-5. `npm run prepublishOnly` in the root (build, `scripts/release-check.ts`,
-   the full suite) — BEFORE anything is published, so a refusal or a flake
-   cannot leave orz-slides-browser published and orz-slides not (RR-5). Then
-   `cd browser && npm publish` (its `prepublishOnly`: `check-release.mjs`
-   and the release check) **first**, then `npm publish` in the root (its
-   `prepublishOnly` runs the suite again). If only a timing file flakes
-   there, re-run that file alone (green) and publish the same commit with
-   `npm publish --ignore-scripts`: the build is deterministic and step 5's
-   run checked it. (A green-run stamp that spares the second run is Phase 4
-   work, REBUILD §4: not before.)
-6. Token: a granular token with bypass-2FA in a file **outside the repo** —
+   version; date the CHANGELOG entry (`## [1.0.1] — YYYY-MM-DD`, no
+   "unreleased"). `npm run build`, `npm run examples`, commit, push `main`
+   (the release notes link `blob/main/CHANGELOG.md#…`).
+3. **`npm run test:release`** on that commit (clean tree; about 2–3 h): it
+   builds (the build must leave the tree clean), runs the full suite once,
+   re-runs a failing file alone (up to 2 tries, each recorded — a timing
+   file that fails under the full load and passes alone is fine), and when
+   all is green writes `.release/green.json` (git-ignored: commit, tree,
+   Node and Chrome versions, per-file counts, re-runs, kit version, bundle
+   hashes). A file red in every try is a real failure: no stamp.
+4. Publish: `cd browser && npm publish` **first**, then `npm publish` in the
+   root. Both `prepublishOnly`s take seconds: the browser's is
+   `check-release.mjs` + the gate + the stamp check; the root's is
+   `npm run build` + the gate (`--after-build`: a dirty tree then means the
+   build is not deterministic) + the stamp check (commit = HEAD, clean tree,
+   the built bundles = the stamped hashes). They never re-run the suite; any
+   new commit needs a new `npm run test:release`. Check both first with
+   `npm run prepublishOnly` (root) and `cd browser && npm run prepublishOnly`.
+5. Token: a granular token with bypass-2FA in a file **outside the repo** —
    `~/.orz-npmrc` (`chmod 600`), then `export
    NPM_CONFIG_USERCONFIG="$HOME/.orz-npmrc"` in that terminal; delete the
    file right after publishing; never commit a token. A `.npmrc` inside the
-   repo is not git-ignored and makes the tree dirty, so the release check
-   refuses. The owner's runbook: family `docs/publish.html` (status hub
-   `/publish/`).
-7. **Network note**: IPv6 is unreliable on this machine — prefix npm/git
+   repo makes the tree dirty, so the gate refuses. The owner's runbook:
+   family `docs/publish.html` (status hub `/publish/`).
+6. **Network note**: IPv6 is unreliable on this machine — prefix npm/git
    network commands with
    `NODE_OPTIONS="--dns-result-order=ipv4first --no-network-family-autoselection"`.
-8. Then the family docs (CONTRACTS, STATUS), the plugin skill mirror, the
+7. Then the family docs (CONTRACTS, STATUS), the plugin skill mirror, the
    website (slides page, the `new-slides` starter, the verifier for format 1),
    and a jsDelivr purge of the unversioned skill URL the files' agent banner
    names (`cdn.jsdelivr.net/npm/orz-slides/orz-slides-skills/SKILL.md`).
+
+Test tiers while working: `npm run test:fast` (project `main`, no Chrome),
+`npm run test:changed [-- --base <ref>]` (the fast lane plus the Chrome and
+conformance files whose imports reach a file changed against `origin/main`;
+`-- --list` shows the selection; changes under `src/browser/`,
+`src/present/`, `assets/`, `build/` or the package/test config select them
+all), `npm test` (everything, no stamp), `npm run test:release` (the stamp).
 
 ## After each major revision
 
