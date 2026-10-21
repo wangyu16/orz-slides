@@ -13,6 +13,9 @@ import { buildBrowser } from '../build/bundle.js';
 import { assemble } from '../src/lib.js';
 import { ENGINE } from './helpers.js';
 
+/** The installed kit: the derived themes name the orz-markdown they were built from (read, never a literal: D-117). */
+const KIT_VERSION = (JSON.parse(readFileSync('node_modules/orz-markdown/package.json', 'utf8')) as { version: string }).version;
+
 describe('the engine\'s themes', () => {
   it('[T.2] assets/themes/<id>.css is exactly what scripts/build-themes.ts makes from the installed orz-markdown for each of the 14 themes (derived: source + slide-scale + layer; updated: content + layer); the engine bundle carries reveal\'s core CSS, deck.css and the 14 themes; no assembled file links a theme stylesheet', async () => {
     expect(builtThemes()).toEqual(THEMES.map((t) => t.id));
@@ -20,7 +23,7 @@ describe('the engine\'s themes', () => {
     for (const id of builtThemes()) expect(readFileSync(`assets/themes/${id}.css`, 'utf8') === themeCss(id), `assets/themes/${id}.css is stale: run npx tsx scripts/build-themes.ts`).toBe(true);
     for (const t of THEMES) {
       const css = readFileSync(`assets/themes/${t.id}.css`, 'utf8');
-      if (t.derivedFrom) expect(css, t.id).toContain(`orz-markdown 2.4.0 ${t.derivedFrom}.css`);
+      if (t.derivedFrom) expect(css, t.id).toContain(`orz-markdown ${KIT_VERSION} ${t.derivedFrom}.css`);
       else expect(css, t.id).toContain('===== layers/content.css');
       expect(css, t.id).toContain(`===== layers/${t.id}.css`);
       expect(css, t.id).toMatch(/\.reveal \.orz-outline li\.orz-here/);
@@ -30,7 +33,7 @@ describe('the engine\'s themes', () => {
     expect(readFileSync('assets/themes/notebook.css', 'utf8')).not.toContain('@media screen rules, scoped to');
     for (const id of builtThemes()) expect(readFileSync(`assets/themes/${id}.css`, 'utf8'), id).not.toMatch(/--orz-grid\s*:/);
     const orchard = readFileSync('assets/themes/orchard.css', 'utf8');
-    expect(orchard).toContain('orz-markdown 2.4.0 light-neat-3.css');
+    expect(orchard).toContain(`orz-markdown ${KIT_VERSION} light-neat-3.css`);
     expect(orchard).toContain('.reveal .orz-outline li.orz-here');
     expect(orchard).toContain('--chart-1: #5f9e44');
     const b = await buildBrowser();

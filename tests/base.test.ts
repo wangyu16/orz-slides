@@ -11,14 +11,24 @@ import { VERSION } from '../src/version.js';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string>; files: string[] };
 const sources = (dir: string): string[] => readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.(ts|js|cjs|mjs)$/.test(f)).map((f) => join(dir, f));
+/**
+ * The kit floor the code needs (release.config.json `kit.required`): the tests read it and the range in package.json,
+ * never a literal (D-117: a kit bump — propagate — must not fail the fast lane on a pinned version).
+ */
+const KIT = (JSON.parse(readFileSync('release.config.json', 'utf8')) as { kit: { name: string; required: string } }).kit;
+const v3 = (v: string): number[] => v.split('.').map(Number);
+/** a ≥ b, same major (what `^b` accepts). */
+const atLeast = (a: string, b: string): boolean => { const [x, y] = [v3(a), v3(b)]; return x[0] === y[0] && (x[1]! > y[1]! || (x[1] === y[1] && x[2]! >= y[2]!)); };
 
 describe('base', () => {
   it('[B.1] depends on orz-markdown ^2.4.0 installed from the registry (a real install, not a link to a checkout) and reveal.js pinned exactly; no shims, aliases, path-browserify or package.json walk', () => {
-    expect(pkg.dependencies['orz-markdown']).toMatch(/^\^2\.([4-9]|\d\d+)\.\d+$/);
+    expect(KIT.name).toBe('orz-markdown');
+    const range = pkg.dependencies['orz-markdown'] as string;
+    expect(range, `^X.Y.Z at least ${KIT.required}`).toMatch(/^\^\d+\.\d+\.\d+$/);
+    expect(atLeast(range.slice(1), KIT.required), `${range} meets ${KIT.required}`).toBe(true);
     expect(lstatSync('node_modules/orz-markdown').isSymbolicLink()).toBe(false);
-    const installed = (JSON.parse(readFileSync('node_modules/orz-markdown/package.json', 'utf8')) as { version: string }).version.split('.').map(Number);
-    expect(installed[0]).toBe(2);
-    expect(installed[1]!).toBeGreaterThanOrEqual(4);
+    const installed = (JSON.parse(readFileSync('node_modules/orz-markdown/package.json', 'utf8')) as { version: string }).version;
+    expect(atLeast(installed, range.slice(1)), `the installed ${installed} satisfies ${range}`).toBe(true);
     expect(pkg.dependencies['reveal.js']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(existsSync('build/shims')).toBe(false);
     expect({ ...pkg.dependencies, ...pkg.devDependencies }).not.toHaveProperty('path-browserify');
@@ -91,18 +101,23 @@ describe('base', () => {
   it('[B.7] the release check refuses what would ship a broken or half-published release: an orz-markdown range below the kit the code needs (2.3.0 crashes at import), a linked kit, an older installed kit, a bundle of another kit, versions out of lockstep, an undated CHANGELOG entry, a dirty tree, a stale manifest — and passes a release state (final loop RR-2, RR-5; the family gate, scripts/release-check.ts)', async () => {
     const { KIT_REQUIRED, loadConfig, releaseProblems, releaseState } = await import('../scripts/release-check.js');
     const config = loadConfig(process.cwd());
-    expect(KIT_REQUIRED).toBe('2.4.0');
-    expect(config.kit).toEqual({ name: 'orz-markdown', required: '2.4.0' });
+    expect(KIT_REQUIRED).toBe(KIT.required);
+    expect(config.kit).toEqual(KIT);
     expect(config.checks).toEqual([['node', 'browser/scripts/check-release.mjs']]);
-    const ok = { name: 'orz-slides', version: '1.0.0', browserVersion: '1.0.0', kitRange: '^2.4.0', kitLinked: false, kitInstalled: '2.4.0', kitLocked: 'https://registry.npmjs.org/orz-markdown/-/orz-markdown-2.4.0.tgz', bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: ['2.4.0'] }], manifestKit: null, changelog: '## [1.0.0] - 2026-10-17\n', head: 'abc', clean: true, dirty: [], checkFailures: [] };
+    // the release state of the kit the code needs (the floor), and an older kit below it — both from the config, not literals
+    const req = KIT.required;
+    const [maj, min, pat] = v3(req) as [number, number, number];
+    const older = pat > 0 ? `${maj}.${min}.${pat - 1}` : min > 0 ? `${maj}.${min - 1}.0` : `${maj - 1}.99.0`;
+    const esc = (v: string): string => v.replace(/\./g, '\\.');
+    const ok = { name: 'orz-slides', version: '1.0.0', browserVersion: '1.0.0', kitRange: `^${req}`, kitLinked: false, kitInstalled: req, kitLocked: `https://registry.npmjs.org/orz-markdown/-/orz-markdown-${req}.tgz`, bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: [req] }], manifestKit: null, changelog: '## [1.0.0] - 2026-10-17\n', head: 'abc', clean: true, dirty: [], checkFailures: [] };
     expect(releaseProblems(ok, config)).toEqual([]);
     const one = (patch: Record<string, unknown>, re: RegExp): void => { const p = releaseProblems({ ...ok, ...patch }, config); expect(p, JSON.stringify(patch)).toHaveLength(1); expect(p[0], JSON.stringify(patch)).toMatch(re); };
-    one({ kitRange: '^2.3.0' }, /needs orz-markdown 2\.4\.0/);
-    one({ kitRange: '2.4.0' }, /write it as \^2\.4\.0/);
+    one({ kitRange: `^${older}` }, new RegExp(`needs orz-markdown ${esc(req)}`));
+    one({ kitRange: req }, new RegExp(`write it as \\^${esc(req)}`));
     one({ kitLinked: true }, /never release from a link/);
     one({ kitLocked: 'file:../orz-markdown' }, /not the npm registry/);
-    one({ kitInstalled: '2.3.0', bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: ['2.3.0'] }] }, /installed orz-markdown is 2\.3\.0/);
-    one({ bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: ['2.3.0'] }] }, /embeds orz-markdown 2\.3\.0, but the installed orz-markdown is 2\.4\.0/);
+    one({ kitInstalled: older, bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: [older] }] }, new RegExp(`installed orz-markdown is ${esc(older)}`));
+    one({ bundledKit: [{ file: 'browser/orz-slides.browser.js', versions: [older] }] }, new RegExp(`embeds orz-markdown ${esc(older)}, but the installed orz-markdown is ${esc(req)}`));
     one({ browserVersion: '0.8.5' }, /same version/);
     one({ changelog: '## [1.0.0] — 2026-10-13 (prepared; not yet published)\n' }, /still marked/);
     one({ changelog: '## [1.0.0] — unreleased (prepared on branch rebuild/1.0)\n' }, /not dated/);
@@ -110,7 +125,7 @@ describe('base', () => {
     expect(releaseProblems({ ...ok, changelog: '## [1.0.0] — 2026-10-17\n' }, config)).toEqual([]);
     one({ clean: false, dirty: [' M src/cli.ts'] }, /uncommitted/);
     one({ checkFailures: [{ command: 'node browser/scripts/check-release.mjs', output: 'stale' }] }, /release manifest does not match/);
-    // the repository now (the registry kit ^2.4.0, the built bundle): nothing about the kit stops a release
+    // the repository now (the registry kit, the built bundle): nothing about the kit stops a release
     expect(releaseProblems(releaseState(process.cwd(), config), config).filter((p) => /orz-markdown/.test(p))).toEqual([]);
   });
 });
