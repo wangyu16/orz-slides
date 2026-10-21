@@ -205,7 +205,7 @@ async function cutByBoxes(page: Page, sel: string): Promise<number> {
 }
 
 const NO_TRANSITIONS = '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }';
-/** The pixel probes' sheet: no transitions, and the current slide's footer in a layer of its own (root cause 2 above; only the current one: a layer for every slide's footer made every frame dearer — a full run took 8205 s against 6937 s). */
+/** The pixel probes' sheet: no transitions, and the current slide's footer in a layer of its own (root cause 2 above; only the current slide's: the only one in the shots). */
 const MEASURING = `${NO_TRANSITIONS} .reveal .slides > section.present .orz-chrome { will-change: transform !important; }`;
 
 /** Adopt the measuring sheet into the page's document (once per document: a constructed sheet, so no load, no refit). */
