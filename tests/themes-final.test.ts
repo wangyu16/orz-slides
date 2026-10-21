@@ -55,16 +55,22 @@ const CUT_PX = 40;
  * different one of them on every run — T.19 orchard; T.19 notebook + T.20 nocturne; T.16 nocturne + T.19 notebook +
  * T.20 nocturne).
  *
- * ROOT CAUSE (measured, 2026-10-20): the oracle widened the boxes' clip with `page.addStyleTag`, and a <style> element
- * fires `load` — which the engine rightly takes for a stylesheet that may change what fits (engine.ts `onSheet`): it
- * refitted the slide and unsettled it, so the "widened" shot was taken inside a refit-and-settle cycle that the probe
- * itself had started. In that cycle the slide's chrome is drawn again and re-rastered: nocturne's "Ln 10" label
- * differed by 36 px in the widened shot only, and a template edge by 5 px — together over the 40 px threshold, a
- * "cut" that was not there, at random (it depended on whether the shot landed before or after the refit's frame).
+ * ROOT CAUSES (measured, 2026-10-20/21):
+ * 1. the oracle widened the boxes' clip with `page.addStyleTag`, and a <style> element fires `load` — which the engine
+ *    rightly takes for a stylesheet that may change what fits (engine.ts `onSheet`): it refitted the slide and
+ *    unsettled it, so the "widened" shot was taken inside a refit-and-settle cycle that the probe itself had started
+ *    (notebook's closing {{qr}} was redrawn in it: 101 px);
+ * 2. any repaint over the slide's footer re-rasters it, and Chrome now and then draws the footer's generated "Ln"
+ *    label (nocturne, 4:3) one device pixel to the side: 36 px that differ in the widened shot only — with no refit,
+ *    no animation and the same DOM (a replay: 5–10 of 384 comparisons) — plus 5 px of a template panel's own edge
+ *    row: 41 px, over the 40 px threshold, a "cut" that was not there.
  *
  * Now:
  * - the clip is widened with a constructed stylesheet (`document.adoptedStyleSheets`): no element, no load event,
  *   no refit — only the paint changes, which is what the oracle compares;
+ * - while a deck is measured the slide's footer (`.orz-chrome`, the only text on a slide outside its boxes) is held in
+ *   a compositing layer of its own (`will-change: transform`, in all three shots alike), so repainting the boxes never
+ *   re-rasters it (the replay: 0 such pixels in 384 comparisons);
  * - before each comparison the slide is QUIET: its fit settled, `document.fonts.ready`, every image of the slide
  *   loaded and decoded, then two animation frames painted with no refit meanwhile — else again;
  * - a capture counts only if the slide stayed settled through all three shots (a watch counts every unsettle and
@@ -123,6 +129,7 @@ async function quiet(page: Page): Promise<void> {
  * cut) and is not on a box's own edge. Retaken when the slide refitted or unsettled during the shots.
  */
 async function compareOnce(page: Page, sel: string): Promise<number> {
+  await measuring(page);
   for (let attempt = 1; ; attempt++) {
     await quiet(page);
     const before = await watchSettle(page);
@@ -198,6 +205,20 @@ async function cutByBoxes(page: Page, sel: string): Promise<number> {
 }
 
 const NO_TRANSITIONS = '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }';
+/** The pixel probes' sheet: no transitions, and the slide's footer in a layer of its own (root cause 2 above). */
+const MEASURING = `${NO_TRANSITIONS} .reveal .slides > section .orz-chrome { will-change: transform !important; }`;
+
+/** Adopt the measuring sheet into the page's document (once per document: a constructed sheet, so no load, no refit). */
+async function measuring(page: Page): Promise<void> {
+  await page.evaluate((css) => {
+    const g = globalThis as unknown as { __orzMeasuring?: CSSStyleSheet };
+    if (g.__orzMeasuring) return;
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    g.__orzMeasuring = sheet;
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }, MEASURING);
+}
 
 real('final loop: theme probes (real Chrome, offline)', () => {
   for (const t of THEMES) {
@@ -210,7 +231,7 @@ real('final loop: theme probes (real Chrome, offline)', () => {
         if (!open) open = await openDeck(browser!, file, assemble(bareDeck(t.id, ratio)));
         else await loadDeck(open.page, file, assemble(bareDeck(t.id, ratio)));
         const { page, errors } = open;
-        await page.addStyleTag({ content: NO_TRANSITIONS });
+        await measuring(page);
         // every slide once, in order: fitted when shown, the fit oracle, then the cut
         for (const [i, b] of BARE.entries()) {
           const where = `${ratio} ${b.template} v${b.v} ${b.long ? 'long' : 'short'}`;
@@ -414,7 +435,7 @@ real('final loop: theme probes (real Chrome, offline)', () => {
         if (!open) open = await openDeck(browser!, file, assemble(fullDeck(t.id, ratio)));
         else await loadDeck(open.page, file, assemble(fullDeck(t.id, ratio)));
         const { page, errors } = open;
-        await page.addStyleTag({ content: NO_TRANSITIONS });
+        await measuring(page);
         // every slide once, in order: fitted when shown, the fit oracle (nothing cut silently), then the cut
         // (a real cut persists in two quiet comparisons; a late paint — a picture decoded, a font swapped — does not)
         for (let i = 0; i < FULL.length; i++) {
@@ -445,7 +466,7 @@ real('final loop: theme probes (real Chrome, offline)', () => {
         if (!open) open = await openDeck(browser!, file, assemble(secDeck(t.id, ratio, turn)));
         else await loadDeck(open.page, file, assemble(secDeck(t.id, ratio, turn)));
         const { page, errors } = open;
-        await page.addStyleTag({ content: NO_TRANSITIONS });
+        await measuring(page);
         for (const n of LONG_SECS) {
           const where = `${ratio} section ${n} v${secV(n, turn)}`;
           await goTo(page, n - 1);
