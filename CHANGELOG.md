@@ -15,6 +15,10 @@ All notable changes to **orz-slides** are recorded here. Versions follow
   release manifest) and the stamp check, in seconds. New scripts `test:fast`,
   `test:changed`, `test:release`. Development tooling only; nothing shipped
   changes.
+- A file that fails in the stamp run is re-run alone with only its failed
+  tests (`vitest -t` on their exact names; up to 2 tries); a suite-level
+  failure (a hook, the file itself, a failed suite no failed test explains)
+  re-runs the whole file. The stamp records which, per try.
 
 <a id="100"></a>
 
