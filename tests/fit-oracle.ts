@@ -85,20 +85,29 @@ function boxesIn(n: number): BoxReport[] {
   }
 }
 
+/**
+ * Check the oracle on slide `i`, which must be the current, fitted slide (`goTo` first): every box is fitted (a scale
+ * in [0.6, 1]) and nothing is cut without `data-clipped`. Returns the slide's box reports.
+ */
+export async function checkSlide(page: Page, i: number, label: string): Promise<BoxReport[]> {
+  const out = await reportBoxes(page, i);
+  for (const b of out) {
+    const where = `${label} slide ${i + 1} ${b.box}`;
+    expect(b.scale, where).not.toBeNull();
+    expect(Number(b.scale), where).toBeGreaterThanOrEqual(0.6);
+    expect(Number(b.scale), where).toBeLessThanOrEqual(1);
+    if (!b.clipped && !b.scroll) expect(b.outside, `${where}: content cut without data-clipped`).toEqual([]);
+  }
+  return out;
+}
+
 /** Fit every slide of a deck (visiting each) and check the oracle; returns every box's report. */
 export async function checkDeck(page: Page, label: string): Promise<BoxReport[]> {
   const total = await page.evaluate(() => document.querySelectorAll('.reveal .slides > section').length);
   const all: BoxReport[] = [];
   for (let i = 0; i < total; i++) {
     await goTo(page, i);
-    for (const b of await reportBoxes(page, i)) {
-      all.push(b);
-      const where = `${label} slide ${i + 1} ${b.box}`;
-      expect(b.scale, where).not.toBeNull();
-      expect(Number(b.scale), where).toBeGreaterThanOrEqual(0.6);
-      expect(Number(b.scale), where).toBeLessThanOrEqual(1);
-      if (!b.clipped && !b.scroll) expect(b.outside, `${where}: content cut without data-clipped`).toEqual([]);
-    }
+    all.push(...await checkSlide(page, i, label));
   }
   return all;
 }

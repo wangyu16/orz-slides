@@ -24,8 +24,8 @@ import { join } from 'node:path';
 import { assemble } from '../src/lib.js';
 import { THEMES } from '../src/themes.js';
 import { TEMPLATES } from '../src/deck/parse.js';
-import { checkDeck, reportBoxes } from './fit-oracle.js';
-import { goTo, launchChrome, openDeck, type PageGlobal } from './helpers.js';
+import { checkDeck, checkSlide, reportBoxes } from './fit-oracle.js';
+import { goTo, launchChrome, loadDeck, openDeck, settled, type PageGlobal } from './helpers.js';
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { textOverlaps } from './support/overprint.js';
 
@@ -47,80 +47,184 @@ const bareDeck = (theme: string, ratio: string): string => `{{nyml\nkind: docume
 /** Pixels of the current slide that change when its template box paints past its edge (what the box cuts off). */
 const cutByTemplate = (page: Page): Promise<number> => cutByBoxes(page, '.orz-template');
 
+/** More pixels than this, cut by the boxes, is a cut (unchanged since the final loop). */
+const CUT_PX = 40;
+
+/*
+ * The capture discipline of the pixel oracles T.16, T.19 and T.20 (family Phase 4 follow-up G: the stamp run failed a
+ * different one of them on every run — T.19 orchard; T.19 notebook + T.20 nocturne; T.16 nocturne + T.19 notebook +
+ * T.20 nocturne).
+ *
+ * ROOT CAUSE (measured, 2026-10-20): the oracle widened the boxes' clip with `page.addStyleTag`, and a <style> element
+ * fires `load` — which the engine rightly takes for a stylesheet that may change what fits (engine.ts `onSheet`): it
+ * refitted the slide and unsettled it, so the "widened" shot was taken inside a refit-and-settle cycle that the probe
+ * itself had started. In that cycle the slide's chrome is drawn again and re-rastered: nocturne's "Ln 10" label
+ * differed by 36 px in the widened shot only, and a template edge by 5 px — together over the 40 px threshold, a
+ * "cut" that was not there, at random (it depended on whether the shot landed before or after the refit's frame).
+ *
+ * Now:
+ * - the clip is widened with a constructed stylesheet (`document.adoptedStyleSheets`): no element, no load event,
+ *   no refit — only the paint changes, which is what the oracle compares;
+ * - before each comparison the slide is QUIET: its fit settled, `document.fonts.ready`, every image of the slide
+ *   loaded and decoded, then two animation frames painted with no refit meanwhile — else again;
+ * - a capture counts only if the slide stayed settled through all three shots (a watch counts every unsettle and
+ *   every refit: `data-fit-settled` dropped, `data-scale` written); otherwise it is retaken — no capture races an
+ *   in-flight image or font load, or a refit;
+ * - a cut is reported only when it persists in TWO valid comparisons (the second is taken when the first finds one).
+ * The tolerances are unchanged: 48 per pixel (RGB sum), 40 px, the 1 px band on a box's own edge.
+ */
+
+/** Once per document: count every unsettle and every refit of the current slide (`__orzUnsettles`). */
+async function watchSettle(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const g = globalThis as unknown as { __orzUnsettles?: number };
+    if (g.__orzUnsettles === undefined) {
+      g.__orzUnsettles = 0;
+      new MutationObserver((rs) => {
+        for (const r of rs) if (r.attributeName === 'data-scale' || !(r.target as Element).hasAttribute('data-fit-settled')) g.__orzUnsettles = (g.__orzUnsettles ?? 0) + 1;
+      }).observe(document.querySelector('.reveal .slides')!, { attributes: true, subtree: true, attributeFilter: ['data-fit-settled', 'data-scale'] });
+    }
+    return g.__orzUnsettles;
+  });
+}
+
+/** `n` animation frames painted (headless Chrome paints this deck at ~14 frames a second here: frames are the cost). */
+const frames = (page: Page, n: number): Promise<void> => page.evaluate((k) => new Promise<void>((r) => { const f = (): void => { if (--k <= 0) r(); else requestAnimationFrame(f); }; requestAnimationFrame(f); }), n);
+
+/** The current slide carries `data-fit-settled`. */
+const isSettled = (page: Page): Promise<boolean> => page.evaluate(() => document.querySelector('.reveal .slides > section.present')?.hasAttribute('data-fit-settled') === true);
+
+/**
+ * The current slide is quiet: its fit settled (the engine's `settled()` when it is not), the fonts in
+ * (`document.fonts.ready`), its images loaded and decoded, then two animation frames painted — and nothing refitted
+ * or unsettled meanwhile (the watch); else again.
+ */
+async function quiet(page: Page): Promise<void> {
+  for (let k = 0; k < 10; k++) {
+    const before = await watchSettle(page);
+    if (!(await isSettled(page))) await settled(page);
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      const slide = document.querySelector('.reveal .slides > section.present');
+      await Promise.all(Array.from(slide?.querySelectorAll('img') ?? []).map(async (img) => {
+        if (!img.complete) await new Promise((r) => { img.addEventListener('load', r, { once: true }); img.addEventListener('error', r, { once: true }); });
+        await img.decode().catch(() => undefined);
+      }));
+    });
+    await frames(page, 2);
+    if ((await isSettled(page)) && (await watchSettle(page)) === before) return;
+  }
+  throw new Error('the slide never became quiet (it kept refitting for 10 rounds)');
+}
+
+/**
+ * One comparison, taken while the slide stays quiet: the slide, the slide with the boxes' (`sel`) clip widened, the
+ * slide again. A pixel counts when the widened shot differs from both others (a late paint between the shots is no
+ * cut) and is not on a box's own edge. Retaken when the slide refitted or unsettled during the shots.
+ */
+async function compareOnce(page: Page, sel: string): Promise<number> {
+  for (let attempt = 1; ; attempt++) {
+    await quiet(page);
+    const before = await watchSettle(page);
+    const { clip, edges } = await page.evaluate((s) => {
+      const slide = document.querySelector('.reveal .slides > section.present')!;
+      const r = slide.getBoundingClientRect();
+      const clip = { x: Math.max(0, r.left - 40), y: Math.max(0, r.top - 40), width: r.width + 80, height: r.height + 80 };
+      const edges = [...slide.querySelectorAll(s)].map((el) => {
+        const b = el.getBoundingClientRect();
+        return { l: b.left - clip.x, t: b.top - clip.y, r: b.right - clip.x, b: b.bottom - clip.y };
+      });
+      return { clip, edges };
+    }, `:is(${sel})`);
+    const a = await page.screenshot({ clip });
+    // the clip widened, not removed: overflow: visible would lay the box out again (a flex item's minimum size) and refit
+    // it, so the pictures would differ where nothing was cut; a wider overflow-clip-margin only paints more. A
+    // constructed sheet, not a <style>: an element's load event would make the engine refit (the root cause above).
+    await page.evaluate((css) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(css);
+      (globalThis as unknown as { __orzWiden?: CSSStyleSheet }).__orzWiden = sheet;
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    }, `.reveal .slides > section.present :is(${sel}) { overflow-clip-margin: 4000px !important; }`);
+    await frames(page, 1); // the style applied (the screenshot then renders a fresh frame of its own)
+    const b = await page.screenshot({ clip });
+    await page.evaluate(() => {
+      const sheet = (globalThis as unknown as { __orzWiden?: CSSStyleSheet }).__orzWiden;
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter((x) => x !== sheet);
+    });
+    await frames(page, 1);
+    const a2 = await page.screenshot({ clip });
+    const stayed = (await watchSettle(page)) === before && (await isSettled(page));
+    if (!stayed) {
+      if (attempt < 5) continue; // the slide refitted while the shots were taken: not a valid comparison, take it again
+      throw new Error(`${sel}: the slide refitted during every one of 5 captures`);
+    }
+    return page.evaluate(async ({ x, y, z, edges }) => {
+      let w = 0;
+      const load = async (d: string): Promise<Uint8ClampedArray> => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${d}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height; w = img.width;
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        return g.getImageData(0, 0, c.width, c.height).data;
+      };
+      const [p, q, r] = [await load(x), await load(y), await load(z)];
+      const differs = (u: Uint8ClampedArray, v: Uint8ClampedArray, i: number): boolean => Math.abs(u[i] - v[i]) + Math.abs(u[i + 1] - v[i + 1]) + Math.abs(u[i + 2] - v[i + 2]) > 48;
+      // on a box's edge: within 1 px of one of its four sides, along that side
+      const onEdge = (px: number, py: number): boolean => edges.some((e) => {
+        const nearX = px >= e.l - 1 && px <= e.r + 1, nearY = py >= e.t - 1 && py <= e.b + 1;
+        return (nearX && (Math.abs(py - e.t) <= 1 || Math.abs(py + 1 - e.b) <= 1)) || (nearY && (Math.abs(px - e.l) <= 1 || Math.abs(px + 1 - e.r) <= 1));
+      });
+      let n = 0;
+      for (let i = 0; i < p.length; i += 4) if (differs(p, q, i) && differs(r, q, i)) { const k = i / 4; if (!onEdge(k % w, Math.floor(k / w))) n++; }
+      return n;
+    }, { x: a.toString('base64'), y: b.toString('base64'), z: a2.toString('base64'), edges });
+  }
+}
+
 /**
  * Pixels of the current slide that change when its boxes (`sel`) paint past their edges (what the boxes cut off).
  * Pixels within 1 px of a box's own edge do not count: a box that draws its own 1 px border on its edge (Orchard's
  * title v3 panel) is re-rasterised there now and then when its clip is widened — one antialiased row, nothing past
  * the edge (step 11: 200 px on the panel's last row, 2 runs in 3) — while anything the box really cuts lies beyond it.
+ * A cut must persist: the second comparison is taken when the first finds more than CUT_PX, and the smaller counts.
  */
 async function cutByBoxes(page: Page, sel: string): Promise<number> {
-  const { clip, edges } = await page.evaluate((s) => {
-    const slide = document.querySelector('.reveal .slides > section.present')!;
-    const r = slide.getBoundingClientRect();
-    const clip = { x: Math.max(0, r.left - 40), y: Math.max(0, r.top - 40), width: r.width + 80, height: r.height + 80 };
-    const edges = [...slide.querySelectorAll(s)].map((el) => {
-      const b = el.getBoundingClientRect();
-      return { l: b.left - clip.x, t: b.top - clip.y, r: b.right - clip.x, b: b.bottom - clip.y };
-    });
-    return { clip, edges };
-  }, `:is(${sel})`);
-  const a = await page.screenshot({ clip });
-  // the clip widened, not removed: overflow: visible would lay the box out again (a flex item's minimum size) and refit
-  // it, so the pictures would differ where nothing was cut; a wider overflow-clip-margin only paints more
-  const open = await page.addStyleTag({ content: `.reveal .slides > section.present :is(${sel}) { overflow-clip-margin: 4000px !important; }` });
-  await page.waitForTimeout(60);
-  const b = await page.screenshot({ clip });
-  await open.evaluate((el) => (el as Element).remove());
-  await page.waitForTimeout(60);
-  const a2 = await page.screenshot({ clip });
-  // a pixel counts only when the widened page differs from the page both before and after (a late refit or a
-  // transition between the shots is no cut)
-  return page.evaluate(async ({ x, y, z, edges }) => {
-    let w = 0;
-    const load = async (d: string): Promise<Uint8ClampedArray> => {
-      const img = new Image();
-      img.src = `data:image/png;base64,${d}`;
-      await img.decode();
-      const c = document.createElement('canvas');
-      c.width = img.width; c.height = img.height; w = img.width;
-      const g = c.getContext('2d')!;
-      g.drawImage(img, 0, 0);
-      return g.getImageData(0, 0, c.width, c.height).data;
-    };
-    const [p, q, r] = [await load(x), await load(y), await load(z)];
-    const differs = (u: Uint8ClampedArray, v: Uint8ClampedArray, i: number): boolean => Math.abs(u[i] - v[i]) + Math.abs(u[i + 1] - v[i + 1]) + Math.abs(u[i + 2] - v[i + 2]) > 48;
-    // on a box's edge: within 1 px of one of its four sides, along that side
-    const onEdge = (px: number, py: number): boolean => edges.some((e) => {
-      const nearX = px >= e.l - 1 && px <= e.r + 1, nearY = py >= e.t - 1 && py <= e.b + 1;
-      return (nearX && (Math.abs(py - e.t) <= 1 || Math.abs(py + 1 - e.b) <= 1)) || (nearY && (Math.abs(px - e.l) <= 1 || Math.abs(px + 1 - e.r) <= 1));
-    });
-    let n = 0;
-    for (let i = 0; i < p.length; i += 4) if (differs(p, q, i) && differs(r, q, i)) { const k = i / 4; if (!onEdge(k % w, Math.floor(k / w))) n++; }
-    return n;
-  }, { x: a.toString('base64'), y: b.toString('base64'), z: a2.toString('base64'), edges });
+  const first = await compareOnce(page, sel);
+  return first > CUT_PX ? Math.min(first, await compareOnce(page, sel)) : first;
 }
+
+const NO_TRANSITIONS = '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }';
 
 real('final loop: theme probes (real Chrome, offline)', () => {
   for (const t of THEMES) {
     it(`[T.16] ${t.id}: heading-only template pages (every variant, short and long heading, 16:9 and 4:3) are never clipped, a one-line heading is never scaled, and the template box cuts nothing the theme draws`, async () => {
       const bad: string[] = [];
+      let open: Awaited<ReturnType<typeof openDeck>> | null = null;
       for (const ratio of ['16:9', '4:3']) {
-        const { page, ctx, errors } = await openDeck(browser!, fileFor(`bare-${t.id}-${ratio.replace(':', 'x')}`), assemble(bareDeck(t.id, ratio)));
-        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
-        const boxes = await checkDeck(page, `${t.id} ${ratio}`);
+        // one page for the theme: the second deck loads into it
+        const file = fileFor(`bare-${t.id}-${ratio.replace(':', 'x')}`);
+        if (!open) open = await openDeck(browser!, file, assemble(bareDeck(t.id, ratio)));
+        else await loadDeck(open.page, file, assemble(bareDeck(t.id, ratio)));
+        const { page, errors } = open;
+        await page.addStyleTag({ content: NO_TRANSITIONS });
+        // every slide once, in order: fitted when shown, the fit oracle, then the cut
         for (const [i, b] of BARE.entries()) {
           const where = `${ratio} ${b.template} v${b.v} ${b.long ? 'long' : 'short'}`;
-          const tpl = boxes.find((x) => x.slide === i && /orz-template/.test(x.box));
+          await goTo(page, i);
+          const tpl = (await checkSlide(page, i, `${t.id} ${ratio}`)).find((x) => /orz-template/.test(x.box));
           if (!tpl) { bad.push(`${where}: no template box`); continue; }
           if (tpl.clipped) bad.push(`${where}: clipped at ${tpl.scale}`);
           else if (!b.long && b.template !== 'outline' && Number(tpl.scale) < 1) bad.push(`${where}: scaled to ${tpl.scale}`);
-          await goTo(page, i);
           const cut = await cutByTemplate(page);
-          if (cut > 40) bad.push(`${where}: the template box cuts ${cut} px of what the theme draws`);
+          if (cut > CUT_PX) bad.push(`${where}: the template box cuts ${cut} px of what the theme draws`);
         }
         expect(errors, `${t.id} ${ratio}`).toEqual([]);
-        await ctx.close();
       }
+      await open?.ctx.close();
       expect(bad, t.id).toEqual([]);
     }, 480_000); // chalk takes ~290 s on a busy machine (base too)
   }
@@ -303,22 +407,25 @@ real('final loop: theme probes (real Chrome, offline)', () => {
   for (const t of THEMES) {
     it(`[T.19] ${t.id}: no box cuts what the theme draws once it holds content — template pages with a subtitle and two meta lines, a section's subtitle, an outline, a closing {{qr}}, a callout, quote or code block as a box's first child, a picture alone, beside text and in a row: the page with every box's clip widened looks the same, and nothing is cut silently (16:9 and 4:3)`, async () => {
       const bad: string[] = [];
+      let open: Awaited<ReturnType<typeof openDeck>> | null = null;
       for (const ratio of ['16:9', '4:3']) {
         const file = fileFor(`full-${t.id}-${ratio.replace(':', 'x')}`);
         writeFileSync(join(file, '..', 'pic.svg'), PICTURE, 'utf8');
-        const { page, ctx, errors } = await openDeck(browser!, file, assemble(fullDeck(t.id, ratio)));
-        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
-        await checkDeck(page, `${t.id} ${ratio}`);
+        if (!open) open = await openDeck(browser!, file, assemble(fullDeck(t.id, ratio)));
+        else await loadDeck(open.page, file, assemble(fullDeck(t.id, ratio)));
+        const { page, errors } = open;
+        await page.addStyleTag({ content: NO_TRANSITIONS });
+        // every slide once, in order: fitted when shown, the fit oracle (nothing cut silently), then the cut
+        // (a real cut persists in two quiet comparisons; a late paint — a picture decoded, a font swapped — does not)
         for (let i = 0; i < FULL.length; i++) {
           await goTo(page, i);
-          // a real cut repeats; a late paint (a picture decoded, a font swapped between the shots) does not
-          let cut = await cutByBoxes(page, '.orz-region, .orz-template, .orz-float');
-          if (cut > 40) { await page.waitForTimeout(300); cut = Math.min(cut, await cutByBoxes(page, '.orz-region, .orz-template, .orz-float')); }
-          if (cut > 40) bad.push(`${ratio} slide ${i + 1} (${FULL[i].split('\n')[0]}): the boxes cut ${cut} px of what the theme draws`);
+          await checkSlide(page, i, `${t.id} ${ratio}`);
+          const cut = await cutByBoxes(page, '.orz-region, .orz-template, .orz-float');
+          if (cut > CUT_PX) bad.push(`${ratio} slide ${i + 1} (${FULL[i].split('\n')[0]}): the boxes cut ${cut} px of what the theme draws`);
         }
         expect(errors, `${t.id} ${ratio}`).toEqual([]);
-        await ctx.close();
       }
+      await open?.ctx.close();
       expect(bad, t.id).toEqual([]);
     }, 300_000);
   }
@@ -331,9 +438,14 @@ real('final loop: theme probes (real Chrome, offline)', () => {
   for (const t of THEMES) {
     it(`[T.20] ${t.id}: a roman section number of any length — IV, VIII, IX, X, XIII, XV, XVIII (the longest), XX — on every section variant is never cut by its box, never overprints the heading, and a one-line page is never scaled (16:9 and 4:3)`, async () => {
       const bad: string[] = [];
+      let open: Awaited<ReturnType<typeof openDeck>> | null = null;
       for (const ratio of ['16:9', '4:3']) for (let turn = 0; turn < 4; turn++) {
-        const { page, ctx, errors } = await openDeck(browser!, fileFor(`sec-${t.id}-${turn}-${ratio.replace(':', 'x')}`), assemble(secDeck(t.id, ratio, turn)));
-        await page.addStyleTag({ content: '.reveal .slides > section, .reveal .backgrounds .slide-background { transition: none !important; }' });
+        // one page for the theme: each of the 8 decks loads into it
+        const file = fileFor(`sec-${t.id}-${turn}-${ratio.replace(':', 'x')}`);
+        if (!open) open = await openDeck(browser!, file, assemble(secDeck(t.id, ratio, turn)));
+        else await loadDeck(open.page, file, assemble(secDeck(t.id, ratio, turn)));
+        const { page, errors } = open;
+        await page.addStyleTag({ content: NO_TRANSITIONS });
         for (const n of LONG_SECS) {
           const where = `${ratio} section ${n} v${secV(n, turn)}`;
           await goTo(page, n - 1);
@@ -343,13 +455,12 @@ real('final loop: theme probes (real Chrome, offline)', () => {
             if (!b.clipped && b.outside.length) bad.push(`${where}: cut silently — ${b.outside.join('; ')}`);
           }
           for (const x of await textOverlaps(page)) bad.push(`${where}: ${x}`);
-          let cut = await cutByTemplate(page); // a real cut repeats; a late paint does not
-          if (cut > 40) { await page.waitForTimeout(300); cut = Math.min(cut, await cutByTemplate(page)); }
-          if (cut > 40) bad.push(`${where}: the template box cuts ${cut} px of the number or heading`);
+          const cut = await cutByTemplate(page); // a real cut persists in two quiet comparisons; a late paint does not
+          if (cut > CUT_PX) bad.push(`${where}: the template box cuts ${cut} px of the number or heading`);
         }
         expect(errors, `${t.id} ${ratio}`).toEqual([]);
-        await ctx.close();
       }
+      await open?.ctx.close();
       expect(bad, t.id).toEqual([]);
     }, 400_000);
   }

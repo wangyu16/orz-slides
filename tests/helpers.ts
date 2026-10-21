@@ -123,13 +123,22 @@ export async function openDeck(browser: Browser, path: string, html: string, o: 
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
+  await loadDeck(page, path, null, o);
+  return { page, ctx, errors };
+}
+
+/**
+ * Load another deck into a page `openDeck` opened (the same context: its routes and its `errors` go on) — one page
+ * for several decks instead of a context each. `html` null: the file is written already. Resolves like openDeck.
+ */
+export async function loadDeck(page: Page, path: string, html: string | null, o: { network?: boolean; wait?: 'fitted' | 'settled' } = {}): Promise<void> {
+  if (html !== null) { const { writeFileSync } = await import('node:fs'); writeFileSync(path, html, 'utf8'); }
   // online, a slow webfont must not hold the load event: readiness is awaited below
   await page.goto(`file://${path}`, o.network ? { waitUntil: 'domcontentloaded', timeout: 90_000 } : {});
   await page.waitForFunction(() => (globalThis as unknown as { OrzCarrier?: { standalone?: unknown } }).OrzCarrier?.standalone !== undefined);
   await page.evaluate(() => (globalThis as unknown as PageGlobal).OrzCarrier.standalone.ready);
   await page.waitForFunction(() => document.querySelector('.reveal.orz-deck.ready .slides > section.present[data-fitted]') !== null);
   if (o.wait !== 'fitted') await settled(page);
-  return { page, ctx, errors };
 }
 
 /** Go to slide `i` (0-based) through the engine and wait until it is current and its fit has settled. */
