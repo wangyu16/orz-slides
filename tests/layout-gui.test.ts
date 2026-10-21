@@ -24,6 +24,15 @@ const dir = mkdtempSync(join(tmpdir(), 'orz-slides-gui-'));
 afterAll(async () => { await browser?.close(); rmSync(dir, { recursive: true, force: true }); });
 const chrome = browser ? describe : describe.skip;
 const SAMPLE = readFileSync('tests/fixtures/sample/sample.slides.md', 'utf8');
+/**
+ * The long-task bound of the L.10 guards (D-47: a drag must never stall the page). 250 ms, raised from 200 ms on
+ * 2026-10-20 (owner, family Phase 4 follow-up F): on the owner's machine the 300-slide ops at 4 × CPU throttle and the
+ * 100-slide drags measured 202–225 ms, on the old base too (orz-slides@1.0.0 and before), so 200 ms flagged machine
+ * noise, not a regression. The guard targets regressions of the D-47 kind (a re-parse or a redraw of the whole deck on
+ * every move: seconds, not tens of ms over the line). Making the layout ops cheaper so that the margin returns under
+ * 200 ms is a product item (family docs/STATUS.md D-118).
+ */
+const LONG_TASK_MS = 250;
 let staged = false;
 
 interface GuiState {
@@ -392,7 +401,7 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     await ctx.close();
   }, 120_000);
 
-  it('[L.10] the filmstrip on a 100-slide deck: virtualised (a few dozen rows in the DOM), a mouse drag with autoscroll moves a slide far down, Alt+Down and Alt+Up move it by one, add / duplicate / delete — each ONE undo step that restores the exact text; no long task over 200 ms during divider, float and filmstrip drags (the D-47 guard)', async () => {
+  it('[L.10] the filmstrip on a 100-slide deck: virtualised (a few dozen rows in the DOM), a mouse drag with autoscroll moves a slide far down, Alt+Down and Alt+Up move it by one, add / duplicate / delete — each ONE undo step that restores the exact text; no long task over 250 ms during divider, float and filmstrip drags (the D-47 guard)', async () => {
     const deck = bigDeck(100);
     const { page, ctx, errors } = await openApp(deck, 'Left text of slide 52');
     await waitGui(page, (s) => s.slide === 51);
@@ -462,7 +471,7 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
     const during = lt.filter(([at, dur]) => drags.some(([a, b]) => at < b && at + dur > a));
     // eslint-disable-next-line no-console
     console.log(`[L.10] 100 slides: ${drags.length} drags (divider ${divMs} ms with its write); long tasks during the drags: ${during.map(([, d]) => Math.round(d)).join(', ') || 'none'}; between them (the writes, the live view, the lints): ${lt.filter((x) => !during.includes(x)).map(([, d]) => Math.round(d)).join(', ') || 'none'}`);
-    expect(during.filter(([, d]) => d > 200)).toEqual([]);
+    expect(during.filter(([, d]) => d > LONG_TASK_MS)).toEqual([]);
     await page.locator('.orz-lg-strip-scroll').focus();
     await undoTo(page, before);
     // keys: Alt+Down, Alt+Up (each a move of one), from the filmstrip
@@ -941,7 +950,7 @@ chrome('closed-loop round B probes (the layout GUI, real Chrome, offline)', () =
     await ctx.close();
   }, 120_000);
 
-  it('[L.10] round B, GUI-11 and OPS-10: ops on a 300-slide deck at a quarter of the CPU (4 × throttled) make no long task over 200 ms', async () => {
+  it('[L.10] round B, GUI-11 and OPS-10: ops on a 300-slide deck at a quarter of the CPU (4 × throttled) make no long task over 250 ms', async () => {
     const deck = bigDeck(300);
     const { page, ctx, errors } = await openApp(deck, 'Left text of slide 152');
     await waitGui(page, (s) => s.slide === 151);
@@ -963,7 +972,7 @@ chrome('closed-loop round B probes (the layout GUI, real Chrome, offline)', () =
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
     // eslint-disable-next-line no-console
     console.log(`[L.10] GUI-11 300 slides, CPU 4×: long tasks around three ops: ${lt.join(', ') || 'none'}`);
-    expect(lt.filter((d) => d > 200)).toEqual([]);
+    expect(lt.filter((d) => d > LONG_TASK_MS)).toEqual([]);
     expect(errors).toEqual([]);
     await ctx.close();
   }, 240_000);
