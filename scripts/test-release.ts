@@ -7,7 +7,11 @@
  *   tsx scripts/test-release.ts             `npm run test:release` — THE stamp run: on a clean tree, build (it must
  *                                           leave the tree clean: deterministic), run the full suite once (vitest,
  *                                           JSON reporter), re-run each failing file alone (up to 2 tries, every try
- *                                           recorded), run the config's `extra` steps, and when all is green write
+ *                                           recorded) — only its FAILED tests (`vitest run <file> -t '^(?:<exact full
+ *                                           names>)$'`) when they can be selected reliably, else the whole file (a
+ *                                           suite-level failure: a hook, an import error, a failed suite no failed
+ *                                           test explains; each try records which) — run the config's `extra` steps,
+ *                                           and when all is green write
  *                                           `.release/green.json` (git-ignored): commit, tree, Node and Chrome
  *                                           versions, per-file counts, re-runs, kit version, bundle hashes, date.
  *                                           `--full-extra` runs every extra step in full (else: see `extra` below).
@@ -60,8 +64,12 @@ export interface TestConfig {
   extra: ExtraStep[];
 }
 
-export interface FileCounts { passed: number; failed: number; skipped: number; todo: number; ms: number; status: 'passed' | 'failed'; reruns?: number }
-export interface Rerun { file: string; try: number; ok: boolean; passed: number; failed: number; skipped: number; ms: number }
+export interface FileCounts { passed: number; failed: number; skipped: number; todo: number; ms: number; status: 'passed' | 'failed'; reruns?: number; rerun?: 'tests' | 'file' }
+/**
+ * One re-run try. `mode` "tests": only the file's failed tests ran (`tests`, their full names, via `-t`); "file": the
+ * whole file ran, `why` says why the tests could not be selected (or why a "tests" try was not trusted).
+ */
+export interface Rerun { file: string; try: number; ok: boolean; passed: number; failed: number; skipped: number; ms: number; mode: 'tests' | 'file'; tests?: string[]; why?: string }
 export interface Stamp {
   stamp: 1;
   name: string;
@@ -198,7 +206,10 @@ export function checkStamp(root: string): string[] {
 
 // -------------------------------------------------------------------------------------------------------------- vitest
 
-interface VitestJson { success?: boolean; testResults?: { name: string; status: string; assertionResults?: { status: string; duration?: number | null }[]; startTime?: number; endTime?: number; message?: string }[] }
+interface VitestJson { success?: boolean; numFailedTestSuites?: number; testResults?: { name: string; status: string; assertionResults?: { status: string; fullName?: string; ancestorTitles?: string[]; duration?: number | null }[]; startTime?: number; endTime?: number; message?: string }[] }
+
+/** What one vitest run says about a file beyond its counts: each test's status by full name, its own error message. */
+export interface FileDetail { tests: Record<string, string>; failedTests: string[]; message: string }
 
 function vitestBin(root: string): string {
   const req = createRequire(join(root, 'package.json'));
@@ -206,26 +217,77 @@ function vitestBin(root: string): string {
   return join(dirname(pkgPath), 'vitest.mjs');
 }
 
+export interface VitestRun {
+  status: number;
+  files: Record<string, FileCounts> | null;
+  success: boolean;
+  detail: Record<string, FileDetail>;
+  /** The failed suites (files and describe blocks) the report counts, and how many its failed tests explain. */
+  failedSuites: { reported: number; explained: number };
+}
+
 /** One vitest run; the per-file counts from its JSON report (null: no report — vitest itself failed). */
-export function runVitest(root: string, args: string[], report: string): { status: number; files: Record<string, FileCounts> | null; success: boolean } {
+export function runVitest(root: string, args: string[], report: string): VitestRun {
   rmSync(report, { force: true });
   const r = spawnSync(process.execPath, [vitestBin(root), 'run', ...args, '--reporter=default', '--reporter=json', `--outputFile.json=${report}`], { cwd: root, stdio: 'inherit', env: process.env });
-  if (!existsSync(report)) return { status: r.status ?? 1, files: null, success: false };
+  if (!existsSync(report)) return { status: r.status ?? 1, files: null, success: false, detail: {}, failedSuites: { reported: 0, explained: 0 } };
   const json = JSON.parse(readFileSync(report, 'utf8')) as VitestJson;
   const files: Record<string, FileCounts> = {};
+  const detail: Record<string, FileDetail> = {};
   const realRoot = realpathSync(root);
+  // vitest counts a suite (a file or a describe block) as failed when anything in it failed: a failed test fails
+  // its file and every describe around it. More failed suites than that means a failure no test carries (a hook).
+  const explained = new Set<string>();
   for (const f of json.testResults ?? []) {
     const c: FileCounts = { passed: 0, failed: 0, skipped: 0, todo: 0, ms: Math.max(0, (f.endTime ?? 0) - (f.startTime ?? 0)), status: f.status === 'passed' ? 'passed' : 'failed' };
+    const d: FileDetail = { tests: {}, failedTests: [], message: (f.message ?? '').trim() };
     for (const a of f.assertionResults ?? []) {
       if (a.status === 'passed') c.passed++;
       else if (a.status === 'failed') c.failed++;
       else if (a.status === 'todo') c.todo++;
       else c.skipped++;
+      const name = a.fullName ?? '';
+      d.tests[name] = a.status === 'passed' && d.tests[name] && d.tests[name] !== 'passed' ? d.tests[name] as string : a.status;
+      if (a.status === 'failed') {
+        if (!d.failedTests.includes(name)) d.failedTests.push(name);
+        const anc = a.ancestorTitles ?? [];
+        for (let k = 1; k <= anc.length; k++) explained.add(`${f.name}\0${anc.slice(0, k).join('\0')}`);
+      }
     }
     if (c.failed > 0) c.status = 'failed';
-    files[relative(realRoot, existsSync(f.name) ? realpathSync(f.name) : f.name).split(sep).join('/')] = c;
+    if (c.status === 'failed') explained.add(f.name);
+    const key = relative(realRoot, existsSync(f.name) ? realpathSync(f.name) : f.name).split(sep).join('/');
+    files[key] = c;
+    detail[key] = d;
   }
-  return { status: r.status ?? 1, files, success: json.success === true };
+  return { status: r.status ?? 1, files, success: json.success === true, detail, failedSuites: { reported: json.numFailedTestSuites ?? 0, explained: explained.size } };
+}
+
+/** A string as a regular expression that matches exactly it. */
+export const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** vitest's `-t` pattern that selects exactly these tests (matched against each test's full name: its describe titles and its title, space-joined). */
+export const testNamePattern = (names: string[]): string => `^(?:${names.map(escapeRegExp).join('|')})$`;
+
+/**
+ * How a failing file is re-run: only its failed tests, or (when they cannot be selected reliably) the whole file.
+ * Pure, for the tests. `suitesExplained`: the run's failed suites are all explained by failed tests.
+ */
+export function rerunPlan(d: FileDetail | undefined, suitesExplained: boolean): { mode: 'tests'; tests: string[] } | { mode: 'file'; why: string } {
+  if (!d) return { mode: 'file', why: 'the report has no test list for the file' };
+  if (d.message) return { mode: 'file', why: `the file failed on its own (${d.message.split('\n')[0]?.slice(0, 120)})` };
+  if (!d.failedTests.length) return { mode: 'file', why: 'a suite-level failure (a hook, or the file itself): no failed test to select' };
+  if (d.failedTests.some((n) => !n.trim())) return { mode: 'file', why: 'a failed test without a name' };
+  if (!suitesExplained) return { mode: 'file', why: 'the run reports more failed suites than its failed tests explain (a failing hook?)' };
+  return { mode: 'tests', tests: d.failedTests };
+}
+
+/** Whether a "tests" re-run really ran the selected tests and they all passed (null: the selection is not trustworthy). */
+export function selectedResult(d: FileDetail | undefined, tests: string[]): { ok: boolean; why?: string } | null {
+  if (!d) return null;
+  const missing = tests.filter((t) => !(t in d.tests) || d.tests[t] === 'skipped');
+  if (missing.length) return null;
+  const bad = tests.filter((t) => d.tests[t] !== 'passed');
+  return bad.length ? { ok: false, why: `still failing: ${bad.slice(0, 3).join('; ')}${bad.length > 3 ? '; …' : ''}` } : { ok: true };
 }
 
 // ------------------------------------------------------------------------------------------------------------- helpers
@@ -357,16 +419,37 @@ function stampRun(root: string, argv: string[]): void {
   const reruns: Rerun[] = [];
   const r0 = Date.now();
   const still: string[] = [];
+  const suitesExplained = suite.failedSuites.reported <= suite.failedSuites.explained;
+  const rerunReport = join(root, '.release', 'vitest-rerun.json');
   for (const f of failing) {
     let ok = false;
+    let plan = rerunPlan(suite.detail[f], suitesExplained);
     for (let i = 1; i <= config.test.retries && !ok; i++) {
-      console.log(`\n▶ re-run ${i}/${config.test.retries} alone: ${f}`);
+      if (plan.mode === 'tests') {
+        const tests = plan.tests;
+        console.log(`\n▶ re-run ${i}/${config.test.retries} alone: ${f} — only its ${tests.length} failed test(s): ${tests.slice(0, 4).join(' | ')}${tests.length > 4 ? ' | …' : ''}`);
+        const t = Date.now();
+        const one = runVitest(root, [join(root, f), '-t', testNamePattern(tests)], rerunReport);
+        const c = one.files?.[f];
+        const sel = selectedResult(one.detail[f], tests);
+        if (sel !== null) {
+          ok = sel.ok && one.success && !!c && c.failed === 0;
+          reruns.push({ file: f, try: i, ok, passed: c?.passed ?? 0, failed: c?.failed ?? 0, skipped: c?.skipped ?? 0, ms: Date.now() - t, mode: 'tests', tests, ...(ok ? {} : { why: sel.why ?? (one.success ? 'the file failed' : 'vitest reported a failure') }) });
+          if (ok) { const o = files[f] as FileCounts; files[f] = { ...o, passed: o.passed + o.failed, failed: 0, status: 'passed', reruns: i, rerun: 'tests' }; }
+          continue;
+        }
+        // the -t selection did not run every failed test: not reliable — this try and the next take the whole file
+        const why = `the -t selection did not run all ${tests.length} failed test(s)`;
+        reruns.push({ file: f, try: i, ok: false, passed: c?.passed ?? 0, failed: c?.failed ?? 0, skipped: c?.skipped ?? 0, ms: Date.now() - t, mode: 'tests', tests, why: `${why}: not trusted` });
+        plan = { mode: 'file', why };
+      }
+      console.log(`\n▶ re-run ${i}/${config.test.retries} alone: ${f} — the whole file (${plan.why})`);
       const t = Date.now();
-      const one = runVitest(root, [join(root, f)], join(root, '.release', 'vitest-rerun.json'));
+      const one = runVitest(root, [join(root, f)], rerunReport);
       const c = one.files?.[f];
       ok = !!c && c.status === 'passed' && one.success;
-      reruns.push({ file: f, try: i, ok, passed: c?.passed ?? 0, failed: c?.failed ?? 0, skipped: c?.skipped ?? 0, ms: Date.now() - t });
-      if (ok && c) files[f] = { ...c, reruns: i };
+      reruns.push({ file: f, try: i, ok, passed: c?.passed ?? 0, failed: c?.failed ?? 0, skipped: c?.skipped ?? 0, ms: Date.now() - t, mode: 'file', why: plan.why });
+      if (ok && c) files[f] = { ...c, reruns: i, rerun: 'file' };
     }
     if (!ok) still.push(f);
   }
@@ -406,7 +489,7 @@ function stampRun(root: string, argv: string[]): void {
   }
   const totals = { files: 0, passed: 0, failed: 0, skipped: 0, todo: 0 };
   for (const c of Object.values(files)) { totals.files++; totals.passed += c.passed; totals.failed += c.status === 'failed' ? c.failed : 0; totals.skipped += c.skipped; totals.todo += c.todo; }
-  const summary = `${totals.files} files, ${totals.passed} passed, ${totals.skipped} skipped, ${reruns.length} re-run(s) (${reruns.filter((r) => r.ok).length} green), suite ${secs(suiteMs)}, total ${secs(Date.now() - t0)}`;
+  const summary = `${totals.files} files, ${totals.passed} passed, ${totals.skipped} skipped, ${reruns.length} re-run(s) (${reruns.filter((r) => r.ok).length} green; ${reruns.filter((r) => r.mode === 'tests').length} of failed tests only, ${reruns.filter((r) => r.mode === 'file').length} of whole files), suite ${secs(suiteMs)}, total ${secs(Date.now() - t0)}`;
   if (problems.length) fail([`\n${pkg.name} test:release: NOT green — no stamp. ${summary}`, ...problems.map((p) => `  - ${p}`)]);
 
   const stamp: Stamp = {
