@@ -420,7 +420,8 @@ merge), `legacy-file` (a 0.x file or text: `upgrade`, then `assemble
 `output-differs` (another text at `-o`: follow `next`; another document:
 choose another path), `newer-shell` / `newer-format` (`npx
 orz-slides@latest`), `unclosed-island`, `not-orz`, `exists`,
-`assembled-input`, `other-kind`, `invalid-text`, `no-browser` (`inspect
+`assembled-input`, `other-kind`, `invalid-text` (also: a text with no `<!-- slide -->` marker — add the markers,
+or follow `next` to start from a template), `no-browser` (`inspect
 --layout` without Chrome), `no-such-file`, `unreadable`, `not-utf8`,
 `write-failed`, `engine-unavailable`, `bad-usage` (exit 2; also a 0.x form),
 `failed`.
@@ -459,8 +460,9 @@ advice for it; once `deck.slides.md` assembles and looks right, delete
 **After a merge.** Once you have merged `x.browser.slides.md` (from
 `extract … -o x.browser.slides.md` or `upgrade … --text …`) into
 `x.slides.md` and assembled, delete `x.browser.slides.md`: it is a scratch
-copy, and a later `extract -o` to the same name is refused (`twin-differs`)
-while it exists.
+copy. (A later `extract -o` to the same name rewrites it only while it still
+holds exactly what extract wrote there; once you edited it, it is refused,
+`output-differs`.)
 
 ## Recover the text from any version by hand
 
