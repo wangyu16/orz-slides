@@ -5,6 +5,19 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 
 ## [Unreleased]
 
+### Fixed
+
+- Single-slide editing (the layout GUI): a double-click on a box always writes in it (D-86) — selecting a box no
+  longer moves the slide under the pointer (the box toolbar keeps its place), and a double press is told from the
+  two presses on the same spot, so the second one can no longer land beside the box and leave the focus on the
+  stage, where typed letters were the single-letter shortcuts (C, R) and wrecked the layout.
+- An empty box (or float, or the notes and footer added from the toolbar) gets a line of its own under its
+  marker and the caret goes there — never on the marker line, where typed text was lost (D-87, D-99). New layout
+  ops `open` and `open-float` (library, ES module, `OrzCarrier.layout`).
+- On a phone or in the Preview mode, the double-click shows the editor (one pane: Editor) with the caret in the
+  box (D-102).
+- The status "This slide's layout cannot change until its text is fixed" goes once the text is valid (D-99).
+
 ### Release tooling
 
 - Publishing no longer re-runs the 2–3 h suite: `npm run test:release` runs

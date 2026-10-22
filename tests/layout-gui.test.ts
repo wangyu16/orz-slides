@@ -53,7 +53,7 @@ async function context(b: Browser, o: { viewport?: { width: number; height: numb
 }
 
 /** An app's page with the editor mounted (hooks.save), the caret at `at`, This slide on; the GUI attached and drawn. */
-async function openApp(text: string, at: string, o: { viewport?: { width: number; height: number }; touch?: boolean; noWait?: boolean } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[] }> {
+async function openApp(text: string, at: string, o: { viewport?: { width: number; height: number }; touch?: boolean; noWait?: boolean; mode?: 'split' | 'editor' | 'preview' } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[] }> {
   if (!staged) {
     copyFileSync('dist/orz-slides.browser.js', join(dir, 'orz-slides.browser.js'));
     writeFileSync(join(dir, 'app.html'), '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%}#host{height:100vh}</style></head><body><div id="host"></div><script src="orz-slides.browser.js"></script></body></html>');
@@ -64,13 +64,13 @@ async function openApp(text: string, at: string, o: { viewport?: { width: number
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto(`file://${join(dir, 'app.html')}`);
-  const engine = await page.evaluate(async (t) => {
+  const engine = await page.evaluate(async ([t, mode]) => {
     const C = (globalThis as unknown as { OrzCarrier: { mountEditor(el: Element, o: unknown): { ready: Promise<{ engine: string }> } } }).OrzCarrier;
     // saves are recorded (round B2, B2-ED-1: what a save wrote)
-    const e = C.mountEditor(document.getElementById('host')!, { text: t, hooks: { save: async (x: unknown) => { const g = globalThis as unknown as { __saved?: unknown[] }; g.__saved = [...(g.__saved ?? []), x]; } } });
+    const e = C.mountEditor(document.getElementById('host')!, { text: t, ...(mode ? { mode } : {}), hooks: { save: async (x: unknown) => { const g = globalThis as unknown as { __saved?: unknown[] }; g.__saved = [...(g.__saved ?? []), x]; } } });
     (globalThis as unknown as { __ed: unknown }).__ed = e;
     return (await e.ready).engine;
-  }, text);
+  }, [text, o.mode ?? ''] as const);
   expect(engine).toBe('codemirror6');
   await page.evaluate((s) => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number, o?: unknown): void } }).__ed; const i = e.getText().indexOf(s); e.select(i, i, { scroll: true }); }, at);
   const frame = await previewFrame(page);
@@ -1226,4 +1226,87 @@ chrome('closed-loop round B2 probes (the layout GUI, real Chrome, offline)', () 
     expect(errors).toEqual([]);
     await ctx.close();
   }, 600_000);
+  it('[L.8] 1.1, D-86 D-87 D-99: double-clicking an EMPTY box puts the caret on its own new line in the focused editor — typed letters are text, never the single-letter shortcuts; a box with no place yet gets one; a marker with no line under it gets one; a stale "cannot change until its text is fixed" goes once the text is valid', async () => {
+    const EMPTY = `{{nyml
+kind: document
+carrier: slides
+uid: doc-layoutgui00002
+title: Empty boxes
+theme: orchard
+}}
+
+<!-- slide 2col -->
+## Right empty
+Left text.
+
+<!-- slide 2col -->
+## Left empty
+<!-- @right -->
+Right text.
+
+<!-- slide 2col -->
+## Both markers
+<!-- @left -->
+<!-- @right -->
+`;
+    const { page, ctx, errors } = await openApp(EMPTY, '## Right empty');
+    const focusedInEditor = (): Promise<boolean> => page.evaluate(() => (document.activeElement as HTMLElement | null)?.shadowRoot?.activeElement?.classList.contains('cm-content') ?? false);
+    const typeInto = async (box: string, words: string): Promise<string> => {
+      const before = await text(page);
+      await page.locator(`.orz-lg-box--region[data-box="${box}"]`).dblclick({ position: { x: 30, y: 40 } });
+      await expect.poll(focusedInEditor, { timeout: 5000 }).toBe(true);
+      await page.keyboard.type(words, { delay: 20 });
+      return changed(page, before);
+    };
+    // D-86: the right box has no place in the text; the typed "cr" are letters, not Split columns / rows
+    let t = await typeInto('right', 'cr words');
+    let s = slideOf(t, 0);
+    expect(s.layout).toEqual(slideOf(EMPTY, 0).layout);
+    expect(s.regions.find((r) => r.name === 'right')?.markdown).toBe('cr words');
+    expect(s.regions.find((r) => r.name === 'left')?.markdown).toBe('Left text.');
+    // D-87: the left box has no place; the caret lands on a new line BELOW the inserted marker
+    await page.keyboard.press('PageDown').catch(() => undefined);
+    await ed(page, `(function () { const i = e.getText().indexOf('## Left empty'); e.select(i, i, { scroll: true }); return 0; })()`);
+    await waitGui(page, (x) => x.slide === 1 && !x.stale);
+    t = await typeInto('left', 'Hello');
+    expect(t).toContain('<!-- @left -->\nHello');
+    s = slideOf(t, 1);
+    expect(s.regions.find((r) => r.name === 'left')?.markdown).toBe('Hello');
+    expect(s.regions.find((r) => r.name === 'right')?.markdown).toBe('Right text.');
+    // D-99's minimal repro: a marker with no line under it — the typed text is never on the marker line
+    await ed(page, `(function () { const i = e.getText().indexOf('## Both markers'); e.select(i, i, { scroll: true }); return 0; })()`);
+    await waitGui(page, (x) => x.slide === 2 && !x.stale);
+    t = await typeInto('left', 'Hello');
+    expect(t).not.toContain('<!-- @left -->Hello');
+    expect(slideOf(t, 2).regions.find((r) => r.name === 'left')?.markdown).toBe('Hello');
+    // D-99: an unclosed container blocks the layout; once closed, the warning goes
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('::: success\nInside\n', { delay: 30 });
+    await waitGui(page, (x) => !!x.blocked, 10_000);
+    await expect.poll(async () => (await state(page)).status, { timeout: 5000 }).toMatch(/cannot change until its text is fixed/);
+    await page.keyboard.type(':::', { delay: 30 });
+    await waitGui(page, (x) => !x.blocked && !x.stale, 10_000);
+    await expect.poll(async () => (await state(page)).status, { timeout: 5000 }).not.toMatch(/cannot change until its text is fixed/);
+    expect(errors).toEqual([]);
+    await ctx.close();
+    // D-102: a phone (one pane), the Preview mode — the double-click shows the editor with the caret on the box's new line
+    const p = await openApp(EMPTY, '## Right empty', { viewport: { width: 390, height: 844 }, touch: true, mode: 'preview' });
+    expect(await ed<string>(p.page, 'e.getView()')).toBe('preview');
+    await waitGui(p.page, (x) => !x.stale && x.boxes.includes('right'));
+    const before = await text(p.page);
+    // selecting a box never moves the stage under the pointer (D-86: the toolbar grew a row, the second press missed)
+    const r0 = await p.page.locator('.orz-lg-box--region[data-box="right"]').boundingBox();
+    await p.page.locator('.orz-lg-box--region[data-box="right"]').click({ position: { x: 20, y: 20 } });
+    await p.page.waitForTimeout(400);
+    expect(await p.page.locator('.orz-lg-box--region[data-box="right"]').boundingBox()).toEqual(r0);
+    await p.page.waitForTimeout(600);
+    await p.page.locator('.orz-lg-box--region[data-box="right"]').dblclick({ position: { x: 20, y: 20 } });
+    await expect.poll(() => ed<string>(p.page, 'e.getView()'), { timeout: 5000 }).toBe('editor');
+    await expect.poll(() => p.page.evaluate(() => (document.activeElement as HTMLElement | null)?.shadowRoot?.activeElement?.classList.contains('cm-content') ?? false), { timeout: 5000 }).toBe(true);
+    await p.page.keyboard.type('On the phone', { delay: 20 });
+    await expect.poll(() => text(p.page), { timeout: 10_000 }).not.toBe(before);
+    await expect.poll(async () => slideOf(await text(p.page), 0).regions.find((r) => r.name === 'right')?.markdown, { timeout: 10_000 }).toBe('On the phone');
+    expect(p.errors).toEqual([]);
+    await p.ctx.close();
+  }, 180_000);
 });

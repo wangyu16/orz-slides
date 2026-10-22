@@ -129,6 +129,7 @@ const GUI_CSS = `
 .orz-lg-group { display: inline-flex; align-items: center; gap: 2px; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--orz-chrome-border, #ddd); }
 .orz-lg-group:last-child { border-right: 0; }
 .orz-lg-group[hidden] { display: none; }
+.orz-lg-group[data-idle] { visibility: hidden; }
 .orz-lg-n { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 0 4px; }
 .orz-lg-note { color: var(--orz-chrome-muted, #666); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
 .orz-lg-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; min-width: 28px; padding: 0 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; cursor: pointer; white-space: nowrap; }
@@ -427,7 +428,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
   gPresets.append(custom);
   /** The fit of every box, in words, at rest (round B, GUI-1: a cut box is said in the toolbar too). */
   const fitNote = el(doc, 'span', 'orz-lg-note orz-lg-fit', { 'aria-live': 'polite' });
-  const gBox = el(doc, 'span', 'orz-lg-group', { role: 'group' });
+  const gBox = el(doc, 'span', 'orz-lg-group', { role: 'group', 'data-idle': '' });
   const bCols = btn('Columns', SVG.col, { title: 'Split the box into two columns (C)', data: 'split-col' });
   const bRows = btn('Rows', SVG.row, { title: 'Split the box into two rows (R)', data: 'split-row' });
   const bRename = btn('Rename', SVG.rename, { title: 'Rename the box (F2)', iconOnly: true, data: 'rename' });
@@ -502,6 +503,7 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
    */
   let pending: { key: string; slide: number; base: string; timer: number | null; commit(): void; cancel(): void } | null = null;
   let lastStatus = '';
+  const BLOCKED_SAY = 'This slide\'s layout cannot change until its text is fixed: ';
 
   const say = (text: string, tone: 'ok' | 'warn' | 'info' = 'info'): void => {
     lastStatus = text;
@@ -708,7 +710,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     const box = sel?.kind === 'box' ? sel.name : null;
     const fl = sel?.kind === 'float' ? sel.index : null;
     const names = c ? (tpl ? [] : leaves(c.slide.layout)) : [];
-    gBox.hidden = !box || !!tpl;
+    // no box selected: the group keeps its place (hidden, not removed) — a click that selects a box must not move the
+    // stage under the pointer, or the double-click's second press lands beside the box (D-86)
+    gBox.hidden = !!tpl;
+    gBox.toggleAttribute('data-idle', !box);
     boxLabel.textContent = box ? `Box ${box}` : '';
     for (const b of [bCols, bRows, bRename, bSwap, bMove, bDel]) b.disabled = !!blocked || !box;
     bDel.disabled = bDel.disabled || names.length < 2;
@@ -724,7 +729,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     ui.classList.toggle('is-readonly', ro);
     if (ro) for (const b of Array.from(bar.querySelectorAll<HTMLButtonElement>('button:not([data-act="strip"]):not([data-act="shrink"])'))) b.disabled = true;
     ui.setAttribute('data-scheme', host.scheme?.() === 'dark' ? 'dark' : 'light');
-    if (blocked) say(`This slide's layout cannot change until its text is fixed: ${blocked}`, 'warn');
+    if (blocked) say(`${BLOCKED_SAY}${blocked}`, 'warn');
+    // the text is fixed: the warning goes (D-99: it stayed after the closing line was typed)
+    else if (lastStatus.startsWith(BLOCKED_SAY)) say('The slide\'s text is fixed: its layout can change again.', 'ok');
   }
 
   /* ── the stage overlay ── */
@@ -1035,16 +1042,40 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
   function revealRowIfMoved(i: number): void { if (i !== lastRow) { lastRow = i; revealRow(i); drawStrip(true); } }
 
   /* ── selecting ── */
+  /**
+   * The text gets the keys: the editor focused, shown first when only the preview is (a phone's one pane, the
+   * Preview mode: D-102 — a focus on a hidden editor left the keys nowhere, or on the stage's shortcuts).
+   */
+  function focusText(): void {
+    try {
+      if (shell.getView() === 'preview') {
+        if (shell.getMode() === 'preview') shell.setMode('split');
+        if (shell.getView() === 'preview') shell.setMode('editor');
+      }
+    } catch { /* an older kit */ }
+    shell.focus();
+  }
+  /**
+   * An empty box (or float) to write in: a place in the text when it has none and a line of its own under its
+   * marker, the caret on that line (D-87, D-99: typed text on the marker line was lost). False: nothing to write in.
+   */
+  function openEmpty(op: LayoutOp, m: { range: { from: number; to: number } | null; marker?: { from: number; to: number } | null; empty: boolean } | undefined): boolean {
+    if (!m || !m.empty) return true;
+    // a blank line of its own already: the caret goes there (selected as it is)
+    if (m.range && !(m.marker && m.range.from <= m.marker.to)) return true;
+    const r = run(op);
+    return !!r?.select;
+  }
   function selectBox(name: string, focusEditor = false): void {
     sel = { kind: 'box', name };
     const c = current;
     const m = c?.map.boxes.find((b) => b.name === name);
     if (m?.range) shell.select(m.range.from, m.range.to, { scroll: true });
-    else if (m && !m.range && c) say(`${name} is empty and has no place in the text yet — double-click it (or press Enter) to give it one.`);
+    else if (m && !m.range && c && !focusEditor) say(`${name} is empty and has no place in the text yet — double-click it (or press Enter) to give it one.`);
     if (focusEditor) {
       // the editor gets the focus only where the op put the caret (round B, OPS-1: typing landed in the title)
-      if (m && !m.range) { const r = run({ type: 'ensure-region', name }); if (!r?.select) return; }
-      shell.focus();
+      if (!openEmpty({ type: 'open', name }, m)) return;
+      focusText();
     }
     drawBar();
     markSelection();
@@ -1053,8 +1084,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     sel = { kind: 'box', name: 'body' };
     const m = current?.map.boxes[0];
     if (m?.range) shell.select(m.range.from, m.range.to, { scroll: true });
-    else if (focusEditor && !run({ type: 'ensure-region', name: 'body' })?.select) return;
-    if (focusEditor) shell.focus();
+    if (focusEditor) {
+      if (!openEmpty({ type: 'open', name: 'body' }, m)) return;
+      focusText();
+    }
     drawBar();
     markSelection();
   }
@@ -1062,7 +1095,10 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     sel = { kind: 'float', index: k };
     const f = current?.map.floats[k];
     if (f) shell.select(f.range.from, f.range.to, { scroll: true });
-    if (focusEditor) shell.focus();
+    if (focusEditor) {
+      if (!openEmpty({ type: 'open-float', index: k }, f)) return;
+      focusText();
+    }
     drawBar();
     markSelection();
   }
@@ -1070,18 +1106,18 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     sel = { kind: 'title' };
     const t = current?.map.title;
     if (t) shell.select(t.from + (/^\s*##\s*/.exec(current!.text.slice(t.from, t.to))?.[0].length ?? 0), t.to, { scroll: true });
-    if (focusEditor) shell.focus();
+    if (focusEditor) focusText();
     drawBar();
     markSelection();
   }
   function selectFooter(focusEditor = false): void {
     const c = current;
     if (!c) return;
-    if (c.map.footer) { shell.select(c.map.footer.from, c.map.footer.to, { scroll: true }); if (focusEditor) shell.focus(); return; }
+    if (c.map.footer) { shell.select(c.map.footer.from, c.map.footer.to, { scroll: true }); if (focusEditor) focusText(); return; }
     // the deck footer: its header line
     const h = readHeader(c.text);
     const m = h ? /^footer:[ \t]*(.*)$/m.exec(c.text.slice(0, h.end)) : null;
-    if (m) { const at = m.index + m[0].length - m[1].length; shell.select(at, at + m[1].length, { scroll: true }); if (focusEditor) shell.focus(); say('The deck footer is in the header (every slide shows it); the Footer button gives this slide its own.'); }
+    if (m) { const at = m.index + m[0].length - m[1].length; shell.select(at, at + m[1].length, { scroll: true }); if (focusEditor) focusText(); say('The deck footer is in the header (every slide shows it); the Footer button gives this slide its own.'); }
   }
   function markSelection(): void {
     stage.querySelectorAll('.is-selected').forEach((e) => e.classList.remove('is-selected'));
@@ -1679,8 +1715,9 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
       const c = current;
       if (!c) return;
       const has = act === 'notes' ? c.map.notes : c.map.footer;
-      if (has) { shell.select(has.from, has.to, { scroll: true }); shell.focus(); return; }
-      if (run({ type: 'ensure-region', name: act })) shell.focus();
+      if (has) { shell.select(has.from, has.to, { scroll: true }); focusText(); return; }
+      // added with a line to write on (D-87: never the caret on the marker line)
+      if (run({ type: 'open', name: act })?.select) focusText();
       return;
     }
   });
@@ -1754,6 +1791,48 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
   });
   listen<Event>(stripScroll, 'scroll', () => drawStrip(), { passive: true });
 
+  /*
+   * A double press on a box writes in it (D-86). Told from two presses on the same box by its KEY, not by the
+   * element: a redraw between the two presses (the first one's selection scrolled the editor, a fit report came)
+   * replaces the box, and the browser's dblclick then goes to the stage or nowhere — the focus stayed on the
+   * box, where the typed letters were the single-letter shortcuts (C, R) and wrecked the layout.
+   */
+  let lastPress: { key: string; t: number; x: number; y: number } | null = null;
+  let dblArmed: string | null = null;
+  let dblDoneAt = -Infinity;
+  const DBL_MS = 500;
+  function writeIn(key: string): void {
+    const at = key.indexOf(':');
+    const kind = key.slice(0, at);
+    const name = key.slice(at + 1);
+    if (kind === 'title') selectTitle(true);
+    else if (kind === 'footer') selectFooter(true);
+    else if (kind === 'template') selectTemplateBody(true);
+    else if (kind === 'region') selectBox(name, true);
+  }
+  listen<PointerEvent>(stage, 'pointerdown', (e) => {
+    if (!e.isTrusted || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const box = (e.target as HTMLElement).closest('.orz-lg-box') as HTMLElement | null;
+    const key = box && !(e.target as HTMLElement).closest('.orz-lg-tag, .orz-lg-variant') ? box.getAttribute('data-key') : null;
+    const near = (p: { x: number; y: number }): boolean => Math.abs(e.clientX - p.x) < 10 && Math.abs(e.clientY - p.y) < 10;
+    // the second press where the first was (the screen point, as the browser's own double-click): the FIRST press's box,
+    // whatever is under the pointer now (the stage may have moved)
+    if (lastPress && e.timeStamp - lastPress.t < DBL_MS && near(lastPress)) {
+      dblArmed = lastPress.key;
+      lastPress = null;
+      // nothing else acts on this press (a divider or a tag now under the pointer)
+      e.stopImmediatePropagation();
+      return;
+    }
+    lastPress = key ? { key, t: e.timeStamp, x: e.clientX, y: e.clientY } : null;
+  });
+  listen<PointerEvent>(win, 'pointerup', (e) => {
+    if (!e.isTrusted || !dblArmed) return;
+    const key = dblArmed;
+    dblArmed = null;
+    dblDoneAt = e.timeStamp;
+    writeIn(key);
+  }, { capture: true });
   listen<PointerEvent>(stage, 'pointerdown', (e) => {
     if (!e.isTrusted || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const t = e.target as HTMLElement;
@@ -1767,7 +1846,8 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     if (tag && b && current && leaves(current.slide.layout).length > 1) { flushPending(); dragTag(b, e); }
   });
   listen<MouseEvent>(stage, 'click', (e) => {
-    if (!e.isTrusted) return;
+    // the click of a double press that already wrote in the box: the caret stays where that put it
+    if (!e.isTrusted || e.timeStamp - dblDoneAt < DBL_MS) return;
     const t = e.target as HTMLElement;
     const v = t.closest('.orz-lg-variant') as HTMLElement | null;
     if (v) { run({ type: 'variant', v: Number(v.getAttribute('data-variant')) }); return; }
@@ -1781,17 +1861,14 @@ function mountLayoutGui(host: StageHost): { refresh(): void; destroy(): void; st
     else selectBox(b.getAttribute('data-box') ?? '');
   });
   listen<MouseEvent>(stage, 'dblclick', (e) => {
-    if (!e.isTrusted) return;
+    // a box's double press was handled at its second press (above); this is for what the presses did not see
+    if (!e.isTrusted || e.timeStamp - dblDoneAt < DBL_MS) return;
     const t = e.target as HTMLElement;
     const f = t.closest('.orz-lg-float') as HTMLElement | null;
     if (f) { selectFloat(Number(f.getAttribute('data-float')), true); return; }
     const b = t.closest('.orz-lg-box') as HTMLElement | null;
     if (!b) return;
-    const kind = b.getAttribute('data-kind');
-    if (kind === 'title') selectTitle(true);
-    else if (kind === 'footer') selectFooter(true);
-    else if (kind === 'template') selectTemplateBody(true);
-    else selectBox(b.getAttribute('data-box') ?? '', true);
+    writeIn(b.getAttribute('data-key') ?? '');
   });
   listen<KeyboardEvent>(ui, 'keydown', (e) => {
     if (!e.isTrusted) return;

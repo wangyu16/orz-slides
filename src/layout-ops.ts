@@ -78,6 +78,14 @@ export type LayoutOp =
   | { type: 'swap'; a: string; b: string }
   | { type: 'move-content'; from: string; to: string }
   | { type: 'ensure-region'; name: string }
+  /**
+   * Make a box (a region name, `notes` or `footer`) ready to write in: a place in the text when it has none
+   * and, when it is empty, an empty line of its own under its marker; `select` is that line (the caret never
+   * lands on a marker line: typed text there would be lost). Refused (`no-change`) when it has text or a line.
+   */
+  | { type: 'open'; name: string }
+  /** The same for an empty float: an empty line under its marker. */
+  | { type: 'open-float'; index: number }
   /** `box`: where (a GUI's place from the stage; else {@link placeFloat}); `covers`: the GUI found no free place (said in the label). */
   | { type: 'float-add'; box?: FloatBox; covers?: boolean }
   /**
@@ -1220,6 +1228,49 @@ function buildSlideOp(d: SlideDoc, op: LayoutOp, spacious: boolean): Built {
       addEmptyMarkers(d, blocks, tree, [op.name], spacious);
       return { plan: { tree: null, options: null, blocks }, expect: expectSame(), label: `Give ${op.name} a place in the text`, selectName: op.name };
     }
+    case 'open':
+    case 'open-float': {
+      let b: Block;
+      let added = false;
+      let label: string;
+      let selectName: Built['selectName'];
+      let exp = expectSame();
+      if (op.type === 'open-float') {
+        b = floatAt(op.index);
+        label = `Give float ${op.index + 1} a line to write on`;
+        selectName = { float: op.index };
+      } else {
+        const lower = op.name.toLowerCase();
+        if (lower === 'notes' || lower === 'footer') {
+          const has = blocks.findIndex((x) => x.kind === lower);
+          added = has < 0;
+          b = added ? insertMarkerAfter(d, blocks, blocks.length - 1, `<!-- @${lower} -->`, lower as BlockKind, lower, true) : blocks[has];
+          if (added) exp = { ...exp, [lower]: '' };
+          label = added ? (lower === 'notes' ? 'Add speaker notes' : 'Add a slide footer') : `Give the ${lower} a line to write on`;
+          selectName = { block: lower as 'notes' | 'footer' };
+        } else {
+          if (d.slide.kind === 'template') {
+            if (op.name !== DEFAULT_REGION) throw new LayoutOpError('no-box', `a template slide has one region, body`);
+          } else needBox(op.name);
+          let i = ownerIndex(blocks, op.name);
+          added = i < 0;
+          if (added) { addEmptyMarkers(d, blocks, tree, [op.name], spacious); i = ownerIndex(blocks, op.name); }
+          // the lead holds the primary box's text only when it has some
+          if (i <= 0) throw new LayoutOpError('no-change', `${op.name} already has text`);
+          b = blocks[i];
+          label = added ? `Give ${op.name} a place in the text` : `Give ${op.name} a line to write on`;
+          selectName = op.name;
+        }
+      }
+      if (hasContent(b.body)) {
+        if (!added) throw new LayoutOpError('no-change', 'it already has text');
+      } else if (!b.body.some((l) => blank(l) && !l.title) && !(b === blocks[blocks.length - 1] && b.body.length === 0 && d.end === d.text.length && d.endsWithEol && !b.touched)) {
+        // (a marker on the text's last line, with its line ending: the empty line after it is the line to write on)
+        b.body.unshift(newLine('', d));
+        b.touched = true;
+      } else if (!added) throw new LayoutOpError('no-change', 'it already has a line to write on');
+      return { plan: { tree: null, options: null, blocks }, expect: exp, label, selectName };
+    }
     case 'float-add': {
       const ratio = parseDeck(d.text).config.ratio;
       const existing = floats.map((b) => floatBox(readFloatAttrs(markerAttrs(b)).geom, ratio));
@@ -1395,7 +1446,9 @@ export function slideMap(text: string, index: number): SlideMap | null {
   const emptyAt = (w: (typeof where)[number]): Range => {
     const first = w.bodyLines.find((x) => !x.l.title);
     // no body line: the end of its marker line — inside the slide, never the next slide's marker (round B, B-ED-1)
-    const p = first ? first.from : w.b.marker ? w.markerTo : (w.bodyLines.length > 0 ? w.bodyLines[w.bodyLines.length - 1].to : w.bodyFrom);
+    // (at the very end of the text, after the marker's line ending: the empty last line, never the marker line — D-87)
+    const markerEol = w.b.marker ? w.b.marker[w.b.marker.length - 1].e.length : 0;
+    const p = first ? first.from : w.b.marker ? (markerEol > 0 && w.markerTo + markerEol === text.length ? text.length : w.markerTo) : (w.bodyLines.length > 0 ? w.bodyLines[w.bodyLines.length - 1].to : w.bodyFrom);
     return { from: p, to: p };
   };
   const boxes: SlideMap['boxes'] = [];

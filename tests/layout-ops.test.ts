@@ -683,3 +683,44 @@ describe('closed-loop round B probes (layout ops)', () => {
 
 import * as slideMapModule from '../src/layout-ops.js';
 import * as parseModule from '../src/deck/parse.js';
+
+describe('1.1 repairs (layout ops)', () => {
+  it('[L.4] D-87, D-99, D-102: `open` makes an empty box ready to write in — a place when it has none, an empty line under its marker, the selection on that line (never on a marker line); notes, footer and floats too; refused (no-change) when there is text or a line already', () => {
+    const lineOf = (t: string, at: number): string => t.slice(t.lastIndexOf('\n', at - 1) + 1, t.indexOf('\n', at) < 0 ? t.length : t.indexOf('\n', at));
+    const written = (r: OpResult, words: string): string => r.text.slice(0, r.select!.from) + words + r.text.slice(r.select!.to);
+    // the left box has no place (the title then the right marker, no blank line)
+    const L = deck('<!-- slide 2col -->\n## T\n<!-- @right -->\nRight\n');
+    let r = ok(L, 0, { type: 'open', name: 'left' });
+    expect(r.select!.from).toBe(r.select!.to);
+    expect(lineOf(r.text, r.select!.from)).toBe('');
+    expect(regions(slideOf(written(r, 'Hello'), 0))).toEqual({ left: 'Hello', right: 'Right' });
+    // two markers with no line between (D-99's minimal repro); at the end of a text without a final line ending too
+    for (const t of [deck('<!-- slide 2col -->\n## T\n<!-- @left -->\n<!-- @right -->\n'), deck('<!-- slide 2col -->\n## T\n<!-- @left -->\nx\n<!-- @right -->')]) {
+      const name = t.endsWith('-->') ? 'right' : 'left';
+      r = ok(t, 0, { type: 'open', name });
+      expect(r.text).toContain(`<!-- @${name} -->\n`);
+      expect(lineOf(r.text, r.select!.from)).toBe('');
+      expect(regions(slideOf(written(r, 'Hello'), 0))[name]).toBe('Hello');
+      expect(() => ok(written(r, 'Hello'), 0, { type: 'open', name })).toThrow(/already has text/);
+      expect(() => ok(r.text, 0, { type: 'open', name })).toThrow(/already has a line/);
+    }
+    // a box with no place at the end of the slide (before the next slide's marker)
+    r = ok(deck('<!-- slide 2col -->\n## T\nLeft\n<!-- slide -->\n## U\n'), 0, { type: 'open', name: 'right' });
+    expect(regions(slideOf(written(r, 'Hi'), 0))).toEqual({ left: 'Left', right: 'Hi' });
+    expect(slideOf(written(r, 'Hi'), 1).title).toBe('U');
+    // notes and footer: added with a line to write on
+    r = ok(TWO, 0, { type: 'open', name: 'notes' });
+    expect(slideOf(written(r, 'Say this'), 0).notes).toBe('Say this');
+    r = ok(TWO, 0, { type: 'open', name: 'footer' });
+    expect(slideOf(written(r, 'Foot'), 0).footer).toBe('Foot');
+    // an empty float
+    const F = deck('<!-- slide -->\n## T\nBody\n<!-- @float left=5% top=5% w=20% h=20% -->\n<!-- @notes -->\nN\n');
+    r = ok(F, 0, { type: 'open-float', index: 0 });
+    const f = slideOf(written(r, 'Float text'), 0);
+    expect(f.floats[0].markdown.trim()).toBe('Float text');
+    expect(f.notes).toBe('N');
+    // the box with text: no change; the lead's text
+    expect(() => ok(TWO, 0, { type: 'open', name: 'left' })).toThrow(/already has text/);
+    expect(() => ok(TWO, 0, { type: 'open', name: 'nope' })).toThrow(LayoutOpError);
+  });
+});
