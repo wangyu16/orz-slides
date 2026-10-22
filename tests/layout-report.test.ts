@@ -84,7 +84,9 @@ chrome('inspect --layout in real Chrome', () => {
     const j = JSON.parse(r.stdout) as ReturnType<typeof inspect> & { layout: LayoutReport };
     // the report is the library's inspect plus the layout (and its advice)
     const { layout, advice, ...rest } = j;
-    const lib = inspect(DECK, { filename: 'deck.slides.md' });
+    // (the deck was just laid out: --layout is not advised again, D-72)
+    const lib = inspect(DECK, { filename: 'deck.slides.md', layout: true });
+    expect(advice.join('\n')).not.toMatch(/inspect deck\.slides\.md --layout/);
     const { advice: libAdvice, ...libRest } = lib;
     expect(rest).toEqual(JSON.parse(JSON.stringify(libRest)));
     expect(advice).toEqual([...libAdvice, ...layoutAdvice(layout)]);
