@@ -9,14 +9,14 @@
  * live in a temporary `XDG_CACHE_HOME`, never the user's.
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lintHeader, readHeader, sha256, UID_PATTERN } from 'orz-markdown/carrier';
 import { REASONS } from 'orz-markdown/carrier/node';
 import {
-  assemble, extract, inspect, readDocument, readLegacy, upgrade, upgradeReport, upgradeText,
+  assemble, extract, extractLegacy, inspect, layoutAdvice, readDocument, readLegacy, upgrade, upgradeReport, upgradeText,
   DEFAULT_TEMPLATE, DEFAULT_THEME, ORZ_MARKDOWN_VERSION, TEMPLATES, THEMES, VERSION,
 } from '../src/lib.js';
 import { parseDeck } from '../src/deck/parse.js';
@@ -98,7 +98,7 @@ describe.concurrent('the CLI', () => {
     }
     // the human lines
     const h = await cli(['assemble', 'cr.slides.md', '--inline'], d);
-    expect(h.stdout).toBe(`Wrote ${join(d, 'cr.slides.html')} (inline, orz-slides ${VERSION})\n  sha256 ${sha256(storedText(HAZARDS['cr']!))} (the text it holds; --replaces takes it)\n`);
+    expect(h.stdout).toBe(`Wrote ${join(d, 'cr.slides.html')} (inline, orz-slides ${VERSION})\n  sha256 ${sha256(storedText(HAZARDS['cr']!))} (of the text it holds: pass it as --replaces to replace this file later without --force)\n`);
     // -o elsewhere (folders created), and -o - to stdout
     expect((await cli(['assemble', 'crlf-bom.slides.md', '-o', 'pub/deck.slides.html'], d)).code).toBe(0);
     expect(text(join(d, 'pub/deck.slides.html')) === assemble(samples[0]![1])).toBe(true);
@@ -243,7 +243,8 @@ describe.concurrent('the CLI', () => {
       expect(j, name).toMatchObject({ ok: true, command: 'upgrade', input: file, output: file, text: join(d, `${base}.slides.md`), from: 'legacy', previous: legacy.version, shell: VERSION, moved: lib.moved, report, slides: parseDeck(twin).slides.length, sha256: sha256(lib.text) });
       expect((j.notes as string[]).slice(0, lib.notes.length)).toEqual(lib.notes);
       expect((j.notes as string[]).some((x) => x.startsWith('upgrade report: '))).toBe(true);
-      expect(j.warnings).toEqual(j.notes);
+      // the conversion notes are notes, not warnings (D-75)
+      expect((j.warnings as string[]).filter((w) => (j.notes as string[]).includes(w))).toEqual([]);
       expect(j.delivery).toBe(legacy.delivery ?? 'inline');
       // twice: a format-1 file of this shell, the text unchanged, no report
       const again = await cli(['upgrade', `${base}.slides.html`, '--inline', '--json'], d);
@@ -262,10 +263,11 @@ describe.concurrent('the CLI', () => {
     }
     write(join(d, 'implicit.slides.html'), legacyFile('plain-0.8.5.slides.html').replace(/"defaultTheme":"paper",?/, ''));
     expect(json(await cli(['upgrade', 'implicit.slides.html', '--json'], d)).theme).toBe('paper');
-    // the human output: notes as warnings (stderr), the report's summary among them
+    // the human output: notes as notes (stdout, D-75: not warnings), the report's summary among them
     write(join(d, 'h.slides.html'), legacyWithTheme('executive'));
     const human = await cli(['upgrade', 'h.slides.html'], d);
-    expect(human.stderr).toMatch(/orz-slides: warning: upgrade report: the upgraded deck shows what orz-slides 0\.8\.5 showed/);
+    expect(human.stdout).toMatch(/\n  note: upgrade report: the upgraded deck shows what orz-slides 0\.8\.5 showed/);
+    expect(human.stderr).not.toMatch(/warning: upgrade report/);
     expect(human.stdout).toMatch(/Upgraded .*h\.slides\.html \(from orz-slides 0\.8\.5 to .*\)\nWrote .*h\.slides\.md \(the text twin\)\nMoved into the header: carrier: slides; uid: doc-[0-9a-z]+; theme: sky/);
     // an older format-1 shell is re-assembled with this one (text and includes unchanged)
     const t = HAZARDS['bom-crlf']!;
@@ -330,7 +332,7 @@ describe.concurrent('the CLI', () => {
     const nothing = await cli(['upgrade', 'f1.slides.md', '--json'], d);
     expect(json(nothing)).toMatchObject({ ok: true, changed: false, written: false, backups: [], report: null });
     expect(existsSync(join(d, 'f1.slides.md~'))).toBe(false);
-    expect((await cli(['upgrade', 'f1.slides.md'], d)).stdout).toMatch(/already a format-1 slides text: nothing to upgrade/);
+    expect((await cli(['upgrade', 'f1.slides.md'], d)).stdout).toMatch(/already an orz-slides 1\.0 text: nothing to upgrade/);
     // a format-1 text WITH a stray deck block: the header's keys win, the block's missing keys move in
     write(join(d, 'stray.slides.md'), `{{nyml\nkind: document\ncarrier: slides\nuid: doc-strayblock01\ntheme: copper\n}}\n\n<!-- deck\ntheme: neon\nfooter: from the block\n-->\n\n<!-- slide -->\n## S\n`);
     expect((await cli(['upgrade', 'stray.slides.md'], d)).code).toBe(0);
@@ -444,7 +446,7 @@ describe.concurrent('the CLI', () => {
     write(join(d, 'lint.slides.md'), '{{nyml\nkind: document\ntheme: no-such-theme\n}}\n\n<!-- slide 2col -->\n## L\n<!-- @middle -->\nx\n');
     const lint = await cli(['assemble', 'lint.slides.md', '--json'], d);
     expect(lint.code).toBe(0);
-    expect(json(lint).warnings).toEqual([expect.stringMatching(/^slide 1: the layout has no region "middle" .*\(unknown-region, line 8\)$/), expect.stringMatching(/\(unknown-theme, line 3\)$/)]);
+    expect(json(lint).warnings).toEqual([expect.stringMatching(/^lint error \(the deck may not show what the text says until it is fixed\): slide 1: the layout has no region "middle" .*\(unknown-region, line 8\)$/), expect.stringMatching(/\(unknown-theme, line 3\)$/)]);
   }, 240_000);
 
   it('[V.8] nothing is overwritten that could lose work unless --force (which keeps <file>~): a non-orz output, a .slides.html holding a different text (the browser\'s work) — extract -o x.browser.slides.md, merge, assemble; known states: the pair record, git, --replaces', async () => {
@@ -593,12 +595,12 @@ describe.concurrent('the CLI', () => {
     write(join(d, 'demo.md'), src);
     const r = await cli(['demo.md'], d);
     expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/demo\.md holds a <!-- deck --> block \(line 1\) — an orz-slides 0\.x text: format 1 reads the deck's title, theme, ratio and footer only from the header.*`orz-slides upgrade demo\.md` moves it into the header \(and writes demo\.slides\.md\)/);
+    expect(r.stderr).toMatch(/demo\.md holds a <!-- deck --> block \(line 1\) — an orz-slides 0\.x text: orz-slides 1\.0 reads the deck's title, theme, ratio and footer only from the header.*`orz-slides upgrade demo\.md` moves it into the header \(and writes demo\.slides\.md\)/);
     expect(existsSync(join(d, 'demo.slides.html'))).toBe(false);
     const forced = await cli(['demo.md', '--force', '--json'], d);
     expect(forced.code, forced.stdout).toBe(0);
     expect((json(forced).warnings as string[]).join('\n')).toMatch(/deck-block, line 1/);
-    expect(text(join(d, 'demo.slides.html')) === assemble(src)).toBe(true);
+    expect(text(join(d, 'demo.slides.html')) === assemble(src, { legacy: 'as-is' })).toBe(true);
   }, 120_000);
 
   it('[I.8] inspect --layout without Chrome is refused with reason no-browser (simulated: ORZ_SLIDES_CHROME names no file), exit 1, no next, nothing written; --layout on something that is no slides deck is other-kind / not-orz before any browser is looked for', async () => {
@@ -1002,3 +1004,115 @@ describe('the CLI: every command it names runs as written', () => {
     expect(text(join(e, 'old.slides.html~'))).toBe(old);
   }, 120_000);
 });
+
+describe.concurrent('1.1 repairs (the CLI and the library)', () => {
+  /** The browser's Save: the file re-assembled from an edited text (the same uid). */
+  const browserEdit = (path: string, edit: (t: string) => string): void => { write(path, assemble(edit(extract(text(path))!.text))); };
+
+  it('[V.8] D-70: extract -o x.browser.slides.md again, when that output still holds exactly what extract wrote there, rewrites it — also after an assemble of x.slides.md synced the file in between; an -o output with edits of its own is refused output-differs (not twin-differs)', async () => {
+    const d = folder();
+    expect((await cli(['new', 'x.slides.md'], d)).code).toBe(0);
+    expect((await cli(['assemble', 'x.slides.md'], d)).code).toBe(0);
+    browserEdit(join(d, 'x.slides.html'), (t) => t.replace('## ', '## Edited '));
+    expect((await cli(['extract', 'x.slides.html', '-o', 'x.browser.slides.md'], d)).code).toBe(0);
+    // merged; assembled (the other pair now synced the file last); edited in the browser again
+    write(join(d, 'x.slides.md'), text(join(d, 'x.browser.slides.md')));
+    expect((await cli(['assemble', 'x.slides.md'], d)).code).toBe(0);
+    browserEdit(join(d, 'x.slides.html'), (t) => `${t}\n<!-- slide -->\n## Added in the browser\n`);
+    const again = await cli(['extract', 'x.slides.html', '-o', 'x.browser.slides.md', '--json'], d);
+    expect(again.code, again.stdout).toBe(0);
+    expect(json(again)).toMatchObject({ ok: true, replaced: 'cache' });
+    expect(text(join(d, 'x.browser.slides.md'))).toContain('## Added in the browser');
+    // an edit of its own: refused, output-differs, with the extract to another name
+    write(join(d, 'x.browser.slides.md'), `${text(join(d, 'x.browser.slides.md'))}\nmine\n`);
+    browserEdit(join(d, 'x.slides.html'), (t) => `${t}\nmore\n`);
+    const mine = await cli(['extract', 'x.slides.html', '-o', 'x.browser.slides.md', '--json'], d);
+    expect(mine.code).toBe(1);
+    expect(json(mine)).toMatchObject({ reason: 'output-differs', next: { command: 'extract' } });
+  });
+
+  it('[V.10] D-71, D-72: inspect advises from the state just checked — a 0.x text left beside its upgraded file is never told to assemble (refused legacy-file) but where its text is now; a deck text whose file holds it is "up to date"; after --layout, --layout is not advised again', async () => {
+    const d = folder();
+    write(join(d, 'demo.md'), read(join(LEGACY_DIR, 'demo.md')));
+    write(join(d, 'demo.slides.html'), legacyFile('demo-0.8.5.slides.html'));
+    expect((await cli(['upgrade', 'demo.slides.html'], d)).code).toBe(0);
+    const r = json(await cli(['inspect', 'demo.md', '--json'], d));
+    const advice = (r.advice as string[]).join('\n');
+    expect(advice).not.toMatch(/orz-slides assemble demo\.md/);
+    expect(advice).toMatch(/demo\.slides\.md holds its upgraded text/);
+    // a deck text and its up-to-date file
+    write(join(d, 'y.slides.md'), deckText('Up to date'));
+    expect((await cli(['assemble', 'y.slides.md'], d)).code).toBe(0);
+    const y = json(await cli(['inspect', 'y.slides.md', '--json'], d));
+    expect((y.advice as string[]).join('\n')).toMatch(/y\.slides\.html holds this text \(up to date\)/);
+    expect((y.advice as string[]).join('\n')).not.toMatch(/makes its \.slides\.html/);
+    const laid = inspect(deckText('Laid out'), { filename: 'z.slides.md', layout: true });
+    expect(laid.advice.join('\n')).not.toMatch(/--layout/);
+  });
+
+  it('[V.10] D-73: a box shrunk well below full size but not cut gets a hint (shorten or split); one nearly full size does not', () => {
+    const base = { browser: { product: 'Chrome' }, network: 'offline', theme: 'orchard', ratio: '16:9', size: { width: 1280, height: 720 }, summary: {}, errors: [] };
+    const box = (b: string, scale: number, clipped = false) => ({ box: b, scale, clipped, scroll: false });
+    const advice = layoutAdvice({ ...base, slides: [{ slide: 2, title: 'Dense', boxes: [box('left', 0.72), box('right', 0.97)], footerClipped: false, settled: 'yes' }] } as never);
+    expect(advice.filter((a) => /shrunk to fit/.test(a))).toEqual([expect.stringMatching(/^slide 2 \(Dense\): left \(72%\) is shrunk to fit: .*shorten it or split the slide$/)]);
+  });
+
+  it('[V.7] D-76, D-107: a 0.x content option to assemble is a usage error with a next (upgrade a 0.x text; new a deck that does not exist); the help lists --cdn | --inline', async () => {
+    const d = folder();
+    write(join(d, 'old.md'), read(join(LEGACY_DIR, 'demo.md')));
+    const a = await cli(['old.md', '--theme', 'paper', '--json'], d);
+    expect(a.code).toBe(2);
+    expect(json(a)).toMatchObject({ reason: 'bad-usage', next: { command: 'upgrade', args: ['old.md'] } });
+    expect(json(a).error).toMatch(/`theme: paper`/);
+    const b = await cli(['assemble', 'fresh.slides.md', '--theme', 'paper', '--json'], d);
+    expect(json(b)).toMatchObject({ reason: 'bad-usage', next: { command: 'new', args: ['fresh.slides.md', '--theme', 'paper'] } });
+    for (const h of [(await cli(['--help'], d)).stdout, (await cli(['assemble', '--help'], d)).stdout]) expect(h).toMatch(/assemble <file\.slides\.md> \[-o out\.slides\.html\] \[--cdn \| --inline\]/);
+  });
+
+  it('[V.1] D-77: assemble -o - into a reader that closes early ends quietly (exit 0, no stack)', async () => {
+    const d = folder();
+    write(join(d, 'p.slides.md'), deckText('Pipe'));
+    const r = await new Promise<{ code: number | null; stderr: string; got: number }>((res) => {
+      const c = spawn(process.execPath, [CLI, 'assemble', 'p.slides.md', '-o', '-'], { cwd: d, env: { ...process.env, XDG_CACHE_HOME: CACHE } });
+      let stderr = '';
+      let got = 0;
+      c.stderr.on('data', (b: Buffer) => { stderr += b.toString(); });
+      c.stdout.once('data', (b: Buffer) => { got = b.length; c.stdout.destroy(); });
+      c.on('close', (code) => res({ code, stderr, got }));
+    });
+    expect(r.got).toBeGreaterThan(0);
+    expect(r.stderr).toBe('');
+    expect(r.code).toBe(0);
+  });
+
+  it('[V.11] D-89: a text with no slide marker (plain Markdown named or headed as a deck) is refused, never guessed: invalid-text, with `new … --template talk` when that name is free; --force assembles it as it is', async () => {
+    const d = folder();
+    write(join(d, 'talk.md'), '{{nyml\nkind: document\ncarrier: slides\ntitle: Talk\n}}\n\n# My talk\n\n## Intro\n\nHello\n');
+    const r = await cli(['assemble', 'talk.md', '--json'], d);
+    expect(r.code).toBe(1);
+    expect(json(r)).toMatchObject({ reason: 'invalid-text', next: { command: 'new', args: ['talk.slides.md', '--template', 'talk'] } });
+    expect(json(r).error).toMatch(/no slide marker.*<!-- slide -->/);
+    expect(existsSync(join(d, 'talk.slides.html'))).toBe(false);
+    write(join(d, 'bare.slides.md'), '# x\n\nhello\n');
+    const b = json(await cli(['assemble', 'bare.slides.md', '--json'], d));
+    expect(b).toMatchObject({ reason: 'invalid-text' });
+    expect(b.next).toBeUndefined();
+    expect((await cli(['assemble', 'bare.slides.md', '--force'], d)).code).toBe(0);
+  });
+
+  it('[V.11] D-112, D-111: the library refuses a 0.x deck text as the CLI does (code legacy-file; legacy: \'as-is\' assembles it); extractLegacy gives a 0.x file\'s text as upgrade writes it (title, metadata, theme in the header)', () => {
+    const src = read(join(LEGACY_DIR, 'demo.md'));
+    expect(() => assemble(src, { delivery: 'cdn' })).toThrow(expect.objectContaining({ code: 'legacy-file' }));
+    expect(() => assemble(src, { delivery: 'cdn', legacy: 'as-is' })).not.toThrow();
+    for (const f of LEGACY_FILES) {
+      const html = legacyFile(f);
+      const x = extractLegacy(html, { uid: 'doc-legacyextract01' })!;
+      expect(x, f).not.toBeNull();
+      expect(x.text, f).toBe(upgrade(html, { delivery: 'cdn', uid: 'doc-legacyextract01' }).text);
+      expect(x, f).toMatchObject({ kind: 'slides', format: 1, shell: '' });
+      expect(readHeader(x.text)?.fields['theme'], f).toBeTruthy();
+    }
+    expect(extractLegacy(assemble(deckText('Not old'), { delivery: 'cdn' }))).toBeNull();
+  });
+});
+

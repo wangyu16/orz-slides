@@ -23,14 +23,14 @@
  * the kit's `orz-markdown/carrier/node`.
  */
 import { VERSION as ORZ_MARKDOWN_VERSION } from 'orz-markdown/version';
-import { assemble as assembleText, type AssembleOptions } from './assemble.js';
+import { assemble as assembleText, readDocument, type AssembleOptions } from './assemble.js';
 import { upgrade as upgradeFile, type UpgradeOptions, type UpgradeResult } from './legacy.js';
 import { inspect as inspectInput, type InspectOptions, type InspectReport } from './inspect.js';
 import { findChrome, layoutReport, type LayoutReport } from './layout-report.js';
 import { engineSource } from './engine.js';
 
 export { extract, readDocument, newDocument, storedText, cdnBundleUrl, BUNDLE_FILE, FORMATS, type AssembleOptions, type NewDocumentOptions, type Extracted, type DocumentInfo, type Kind } from './assemble.js';
-export { readLegacy, upgradeText, type LegacyFile, type UpgradeResult, type UpgradeOptions, type TextUpgrade, type UpgradeTextOptions } from './legacy.js';
+export { readLegacy, upgradeText, extractLegacy, type LegacyFile, type UpgradeResult, type UpgradeOptions, type TextUpgrade, type UpgradeTextOptions } from './legacy.js';
 export { upgradeReport, reportNotes, type UpgradeReport } from './upgrade-report.js';
 export { browserName, upgradeTextName, type InspectReport, type InspectOptions } from './inspect.js';
 export { findChrome, chromeCandidates, layoutAdvice, type LayoutReport, type LayoutSlide, type LayoutBox } from './layout-report.js';
@@ -57,13 +57,33 @@ export { ORZ_MARKDOWN_VERSION };
 const withEngine = <T extends AssembleOptions>(o: T): T =>
   (o.delivery ?? 'inline') === 'inline' && o.engineSource === undefined ? { ...o, engineSource: engineSource() } : o;
 
+/** Options of the Node {@link assemble}: the isomorphic ones, and what to do with a 0.x deck text. */
+export interface NodeAssembleOptions extends AssembleOptions {
+  /**
+   * A text holding a `<!-- deck -->` block (an orz-slides 0.x text): `refuse` (default) throws an error whose `code`
+   * is `legacy-file` — format 1 reads the deck's title, theme, ratio and footer only from the header, so the deck
+   * would silently lose them; convert it with {@link upgradeText} first — `as-is` assembles it unconverted (the
+   * CLI's `--force`).
+   */
+  legacy?: 'refuse' | 'as-is';
+}
+
 /**
  * Assemble the `.slides.html` file of a text (FC-18 §8, FC-19 §2): `inline`
  * (default) carries this release's browser bundle, `cdn` loads it from
- * jsDelivr. Equal to the browser bundle's `OrzCarrier.assemble`.
+ * jsDelivr. Equal to the browser bundle's `OrzCarrier.assemble` for every
+ * format-1 text; a 0.x deck text is refused as the CLI refuses it (D-112),
+ * unless `legacy: 'as-is'`.
  */
-export function assemble(text: string, options: AssembleOptions = {}): string {
-  return assembleText(text, withEngine(options));
+export function assemble(text: string, options: NodeAssembleOptions = {}): string {
+  const { legacy, ...rest } = options;
+  if (legacy !== 'as-is') {
+    const block = readDocument(text, { kind: 'slides' }).lint.find((l) => l.code === 'deck-block');
+    if (block) {
+      throw Object.assign(new Error(`orz-slides: the text holds a <!-- deck --> block (line ${block.line ?? '?'}), an orz-slides 0.x deck text: orz-slides 1.0 reads the deck's title, theme, ratio and footer only from the header, so the deck would lose them — convert it first with upgradeText(text) (the CLI: orz-slides upgrade <deck.md>), or pass { legacy: 'as-is' }`), { code: 'legacy-file' });
+    }
+  }
+  return assembleText(text, withEngine(rest));
 }
 
 /**

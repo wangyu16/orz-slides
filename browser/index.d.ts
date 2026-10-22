@@ -27,6 +27,11 @@ export interface Extracted {
   shell: string;
   delivery: string;
   includes?: Record<string, string>;
+  /**
+   * (1.1) An orz-slides 0.x file: `text` is what the Node `upgrade` writes (the deck block, title, metadata and the
+   * theme 0.x showed moved into one header; a fresh uid when it had none), `shell` is ''; what was converted.
+   */
+  legacy?: { version: string | null; notes: string[] };
 }
 
 export interface Lint { level: 'error' | 'warning' | 'info'; code: string; message: string; line?: number; from?: number; to?: number; next?: string }
@@ -224,6 +229,10 @@ export type LayoutOp =
   | { type: 'swap'; a: string; b: string }
   | { type: 'move-content'; from: string; to: string }
   | { type: 'ensure-region'; name: string }
+  /** (1.1) An empty box (a region, `notes` or `footer`) made ready to write in: a place and an empty line under its marker; `select` is that line. */
+  | { type: 'open'; name: string }
+  /** (1.1) The same for an empty float. */
+  | { type: 'open-float'; index: number }
   | { type: 'float-add'; box?: { left: number; top: number; w: number; h: number }; covers?: boolean }
   | { type: 'float-geom'; index: number; box: Partial<{ left: number; top: number; w: number; h: number }>; from?: { left: number; top: number; w: number; h: number } }
   | { type: 'float-delete'; index: number }

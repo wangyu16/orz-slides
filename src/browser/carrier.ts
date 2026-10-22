@@ -20,6 +20,7 @@ import { createEditorShell, type EditorHooks, type EditorShell } from 'orz-markd
 import type { PreferenceStore } from 'orz-markdown/carrier/shell';
 import { assemble as assembleSync, cdnBundleUrl, FORMATS, readDocument as slidesReadDocument, type AssembleOptions } from '../assemble.js';
 import { presentationOf, shellHead } from '../presentation.js';
+import { extractLegacy } from '../legacy.js';
 import { VERSION } from '../version.js';
 import { attachSlidesTools, type SlidesTools } from './slides/editor.js';
 import { createLayoutGui } from './slides/layout-gui.js';
@@ -70,9 +71,19 @@ export function assemble(text: string, options: AssembleOptions = {}): Promise<s
   }
 }
 
-/** The text of an assembled file (the kit's `extract`), or null for HTML that is not one. */
-export function extract(html: string): Extracted | null {
-  return kitExtract(html);
+/** What {@link extract} returns: the kit's, and for an orz-slides 0.x file what was converted (D-111). */
+export type SlidesExtracted = Extracted & { legacy?: { version: string | null; notes: string[] } };
+
+/**
+ * The text of an assembled file (the kit's `extract`), or null for HTML that is not one. An orz-slides 0.x file
+ * gives the text the Node `upgrade` writes (D-111): its deck source with the deck block, `<title>`, `#orz-meta` and
+ * the theme 0.x showed moved into one header (a fresh uid when it had none — each call mints one), `format` 1,
+ * `shell` '' and `legacy` saying what was converted; a host app then needs no server for old files.
+ */
+export function extract(html: string): SlidesExtracted | null {
+  const ex = kitExtract(html);
+  if (ex) return ex;
+  return extractLegacy(html);
 }
 
 /** The header and derived facts of a slides text, without rendering (the kit's `readDocument`, kind `slides`, with this carrier's themes, header values and body lints — the Node library's `readDocument`). */

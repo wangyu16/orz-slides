@@ -162,7 +162,7 @@ editor.flash(r.changed);
 ```
 
 Ops (`LayoutOp`): `split`, `delete-box`, `tracks`, `preset`, `rename`,
-`swap`, `move-content`, `ensure-region`, `float-add`, `float-geom`,
+`swap`, `move-content`, `ensure-region`, `open`, `open-float`, `float-add`, `float-geom`,
 `float-delete`, `float-z`, `variant`, `options`, `slide-add`,
 `slide-duplicate`, `slide-delete`, `slide-move`. A marker whose tree equals a
 preset is written as the preset; a marker that did not change is never
@@ -329,6 +329,7 @@ await assemble(text, { delivery: 'cdn' })              // a small .slides.html t
 await assemble(text)                                   // an inline .slides.html (the IIFE inlines itself; the ES module fetches this release's bundle once, or pass engineSource)
 await assemble(text, { includes })                     // with resolved includes in #orz-includes
 extract(html)                                          // { text, kind, format, shell, delivery, includes } | null
+                                                       // (1.1) an orz-slides 0.x file: the text `upgrade` writes, shell '', legacy: { version, notes }
 ```
 
 The slides themselves need the engine's layout (reveal.js, fit) — in the

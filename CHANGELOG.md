@@ -21,6 +21,31 @@ All notable changes to **orz-slides** are recorded here. Versions follow
   D-98). A `--mark-ink` token in the updated themes' content layer.
 - The editor of a deck file has **Present** in its toolbar: it leaves editing (the text kept, as Done keeps it) and
   presents from the caret's slide (D-88).
+- CLI: `assemble` refuses a text with no slide marker (plain Markdown named or headed as a deck), which made a
+  deck with no slides (D-89): reason `invalid-text`, with `next: new <name>.slides.md --template talk` when that
+  name is free; never split on headings (that would put slide breaks the author did not write into the text);
+  `--force` assembles it as it is.
+- CLI: `extract x.slides.html -o x.browser.slides.md` again, when that output still holds exactly what an earlier
+  extract wrote there, rewrites it — also after an `assemble` of x.slides.md synced the file in between (it was
+  refused with words that were false); an `-o` output with edits of its own is `output-differs` (D-70).
+- CLI: `inspect` advises from the state it just checked: a 0.x text left beside its upgraded file is pointed at
+  the new text twin instead of an `assemble` that is refused (D-71); "makes its .slides.html" becomes "holds this
+  text (up to date)" when it does, and `--layout` is not advised after `--layout` (D-72); `inspect --layout`
+  hints "shorten it or split the slide" for a box shrunk below 85 % that is not cut (D-73).
+- CLI: `upgrade` prints its conversion notes as notes (stdout; `--json`: `notes` only), not as warnings (D-75).
+- CLI: a 0.x content option to `assemble` (`--theme paper`) names the header line to write and gives a `next`
+  (`upgrade` for a 0.x or headerless text, `new … --theme …` for a deck that does not exist yet) (D-76).
+- CLI: `… -o - | head` ends quietly when the reader closes the pipe (EPIPE), with no Node stack (D-77).
+- CLI: orz-slides' own messages say what to run in user words — "made before orz-slides 1.0", "the header", "pass
+  it as --replaces to replace this file later without --force" — instead of "FC-18 header", "text format 1", "no
+  compatibility shim" and "--replaces takes it" (codes stay in `reason`; D-91, this package's part); a lint error
+  at `assemble` is called an error, as `inspect` calls it (D-94).
+- CLI help: the `assemble` synopses list `[--cdn | --inline]` (D-107).
+- Library: `assemble()` refuses a 0.x deck text (a `<!-- deck -->` block) as the CLI does — an error with
+  `code: 'legacy-file'`; `{ legacy: 'as-is' }` assembles it unconverted (D-112).
+- Browser package: `extract()` of an orz-slides 0.x file gives the text `upgrade` writes (title, metadata, the
+  theme 0.x showed in the header), with `legacy: { version, notes }`, so a host app needs no server for old
+  files; the Node library exports the same as `extractLegacy()` (D-111).
 
 ### Release tooling
 

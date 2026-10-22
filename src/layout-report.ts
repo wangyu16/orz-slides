@@ -304,6 +304,9 @@ function removeProfile(dir: string): void {
 }
 
 /** The layout report's advice: one line per clipped box or cut footer, and per slide whose fit did not settle. */
+/** Below this fit scale a box that is not cut gets a hint (shorten or split, D-73). */
+export const SMALL_SCALE = 0.85;
+
 export function layoutAdvice(r: LayoutReport): string[] {
   const out: string[] = [];
   for (const s of r.slides) {
@@ -317,6 +320,9 @@ export function layoutAdvice(r: LayoutReport): string[] {
       [cut.filter((b) => !/^float /.test(b.box) && b.box !== 'template' && b.box !== 'title').map((b) => b.box), 'shorten the text, split the slide, or give the box more room (a wider split ratio, another preset)'],
     ];
     for (const [names, fix] of groups) if (names.length > 0) out.push(`${at}: ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} cut even at the smallest scale (0.6): ${fix}`);
+    // shrunk a lot but not cut (D-73): readable from the back row? a hint below the threshold
+    const small = s.boxes.filter((b) => !b.clipped && b.scale < SMALL_SCALE).map((b) => `${b.box} (${Math.round(b.scale * 100)}%)`);
+    if (small.length > 0) out.push(`${at}: ${small.join(', ')} ${small.length === 1 ? 'is' : 'are'} shrunk to fit: the text may be hard to read from the back of the room — shorten it or split the slide`);
     if (s.footerClipped) out.push(`slide ${s.slide}: the footer is cut to one line (ellipsized): shorten it`);
     if (s.settled === 'timeout') out.push(`slide ${s.slide}: its fit did not settle within 10 s (content still loading?): its numbers may be provisional`);
   }

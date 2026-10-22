@@ -1,6 +1,6 @@
 /**
  * Legacy orz-slides 0.x files and texts (experimental, before text format 1):
- * reading them and upgrading them to a format-1 text and file. As for
+ * reading them and upgrading them to a 1.0 text and file. As for
  * orz-mdhtml and orz-paged (REBUILD §3a decision 1, §3c): no compatibility
  * shim — `upgrade` (and, in rebuild step 7, `inspect`) are the way forward.
  *
@@ -26,13 +26,13 @@
  * - a leading `{{nyml kind: meta}}` block (which 0.x slides never read) is
  *   the legacy header: merged into one `kind: document` header
  *   (`normalizeHeader`); the deck block's keys win a clash (it was the
- *   deck's config), with a note; beside a format-1 header (a text already
+ *   deck's config), with a note; beside a header (a text already
  *   upgraded by hand) the header's keys win — the deck block never applied;
  * - `theme`: what 0.x SHOWED — the deck block's, else the 0.x file's
  *   default (its CLI `--theme`), else 0.x's implicit `paper`, written
  *   explicitly; the dropped 0.x themes map to their successors (executive →
  *   sky, poppy → sticker, sage → orchard), a theme 0.x did not have (it
- *   showed paper) becomes `paper`; a format-1 header keeps its own theme
+ *   showed paper) becomes `paper`; a header keeps its own theme
  *   (and none stays none);
  * - every other deck block is consumed (it fills only keys still missing),
  *   marker spellings 0.x read are normalised, markers a raw HTML block or an
@@ -306,9 +306,9 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
   }
   text = applyEdits(text, rewrites);
 
-  // 3. a leading legacy kind: meta header becomes the format-1 header
+  // 3. a leading legacy kind: meta header becomes the header
   const before = readHeader(text);
-  // a format-1 header is the deck's config (a deck block beside it rendered nothing): its keys win; a legacy
+  // a header is the deck's config (a deck block beside it rendered nothing): its keys win; a legacy
   // meta header was never read by 0.x slides: the deck block's keys win
   if (before?.legacy) {
     text = normalizeHeader(text);
@@ -340,13 +340,13 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
   for (const key of ['title', 'author', 'footer', 'transition', 'ratio'] as const) {
     if (deck[key] === undefined) continue;
     if (!deckWins && current(key) !== undefined) {
-      if (current(key) !== deck[key]) notes.push(`${key}: the header's ${JSON.stringify(current(key))} is kept (the deck block's ${JSON.stringify(deck[key])} never applied to a format-1 text)`);
+      if (current(key) !== deck[key]) notes.push(`${key}: the header's ${JSON.stringify(current(key))} is kept (the deck block's ${JSON.stringify(deck[key])} never applied to a 1.0 text)`);
       continue;
     }
     set(key, deck[key], `the deck block's ${key}`, true);
   }
   // theme: what 0.x SHOWED (FMT-2) — the deck block's, else the 0.x file's (its CLI --theme), else paper —
-  // with the dropped themes' successors; a format-1 header keeps its own (none stays none: FMT-3)
+  // with the dropped themes' successors; a header keeps its own (none stays none: FMT-3)
   if (deckWins) {
     const fileTheme = options.file?.defaultTheme ?? undefined;
     const shown = deck['theme'] ?? fileTheme;
@@ -368,7 +368,7 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
     if (current('theme') !== theme) changes.push(['theme', theme]);
   } else if (deck['theme'] !== undefined) {
     if (current('theme') !== undefined) {
-      if (current('theme') !== deck['theme']) notes.push(`theme: the header's ${JSON.stringify(current('theme'))} is kept (the deck block's ${JSON.stringify(deck['theme'])} never applied to a format-1 text)`);
+      if (current('theme') !== deck['theme']) notes.push(`theme: the header's ${JSON.stringify(current('theme'))} is kept (the deck block's ${JSON.stringify(deck['theme'])} never applied to a 1.0 text)`);
     } else {
       const t = themeFor(deck['theme']);
       if (t) { set('theme', t.theme, 'the deck block\'s theme'); if (t.dropped) notes.push(`theme: the 0.x theme ${deck['theme']} was dropped in 1.0; its successor ${t.theme} is written`); }
@@ -415,7 +415,7 @@ export function upgradeText(source: string, options: UpgradeTextOptions = {}): T
 
 /** What {@link upgrade} gives. */
 export interface UpgradeResult {
-  /** The format-1 text twin. */
+  /** The text twin. */
   text: string;
   /** Its assembly with this shell. */
   html: string;
@@ -432,14 +432,14 @@ export interface UpgradeResult {
 /** Options of {@link upgrade}: the assembly's, and a uid to use instead of minting one (tests). */
 export interface UpgradeOptions extends AssembleOptions {
   uid?: string;
-  /** Re-assemble a format-1 file whose shell is NEWER than this tool (a downgrade). Default `false`: refused. */
+  /** Re-assemble a file of orz-slides 1.0 or later whose shell is NEWER than this tool (a downgrade). Default `false`: refused. */
   downgrade?: boolean;
 }
 
 /**
  * Upgrade an orz-slides file to text format 1 with this shell: a 0.x file
- * becomes a format-1 text ({@link upgradeText} of its `#orz-deck` source,
- * with its `<title>` and `#orz-meta`) and that text's file; a format-1 file
+ * becomes a 1.0 text ({@link upgradeText} of its `#orz-deck` source,
+ * with its `<title>` and `#orz-meta`) and that text's file; a file of orz-slides 1.0 or later
  * is re-assembled with its text and includes unchanged. Throws for anything
  * else (another kind, a newer format, a newer shell without `downgrade`).
  */
@@ -450,7 +450,7 @@ export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResu
     const ex = extract(html);
     if (!ex || ex.shell === '') throw new Error('orz-slides upgrade: not an orz-slides file (no 0.x #orz-deck island and no format-1 #orz-src/#orz-shell)');
     if (ex.kind !== 'slides') throw new Error(`orz-slides upgrade: an orz-${ex.kind === 'md' ? 'mdhtml' : ex.kind} file; use orz-${ex.kind === 'md' ? 'mdhtml' : ex.kind}`);
-    if (ex.format > 1) throw new Error(`orz-slides upgrade: text format ${ex.format} is newer than this tool writes (format 1)`);
+    if (ex.format > 1) throw new Error(`orz-slides upgrade: it was written by a newer orz-slides (text format ${ex.format}) than this one writes`);
     if (!downgrade && compareSemver(ex.shell, VERSION) === 1) {
       throw new Error(`orz-slides upgrade: the file's shell (orz-slides ${ex.shell}) is newer than this tool (${VERSION}); upgrading would downgrade it`);
     }
@@ -459,4 +459,17 @@ export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResu
   }
   const up = upgradeText(legacy.text, { ...(uid !== undefined ? { uid } : {}), file: { title: legacy.title, meta: legacy.meta, defaultTheme: legacy.defaultTheme } });
   return { text: up.text, html: assemble(up.text, assembleOptions), from: 'legacy', version: legacy.version, moved: up.moved, notes: [...legacy.notes, ...up.notes] };
+}
+
+/**
+ * The text of an orz-slides 0.x FILE as {@link upgrade} writes it (its deck source with the deck block, `<title>`,
+ * `#orz-meta` and the theme 0.x showed moved into one header; `uid` when given, else the source's or a fresh one), in
+ * the shape of the kit's `extract` (`format` 1, `shell` ''), with what was converted — the browser package's `extract`
+ * of a 0.x file (D-111). Null for anything that is not a 0.x file.
+ */
+export function extractLegacy(html: string, options: { uid?: string } = {}): { text: string; kind: 'slides'; format: number; shell: string; delivery: string; legacy: { version: string | null; notes: string[] } } | null {
+  const legacy = readLegacy(html);
+  if (!legacy) return null;
+  const up = upgradeText(legacy.text, { ...(options.uid !== undefined ? { uid: options.uid } : {}), file: { title: legacy.title, meta: legacy.meta, defaultTheme: legacy.defaultTheme } });
+  return { text: up.text, kind: 'slides', format: 1, shell: '', delivery: legacy.delivery ?? '', legacy: { version: legacy.version, notes: [...legacy.notes, ...up.notes] } };
 }

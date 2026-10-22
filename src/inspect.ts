@@ -28,7 +28,7 @@ export interface InspectReport {
   /** This tool: the shell it writes and the text formats it reads and writes. */
   tool: { name: 'orz-slides'; version: string; formats: number[] };
   /**
-   * `text` (a text twin or any Markdown), `assembled` (a format-1 file),
+   * `text` (a text twin or any Markdown), `assembled` (a file of orz-slides 1.0 or later),
    * `legacy` (an orz-slides 0.x file), `html` (HTML that is neither).
    */
   input: 'text' | 'assembled' | 'legacy' | 'html';
@@ -94,12 +94,14 @@ export interface InspectReport {
 
 /** Options of {@link inspect}. */
 export interface InspectOptions {
-  /** The input's file name: decides the kind of a text (FC-18 §3) and names it in the advice. */
+  /** The input's file name: decides the kind of a text and names it in the advice. */
   filename?: string;
   /** The sibling twin's content and which was modified last (the CLI reads it; this module reads no files). */
   twin?: { name: string; content: string; newer?: 'input' | 'twin' | 'same-time' | 'unknown'; earlier?: 'git-head' | 'git-index' | 'git-log' | 'cache' | null };
   /** This release's browser bundle (the Node library passes it): an inline file of this shell version is compared with it (`checks.engine`). */
   engineSource?: string;
+  /** The caller has laid the deck out (`inspect --layout`): the advice does not suggest it again (D-72). */
+  layout?: boolean;
 }
 
 /** `x.slides.md` → `x.browser.slides.md` (where a file's other text goes for a merge). */
@@ -130,7 +132,7 @@ function reportOf(legacyText: string, upgraded: string, shownTheme: string | nul
   }
 }
 
-/** Inspect a text or a `.slides.html` file (any version). `filename`, when given, decides the kind of a text (FC-18 §3). */
+/** Inspect a text or a `.slides.html` file (any version). `filename`, when given, decides the kind of a text. */
 export function inspect(input: string, options: InspectOptions = {}): InspectReport {
   const report: InspectReport = {
     tool: { name: 'orz-slides', version: VERSION, formats: [...FORMATS] },
@@ -184,14 +186,14 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
       const up = upgradeText(legacy.text, { uid: PLACEHOLDER_UID, file: { title: legacy.title, meta: legacy.meta, defaultTheme: legacy.defaultTheme } });
       report.upgrade = reportOf(legacy.text, up.text, legacy.defaultTheme, report.notes);
       const twinText = options.twin && !looksHtml(options.twin.content) ? options.twin : null;
-      const what = 'its <!-- deck --> block and metadata become one FC-18 header (with the theme 0.x showed), and the slides are kept';
+      const what = 'its <!-- deck --> block and metadata become one header (with the theme 0.x showed), and the slides are kept';
       if (twinText) {
         const other = sh(browserName(twinText.name));
-        report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (before text format 1; no compatibility shim) next to the text ${twinText.name}: run \`orz-slides upgrade ${self} --text ${other}\` — it writes this file's format-1 text (${what}) to ${browserName(twinText.name)} and re-assembles this file from it; then compare it with ${twinText.name}, merge what you keep into ${twinText.name} (keep the new header), and \`orz-slides assemble ${sh(twinText.name)} --replaces <sha256>\` with the sha256 upgrade printed (the text this file then holds)`);
+        report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (made before orz-slides 1.0) next to the text ${twinText.name}: run \`orz-slides upgrade ${self} --text ${other}\` — it writes this file's format-1 text (${what}) to ${browserName(twinText.name)} and re-assembles this file from it; then compare it with ${twinText.name}, merge what you keep into ${twinText.name} (keep the new header), and \`orz-slides assemble ${sh(twinText.name)} --replaces <sha256>\` with the sha256 upgrade printed (the text this file then holds)`);
       } else {
-        report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (before text format 1; no compatibility shim): run \`orz-slides upgrade ${self}\` for its format-1 text twin and a file of this version; ${what}`);
+        report.advice.push(`orz-slides ${legacy.version ?? '0.x'} file (made before orz-slides 1.0): run \`orz-slides upgrade ${self}\` for its text twin and a file of this version; ${what}`);
       }
-      report.notes.push(`its own "Framework 1.0.0 available" banner (the newest release's number) (in its 0.x editor) cannot update it to format 1: it ends with "Update failed — check your connection" and changes nothing; use upgrade`);
+      report.notes.push(`its own "Framework 1.0.0 available" banner (in its 0.x editor) cannot update it to orz-slides 1.0: it ends with "Update failed — check your connection" and changes nothing; use upgrade`);
       if (report.upgrade && report.upgrade.unexplained.length > 0) report.advice.push(`the upgraded deck differs from what 0.x showed in ${report.upgrade.unexplained.length} place${report.upgrade.unexplained.length === 1 ? '' : 's'} no decision explains (see notes): check those slides after upgrading`);
       legacyText = legacy.text;
       text = up.text;
@@ -206,7 +208,7 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
       if (ex.shell === '') {
         report.input = 'html';
         report.notes.push('an #orz-src island without #orz-shell and without orz-slides 0.x markers: an unknown writer');
-        report.advice.push('`orz-slides extract` reads the island as format 1 would; check the text before relying on it');
+        report.advice.push('`orz-slides extract` reads the island as orz-slides 1.0 would; check the text before relying on it');
         return report;
       }
       report.input = 'assembled';
@@ -270,9 +272,9 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
         const up = upgradeText(text, { uid: PLACEHOLDER_UID });
         report.upgrade = reportOf(text, up.text, null, report.notes);
       }
-      report.advice.push(`${zeroX ? 'an orz-slides 0.x text' : 'a <!-- deck --> block in a format-1 text'}: format 1 reads the deck's title, theme, ratio and footer only from the header, so the block shows nothing — \`orz-slides upgrade ${self}\` moves it into the header${out && out !== (options.filename ?? '') ? ` and writes ${out}` : ' (in place; the old text is kept as a backup)'}`);
+      report.advice.push(`${zeroX ? 'an orz-slides 0.x text' : 'a <!-- deck --> block in a 1.0 text'}: orz-slides 1.0 reads the deck's title, theme, ratio and footer only from the header, so the block shows nothing — \`orz-slides upgrade ${self}\` moves it into the header${out && out !== (options.filename ?? '') ? ` and writes ${out}` : ' (in place; the old text is kept as a backup)'}`);
     } else {
-      report.advice.push('the text holds a <!-- deck --> block, which format 1 does not read: extract the text, then `orz-slides upgrade` it');
+      report.advice.push('the text holds a <!-- deck --> block, which orz-slides 1.0 does not read: extract the text, then `orz-slides upgrade` it');
     }
   }
   const errors = doc.lint.filter((l) => l.level === 'error' && l.code !== 'deck-block');
@@ -288,12 +290,17 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
     const twinFile = report.input === 'text' && t.holds === 'different' && !twinLegacy ? inspect(options.twin.content, { filename: options.twin.name }) : null;
     const twinCut = twinFile?.checks?.island === 'unclosed';
     const twinNewer = twinFile?.shell?.relation === 'newer' ? twinFile.shell.version : null;
-    if (twinCut) {
+    if (deckBlockLint && report.input === 'text' && t.holds === 'different' && !twinLegacy) {
+      // a 0.x text beside a file of orz-slides 1.0 or later (left over after `upgrade old.slides.html`, D-71): assemble would refuse this
+      // text (legacy-file), so never advise it; the file's own text twin is the one to edit
+      const own = t.name.replace(/\.slides\.html$/i, '.slides.md');
+      report.advice.push(`${t.name} is already a file of orz-slides 1.0 or later (its text twin is ${own}) and holds another text than this 0.x one. If this text is left over from \`orz-slides upgrade ${tn}\`, ${own} holds its upgraded text: edit that, and delete this one when nothing in it is missing there; to compare, \`orz-slides upgrade ${self}\` writes this text's 1.0 version`);
+    } else if (twinCut) {
       report.advice.push(`${t.name} was cut off inside its text (#orz-src not closed): it holds an incomplete text, not changes to bring in — keep this complete text and repair the file from it: \`orz-slides assemble ${self} --replaces ${t.sha256}\``);
     } else if (twinNewer !== null) {
       report.advice.push(`${t.name} was made by a newer orz-slides (${twinNewer}) than this tool (${VERSION}): assembling here would write an older shell, and assemble refuses it — use \`npx orz-slides@latest assemble ${self}\``);
     } else if (t.holds === 'different' && twinLegacy) {
-      report.advice.push(`${t.name} is an orz-slides 0.x file holding a different text than this text twin: \`orz-slides upgrade ${tn} --text ${sh(browserName(options.filename ?? 'file.slides.md'))}\` gives its format-1 text; compare and merge that into ${options.filename ?? 'this text'}, then \`orz-slides assemble ${self} --replaces <sha256>\` with the sha256 upgrade printed (the text ${t.name} then holds)`);
+      report.advice.push(`${t.name} is an orz-slides 0.x file holding a different text than this text twin: \`orz-slides upgrade ${tn} --text ${sh(browserName(options.filename ?? 'file.slides.md'))}\` gives its 1.0 text; compare and merge that into ${options.filename ?? 'this text'}, then \`orz-slides assemble ${self} --replaces <sha256>\` with the sha256 upgrade printed (the text ${t.name} then holds)`);
     } else if (t.holds === 'different' && options.twin.earlier) {
       const source = { 'git-head': 'its last commit', 'git-index': 'its staged version', 'git-log': 'one of its recent commits', cache: 'what orz-slides last wrote there' }[options.twin.earlier];
       t.earlier = options.twin.earlier;
@@ -310,7 +317,11 @@ export function inspect(input: string, options: InspectOptions = {}): InspectRep
       report.advice.push(`${t.name} exists but is not an orz file: \`orz-slides assemble\` will not replace it without --force`);
     }
   }
-  if (report.input === 'text' && doc.kind === 'slides' && !newer && !deckBlockLint && report.twin?.holds !== 'different') report.advice.push(`a deck text: \`orz-slides assemble ${self}\` makes its .slides.html; \`orz-slides inspect ${self} --layout\` checks in Chrome that every box fits`);
+  // what is left to do depends on the state just checked (D-72): the file already holds this text, the layout was just checked
+  if (report.input === 'text' && doc.kind === 'slides' && !newer && !deckBlockLint && report.twin?.holds !== 'different') {
+    const made = report.twin?.holds === 'same' ? `${report.twin.name} holds this text (up to date)` : `\`orz-slides assemble ${self}\` makes its .slides.html`;
+    report.advice.push(options.layout ? `a deck text: ${made}` : `a deck text: ${made}; \`orz-slides inspect ${self} --layout\` checks in Chrome that every box fits`);
+  }
   if (report.input === 'text' && doc.kind === 'slides' && !doc.header && !deckBlockLint && (report.slides ?? 0) > 0) report.notes.push('no header: the deck shows the default theme (orchard) — an orz-slides 0.x deck showed paper; `orz-slides upgrade` writes a header with the theme 0.x showed, a carrier and a uid');
   return report;
 }
