@@ -19,6 +19,8 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 - The status "This slide's layout cannot change until its text is fixed" goes once the text is valid (D-99).
 - `==highlight==` reads in Neon and Chalk: light ink on the tint over the dark slide (it was dark brown, 1.2 : 1;
   D-98). A `--mark-ink` token in the updated themes' content layer.
+- The editor of a deck file has **Present** in its toolbar: it leaves editing (the text kept, as Done keeps it) and
+  presents from the caret's slide (D-88).
 
 ### Release tooling
 

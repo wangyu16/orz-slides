@@ -633,4 +633,18 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     expect(errors).toEqual([]);
     await ctx.close();
   }, 120_000);
+  it('[W.10] 1.1, D-88: the editor of the file\'s own page has Present — it leaves editing (the text kept, saved or not) and presents from the caret\'s slide', async () => {
+    const { page, ctx, errors } = await openEditor('d88.slides.html', SAMPLE);
+    const btn = page.locator('[data-orz-slides-present]');
+    await btn.waitFor({ state: 'visible', timeout: 10_000 });
+    expect(await btn.getAttribute('aria-label')).toBe('Present');
+    await page.evaluate(() => { const e = (globalThis as unknown as G).OrzCarrier.standalone.editor()!; const i = e.getText().indexOf('## The RAFT equilibrium'); e.select(i, i, { scroll: true }); });
+    await expect.poll(() => ed(page, (e) => e.slides.caretSlide())).toBe(4);
+    await btn.click();
+    await page.waitForFunction(() => document.getElementById('orz-view')!.classList.contains('orz-presenting'), undefined, { timeout: 10_000 });
+    expect(await page.evaluate(() => (globalThis as unknown as G).OrzCarrier.standalone.editor())).toBeNull();
+    expect(await page.evaluate(() => (globalThis as unknown as G).OrzCarrier.standalone.view.engine.index())).toBe(4);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
 });

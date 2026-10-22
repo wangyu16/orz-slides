@@ -15,7 +15,7 @@
  * browser write the same bytes (FC-18 law 2).
  */
 import { extract as kitExtract, type DocumentInfo, type Extracted, type HeaderChange } from 'orz-markdown/carrier';
-import { attachAiMenu, attachSettings, captureEngineSource, followPresentation, type EngineSource, type StandaloneContext } from 'orz-markdown/carrier/app';
+import { attachAiMenu, attachSettings, button, captureEngineSource, followPresentation, type EngineSource, type StandaloneContext } from 'orz-markdown/carrier/app';
 import { createEditorShell, type EditorHooks, type EditorShell } from 'orz-markdown/carrier/editor';
 import type { PreferenceStore } from 'orz-markdown/carrier/shell';
 import { assemble as assembleSync, cdnBundleUrl, FORMATS, readDocument as slidesReadDocument, type AssembleOptions } from '../assemble.js';
@@ -280,8 +280,30 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
     onPerSlide: (on: boolean) => { perSlideNow = on; void shell.refreshPreview(); },
   });
 
+  // Present from the editor (D-88), on the file's own page: leave edit mode on the caret's slide and present it
+  // (the read view shows the current text, saved or not — as Done does)
+  let presentBtn: HTMLElement | null = null;
+  const bar = shell.toolbar as unknown as HTMLElement | null;
+  if (view && bar) {
+    presentBtn = button(bar.ownerDocument as never, { label: 'Present', icon: 'present', iconOnly, title: 'Present from this slide (leaves editing)' }) as unknown as HTMLElement;
+    presentBtn.setAttribute('data-orz-slides-present', '');
+    presentBtn.addEventListener('click', (e) => {
+      if (!e.isTrusted) return;
+      const at = tools.caretSlide();
+      const app = (globalThis as unknown as { OrzCarrier?: { standalone?: { leave?(): Promise<void> } } }).OrzCarrier?.standalone;
+      void (async () => {
+        if (app?.leave) await app.leave();
+        const v = activeReadView() ?? view;
+        v.goTo(at);
+        await v.engine.enterPresent();
+      })().catch(() => undefined);
+    });
+    bar.append(presentBtn);
+  }
+
   const destroy = shell.destroy.bind(shell);
   shell.destroy = () => {
+    presentBtn?.remove();
     tools.destroy();
     unfollow();
     settings.destroy();
