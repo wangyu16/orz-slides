@@ -92,7 +92,7 @@
 .reveal .markdown-body sup { top: -0.5em; }
 .reveal .markdown-body mark {
     background: var(--mark-bg, #fde68a);
-    color: #3a2f00;
+    color: var(--mark-ink, #3a2f00);
     padding: 0 0.18em;
     border-radius: 2px;
 }
@@ -373,6 +373,7 @@
   --code-color: #e8efe4;
   --link-color: #9fd6f2;
   --mark-bg: rgba(255, 214, 99, 0.32);
+  --mark-ink: var(--ink);   /* light ink on the tint over the dark slide (D-98) */
   --table-head-bg: transparent;
   --table-head-color: #ffd663;
   --row-highlight: rgba(255, 214, 99, 0.08);

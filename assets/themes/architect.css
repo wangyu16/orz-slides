@@ -92,7 +92,7 @@
 .reveal .markdown-body sup { top: -0.5em; }
 .reveal .markdown-body mark {
     background: var(--mark-bg, #fde68a);
-    color: #3a2f00;
+    color: var(--mark-ink, #3a2f00);
     padding: 0 0.18em;
     border-radius: 2px;
 }

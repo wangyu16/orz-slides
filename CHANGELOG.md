@@ -17,6 +17,8 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 - On a phone or in the Preview mode, the double-click shows the editor (one pane: Editor) with the caret in the
   box (D-102).
 - The status "This slide's layout cannot change until its text is fixed" goes once the text is valid (D-99).
+- `==highlight==` reads in Neon and Chalk: light ink on the tint over the dark slide (it was dark brown, 1.2 : 1;
+  D-98). A `--mark-ink` token in the updated themes' content layer.
 
 ### Release tooling
 

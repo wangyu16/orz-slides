@@ -30,6 +30,7 @@
   --code-color: #d4ece7;
   --link-color: #2ef2d0;
   --mark-bg: rgba(46, 242, 208, 0.22);
+  --mark-ink: var(--ink);   /* light ink on the tint over the dark slide (D-98) */
   --table-head-bg: transparent;
   --table-head-color: #93b4af;
   --row-highlight: rgba(46, 242, 208, 0.06);

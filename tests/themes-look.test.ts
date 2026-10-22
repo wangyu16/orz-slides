@@ -797,3 +797,18 @@ chromeOnly('the outline\'s measure and its leaders (real Chrome, offline, every 
     expect(bad).toEqual([]);
   }, 600_000);
 });
+
+chromeOnly('1.1 repairs: themes (real Chrome, offline, every theme)', () => {
+  it('[T.5] D-98: ==highlighted text== (mark) reads at 4.5 : 1 against what is drawn behind it in every theme (Neon and Chalk drew dark-brown ink on a tint over the dark slide)', async () => {
+    const bad: string[] = [];
+    for (const t of THEMES) {
+      const { page, ctx } = await offline(`mark-${t.id}`, A3(t.id, '16:9', '<!-- slide -->\n## Highlight\nPlain and ==highlighted text== here.\n'));
+      await page.waitForTimeout(300);
+      const c = await contrast(page, '.orz-region mark');
+      if (!c) bad.push(`${t.id}: no mark drawn`);
+      else if (c.ratio < 4.5) bad.push(`${t.id}: ${c.ink} on ${c.bg} = ${c.ratio.toFixed(2)}`);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 300_000);
+});
