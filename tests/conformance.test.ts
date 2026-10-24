@@ -77,7 +77,7 @@ const EDITOR_DRIVER = `function (text) {
   return C.mountEditor(el, { text: text });
 }`;
 
-/** The check the main run deselects (KIT GAP, D-122; see the registrations at the end). */
+/** The check the main run deselects (KIT GAP, D-123; see the registrations at the end). */
 const LINKS_READ_VIEW_GAP = ['C.links.read-view'];
 
 /** The harness's links text (uid doc-conformance4l5n6k, no slide marker) made a deck: a slide marker before its heading. */
@@ -164,7 +164,7 @@ describe('the conformance target', () => {
     expect(() => assemble(SAMPLES['deck-block']!)).toThrow(/upgradeText/);
     expect(await t.assemble(SAMPLES['deck-block']!)).toBe(assemble(SAMPLES['deck-block']!, { legacy: 'as-is' }));
     expect(CHECK_IDS.length).toBe(50);
-    // the KIT GAP (D-122): only C.links.read-view is deselected from the main run, and it runs on a deck of the text
+    // the KIT GAP (D-123): only C.links.read-view is deselected from the main run, and it runs on a deck of the text
     expect(LINKS_READ_VIEW_GAP).toEqual(['C.links.read-view']);
     expect(CHECK_IDS).toContain('C.links.read-view');
     const links = '{{nyml\nkind: document\ntitle: Twin links\nuid: doc-conformance4l5n6k\n}}\n\n# Twin links\n\nSee [week two](week2.slides.md#s3).\n';
@@ -182,7 +182,7 @@ if (!browser) {
     // two playwright-core type copies while orz-markdown is linked from a checkout; one object at run time
     browser: browser as never,
     log: (line) => log.push(line),
-    // KIT GAP (orz-markdown 2.5.0; STATUS D-122): C.links.read-view opens a file of the harness's LINKS_TEXT, a
+    // KIT GAP (orz-markdown 2.5.0; STATUS D-123): C.links.read-view opens a file of the harness's LINKS_TEXT, a
     // text with no slide marker, which a deck renders as no slides (lint text-before-first-slide) — the read view
     // can show no link at all. It runs below in a registration of its own, on that text made a deck. Only this
     // check is deselected here (allowSkips: a deselected check passes [conformant]; a failed one still fails it).
@@ -195,7 +195,7 @@ if (!browser) {
     const t = await makeTarget();
     return { ...t, assemble: (text, o) => t.assemble(asDeck(text), o) };
   }, {
-    title: '[H.1] orz-slides conformance: C.links.read-view on the links text made a deck (KIT GAP, D-122; real Chrome)',
+    title: '[H.1] orz-slides conformance: C.links.read-view on the links text made a deck (KIT GAP, D-123; real Chrome)',
     browser: browser as never,
     log: (line) => log.push(line),
     only: LINKS_READ_VIEW_GAP,

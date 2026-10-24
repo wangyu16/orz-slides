@@ -96,7 +96,7 @@ orz-markdown's carrier harness (50 checks on kit 2.5, all pass: `previous` =
 the published orz-slides-browser 1.0.0, the devDependency alias
 `orz-slides-browser-previous`, and `twinLinks: true`) with a `next` build;
 `C.links.read-view` runs in a registration of its own on the harness's links
-text made a deck (KIT GAP, STATUS D-122: that text has no slide marker).
+text made a deck (KIT GAP, STATUS D-123: that text has no slide marker).
 Real-Chrome tests skip without an installed Chrome (playwright-core,
 channel `chrome`) — such a run verifies nothing "real".
 
