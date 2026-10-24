@@ -57,7 +57,7 @@
   "homepage": "https://markdown.orz.how/slides.html",
   "bugs": "https://github.com/wangyu16/orz-slides/issues",
   "dependencies": {
-    "orz-markdown": "^2.4.0",
+    "orz-markdown": "^2.5.0",
     "reveal.js": "5.2.1"
   },
   "devDependencies": {
