@@ -1,6 +1,6 @@
 {
   "name": "orz-slides-browser",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The orz-slides browser engine and editor component (FC-19): globalThis.OrzCarrier (IIFE) or ES module exports — mountEditor, assemble, extract, readDocument, renderPreview — with reveal.js 5.2.1 and the 14 slide themes. Served via jsDelivr for .slides.html files; embeddable in web apps.",
   "main": "orz-slides.browser.js",
   "module": "esm/orz-slides.browser.mjs",

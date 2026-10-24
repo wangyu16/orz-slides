@@ -534,10 +534,13 @@ can run: `applyOp(text, slideIndex, { type: 'split', box: 'body', dir: 'col'
 })` → minimal edits (library `orz-slides`, the ES module, or
 `OrzCarrier.layout`). Store the text; call `assemble(text)` only when a file
 is needed. Hooks and the CSP recipe: `docs/embedding.md`, shipped in both
-packages. **No app-side print** in 1.0: in an app, Cmd/Ctrl+P in the editor is its
+packages. **Print from an app** (1.1): Cmd/Ctrl+P in the editor is its
 `print` event (without a listener the browser prints the app's page); the
-deck's print document comes only from an assembled `.slides.html`'s *Print*
-— offer the file. Platforms that show assembled files in an iframe use the host
+listener calls `printDeck(editor.getText(), { nonce })` — one slide per page,
+as the file's *Print* (`notes: true`: with the speaker notes). A site that
+publishes decks under its own names passes them as `twinLinks` (`{ slides:
+'{stem}.html' }`) to `assemble`, `mountEditor` and `renderPreview`, so links
+between texts point at those names. Platforms that show assembled files in an iframe use the host
 protocols (orz-markdown `spec/host-protocols.md`).
 
 ## Gotchas
@@ -554,7 +557,7 @@ protocols (orz-markdown `spec/host-protocols.md`).
 - `--force` keeps what it replaces as `<file>~` (or `~1`, `~2`…); still,
   compare before you force. The pair records live in
   `$XDG_CACHE_HOME/orz-slides/` (else `~/.cache/orz-slides/`).
-- Package: `orz-slides` 1.x depends on `orz-markdown ^2.4.0` and pins
+- Package: `orz-slides` 1.1 depends on `orz-markdown ^2.5.0` (1.0: `^2.4.0`) and pins
   reveal.js 5.2.1; files record the shell version that wrote them.
 - Security: a `.slides.html` runs the code inside it — treat files like
   programs and open only trusted ones.

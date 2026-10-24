@@ -1,6 +1,6 @@
 {
   "name": "orz-slides",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Single-file, self-editing HTML slide decks authored in Markdown with layout grammar, themes, and presenter tools.",
   "type": "module",
   "main": "./dist/lib.js",
@@ -63,6 +63,7 @@
   "devDependencies": {
     "@types/node": "^22.20.5",
     "esbuild": "^0.28.1",
+    "orz-slides-browser-previous": "npm:orz-slides-browser@1.0.0",
     "playwright-core": "^1.63.0",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",

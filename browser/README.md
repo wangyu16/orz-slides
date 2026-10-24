@@ -5,9 +5,9 @@ The browser engine and editor component of
 Markdown that present, edit and save themselves: the very bundle every
 `.slides.html` file carries, and the same editor for web apps (orz family
 contract FC-19). Built on the carrier kit of
-[orz-markdown](https://www.npmjs.com/package/orz-markdown) 2.4.0 and
+[orz-markdown](https://www.npmjs.com/package/orz-markdown) 2.5.0 and
 [reveal.js](https://revealjs.com/) 5.2.1 (both bundled: this release embeds
-orz-markdown 2.4.0), with the 14 slide themes inside.
+orz-markdown 2.5.0), with the 14 slide themes inside.
 
 ```sh
 npm i orz-slides-browser@1
@@ -15,8 +15,8 @@ npm i orz-slides-browser@1
 
 | File | What |
 |---|---|
-| `orz-slides.browser.js` | the IIFE. Sets `globalThis.OrzCarrier` = `{ kind: 'slides', version, formats, assemble, extract, readDocument, mountEditor, renderPreview, standalone, layout }` — `layout` holds the layout editor's pure layout ops (`parseDeck`, `applyOp`, `applyEdits`, `slideMap`, `LayoutOpError`, `PRESET_CHOICES`, `SLIDE_SIZE`). Inside an assembled `.slides.html` it also starts that file (orz-markdown `carrier/app`): the read view — the deck, at 1280 × 720 (16:9) or 960 × 720 (4:3), every box fitted —, Present, Print, Print with notes, Speaker view, Overview, Edit (the whole deck beside a flattened preview, with the live slide card that enlarges into single-slide editing), Save, Download a copy, New document, Save as new copy, the header settings (theme, ratio, slide numbers, progress, section numbers), host protocols and the quiet update; `OrzCarrier.standalone` is then the file's handle, `null` elsewhere. Anywhere else it only sets the global. |
-| `esm/orz-slides.browser.mjs` | ES module exports: `kind`, `version`, `formats`, `assemble`, `extract`, `readDocument`, `renderPreview`, `mountEditor`, `OrzCarrier` (the same object without `standalone`), `THEMES`, `DEFAULT_THEME`, `TEMPLATES`, `TEMPLATE_IDS`, `DEFAULT_TEMPLATE`, `newDocument`, `parseDeck`, `editHeader(text, changes)` — change header keys in a text the way the pencil's settings do (one line per key, the rest of the text untouched; `null` removes a key) — and the layout editor's pure layout ops (`applyOp`, `applyEdits`, `slideMap`, `LayoutOpError`, `PRESET_CHOICES`, `SLIDE_SIZE`). Sets no global and boots nothing. |
+| `orz-slides.browser.js` | the IIFE. Sets `globalThis.OrzCarrier` = `{ kind: 'slides', version, formats, assemble, extract, readDocument, mountEditor, renderPreview, includeTargets, linkTargets, printDocument, printDeck, standalone, layout }` — `layout` holds the layout editor's pure layout ops (`parseDeck`, `applyOp`, `applyEdits`, `slideMap`, `LayoutOpError`, `PRESET_CHOICES`, `SLIDE_SIZE`). Inside an assembled `.slides.html` it also starts that file (orz-markdown `carrier/app`): the read view — the deck, at 1280 × 720 (16:9) or 960 × 720 (4:3), every box fitted —, Present, Print, Print with notes, Speaker view, Overview, Edit (the whole deck beside a flattened preview, with the live slide card that enlarges into single-slide editing), Save, Download a copy, New document, Save as new copy, the header settings (theme, ratio, slide numbers, progress, section numbers), host protocols and the quiet update; `OrzCarrier.standalone` is then the file's handle, `null` elsewhere. Anywhere else it only sets the global. |
+| `esm/orz-slides.browser.mjs` | ES module exports: `kind`, `version`, `formats`, `assemble`, `extract`, `readDocument`, `renderPreview`, `mountEditor`, `OrzCarrier` (the same object without `standalone`), `includeTargets` / `linkTargets` (a text's include directives and links, orz-markdown 2.5.0), `printDeck` (print a deck from your page, one slide per page) and `printDocument` (the kit's), `THEMES`, `DEFAULT_THEME`, `themeSwatch`, `TEMPLATES`, `TEMPLATE_IDS`, `DEFAULT_TEMPLATE`, `newDocument`, `parseDeck`, `editHeader(text, changes)` — change header keys in a text the way the pencil's settings do (one line per key, the rest of the text untouched; `null` removes a key) — and the layout editor's pure layout ops (`applyOp`, `applyEdits`, `slideMap`, `LayoutOpError`, `PRESET_CHOICES`, `SLIDE_SIZE`). Sets no global and boots nothing. |
 | `release.json` | the release manifest the quiet update reads: `kind`, `version`, `formats`, `notes`, and `bundle.path` / `bundle.integrity` (the SHA-384 of `orz-slides.browser.js`'s exact bytes). |
 | `index.d.ts` | types (`Editor`, `EditorOptions`, `EditorHooks`, `SlidesTools`, `LayoutOp`, …). |
 
@@ -26,9 +26,13 @@ const editor = mountEditor(element, { text, nonce, hooks: { async save(text) { /
 ```
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/orz-slides-browser@1.0.0/orz-slides.browser.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/orz-slides-browser@1.1.0/orz-slides.browser.js"></script>
 <script>const editor = OrzCarrier.mountEditor(element, { text, hooks: { save } });</script>
 ```
+
+Since 1.1, `assemble`, `mountEditor` and `renderPreview` take `twinLinks` — your
+site's names for linked decks and documents (`{ slides: '{stem}.html' }`):
+links to text twins point at them, and a file keeps the naming in every save.
 
 `.slides.html` files carry the bundle inline (the CLI's default) or load it
 from `https://cdn.jsdelivr.net/npm/orz-slides-browser@<version>/orz-slides.browser.js`

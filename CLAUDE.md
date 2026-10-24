@@ -15,7 +15,7 @@ that presents the deck (reveal.js), edits it two ways (the whole deck beside a
 flattened preview with a live slide card; single-slide editing with the
 layout GUI), saves itself and prints one slide per page. Built on the
 orz-markdown carrier kit ([orz-markdown](../orz-markdown) `carrier/*`,
-**2.4.0**): the standalone file's runtime is the kit's
+**2.5.0**): the standalone file's runtime is the kit's
 `orz-markdown/carrier/app`; this repo supplies the slides kind behind its
 `StandaloneKind` seam, the engine (reveal.js 5.2.1, pinned, in one module),
 the 14 slide themes and the two editing modes. orz-mdhtml 1.0 and orz-paged
@@ -31,9 +31,12 @@ Two npm packages live here, **versioned in lockstep**:
   that throws), `docs/embedding.md` (copied), `scripts/check-release.mjs`
   (its `prepublishOnly`).
 
-> **Status: 1.0.0 on `main`** (dated 2026-10-17; npm publishing of both
-> packages is the owner's step, "Releasing" below) — the rebuild (plan `../docs/REBUILD.md`
-> §3c, steps 1–11) on orz-markdown **^2.4.0**, installed from the registry
+> **Status: 1.1.0 on `main`** (dated 2026-10-24; npm publishing of both
+> packages is the owner's step, "Releasing" below; 1.0.0 is on npm) — the
+> 1.0 repairs, the family's C1 (twin-link naming `twinLinks` on every
+> surface, the kit's `includeTargets`/`linkTargets`), `printDeck` (D-114)
+> and the theme dots (D-95) on orz-markdown **^2.5.0**; 1.0.0 was the
+> rebuild (plan `../docs/REBUILD.md` §3c, steps 1–11), installed from the registry
 > (never a link: the release check refuses one). Closed-loop rounds A, B and
 > the final loop are recorded in `notes/closed-loop.md`; claims in
 > `notes/CLAIMS.md` (bound by `tests/claims.test.ts`). The branch
@@ -89,9 +92,9 @@ Real-Chrome tests run **offline** (`OFFLINE_ARGS` in `tests/helpers.ts`:
 only files that load the CDN libraries on purpose launch `online: true`. The
 `chrome` project runs its files one at a time (timings); a timing test that
 fails under a full run is re-run alone. The `conformance` project runs
-orz-markdown's carrier harness (46 checks, no skips; 45 pass,
-`C.update.from-previous` not applicable — `firstRelease`) with a `next`
-build. Real-Chrome tests skip without an installed Chrome (playwright-core,
+orz-markdown's carrier harness (50 checks on kit 2.5, no skips, all pass:
+`previous` = the published orz-slides-browser 1.0.0, the devDependency alias
+`orz-slides-browser-previous`, and `twinLinks: true`) with a `next` build. Real-Chrome tests skip without an installed Chrome (playwright-core,
 channel `chrome`) — such a run verifies nothing "real".
 
 ## Architecture
@@ -207,8 +210,8 @@ channel `chrome`) — such a run verifies nothing "real".
   reported, never patched in orz-markdown from here.
 - **Deliberate limits** (do not "fix" without the owner): floats are unnamed
   (told apart by order) in format 1; filmstrip thumbnails are schematic;
-  no app-side print in 1.0 (the `print` event goes to the app); handouts
-  later.
+  the `print` event goes to the app, which calls `printDeck` (1.1; 1.0 had
+  no app-side print); handouts later.
 - Reading, presenting and editing work in all modern browsers; **Save in
   place only in Chromium** (File System Access; elsewhere Save downloads).
 
@@ -223,7 +226,7 @@ family root; never edit the copy here alone). This package's facts are in
 `release.config.json` (kit floor `kit.required`, bundles, manifest check,
 fast lane).
 
-1. orz-markdown is installed from the registry (`^2.4.0`). For a later kit,
+1. orz-markdown is installed from the registry (`^2.5.0`). For a later kit,
    `npx npm@11 install orz-markdown@^X.Y.Z` (the gate refuses a lower range
    than `kit.required`, a link, a non-registry lockfile entry, an older
    install, or a bundle that embeds another kit).

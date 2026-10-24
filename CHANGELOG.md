@@ -5,6 +5,47 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 
 ## [Unreleased]
 
+<a id="110"></a>
+
+## [1.1.0] — 2026-10-24
+
+On orz-markdown **2.5.0** (`^2.5.0`, the kit's twin-link naming and
+browser-safe targets); released together with `orz-slides-browser` 1.1.0.
+Additive for 1.0 users: every 1.0 API keeps its shape, and 1.0 files update
+in place to 1.1.
+
+### Added
+
+- **Twin-link naming** (family C1; orz-markdown 2.5.0, FC-18 §8.2 / FC-19 §3): a host that publishes decks under
+  its own names (`week2.slides.md` → `week2.html`) passes a naming — `assemble(text, { twinLinks: { slides:
+  '{stem}.html' } })`, `mountEditor(el, { twinLinks })`, `renderPreview(text, { twinLinks })` — and every surface
+  names links to text twins with it: the read view's deck, Print, Print with notes and the speaker view, the
+  flattened preview and the live slide card. The file keeps the naming (`#orz-shell` `"links"`, only when it is
+  not the family naming) through every save, Download a copy and the quiet update; `extract()` returns it,
+  `upgrade` of a 1.x file keeps it, and the CLI's `assemble` over a file keeps it as it keeps the file's delivery.
+- **Printing from an app** (STATUS D-114; FC-19 §8.5): `printDeck(text, { notes?, includes?, fetchInclude?,
+  twinLinks?, nonce?, onCut? })` in `orz-slides-browser` (ES module and `OrzCarrier`) prints a deck as an
+  assembled file's Print does — one slide per page at the slide's size, every fragment shown, each slide fitted,
+  cuts marked; `notes: true` as Print with notes — in a hidden sandboxed frame, never the app's page; under a
+  nonce CSP pass the nonce. The recipe for the editor's `print` event: `editor.on('print', () =>
+  printDeck(editor.getText(), { nonce }))`. The kit's `printDocument(html)` is exported too. The example web app
+  prints this way.
+- `includeTargets(text)` and `linkTargets(text)` (orz-markdown 2.5.0, browser-safe) from the Node library, the ES
+  module and `OrzCarrier`: a text's include directives and its links (with line and kind), for a site builder.
+- `themeSwatch(id)` and `SlideTheme.paper` / `accent`: each slide theme's page and signature colours.
+
+### Changed
+
+- The theme menu's colour dots differ for every theme: the slide's page colour and the theme's signature colour,
+  split diagonally (orz-markdown 2.5.0's look; STATUS D-95) — before, every light theme had one dot and every dark
+  theme another.
+- Built on orz-markdown 2.5.0: the editor's list continuation (a marker typed after a continued one replaces it),
+  the stronger pressed look of Sync scroll, no flash on a theme change, the save status that keeps Save on the
+  first toolbar row at 1100–1120 px, the CSP report of a blocked preview frame, and the kit's messages in user
+  words (D-80, D-91, D-95, D-100, D-101).
+- Conformance: the harness runs against the published 1.0.0 as the previous release (`C.update.from-previous`:
+  1.0 files update in place to 1.1) and with `twinLinks: true` (its four `C.links.*` checks); all 50 checks pass.
+
 ### Fixed
 
 - Single-slide editing (the layout GUI): a double-click on a box always writes in it (D-86) — selecting a box no

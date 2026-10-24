@@ -29,7 +29,7 @@ npm install orz-slides-browser@1   # or: npm i orz-slides-browser@1
 | a bundler (Vite, esbuild, webpack) | `import { mountEditor } from 'orz-slides-browser'` | `esm/orz-slides.browser.mjs` (`exports` → `import`) |
 | a plain `<script>` | `<script src=".../orz-slides.browser.js">` → `globalThis.OrzCarrier` | `orz-slides.browser.js` (`exports` → `default`) |
 | `require()` | not supported: it throws, pointing to `import` or `<script>` | `require.cjs` (`exports` → `require`) |
-| the CDN | `https://cdn.jsdelivr.net/npm/orz-slides-browser@<version>/orz-slides.browser.js` (e.g. `@1.0.0`; pin an exact version) | the same IIFE |
+| the CDN | `https://cdn.jsdelivr.net/npm/orz-slides-browser@<version>/orz-slides.browser.js` (e.g. `@1.1.0`; pin an exact version) | the same IIFE |
 
 Types: `orz-slides-browser/index.d.ts` (`Editor`, `EditorOptions`,
 `EditorHooks`, `SlidesTools`, `LayoutOp`, …). The ES module sets no global
@@ -60,6 +60,7 @@ const editor = mountEditor(element, {
   includes,                   // resolved includes for the preview: { 'parts/a.md': text, 'https://…': text } (FC-19 §3)
   fileName: 'talk.slides.html', // the suggested name of saves without hooks.save (picker, download); default document.slides.html
   hooks: { save, ai, fetchInclude, resolveAsset, uploadAsset, resolveLink, mintUid },
+  twinLinks,                  // (1.1) your site's names for linked texts, e.g. { slides: '{stem}.html', md: '{stem}.html' } (below)
   // preferences: your PreferenceStore (default: localStorage, namespaced by the header uid)
 });
 ```
@@ -82,6 +83,18 @@ transition and metadata stay in the header text. `chrome: 'compact'` shows
 the same tools as icons. Keyboard: Cmd/Ctrl+S saves, Cmd/Ctrl+\ cycles the
 modes, Cmd/Ctrl+Shift+Enter enlarges the live slide card into single-slide
 editing and back, Esc leaves the text for the toolbar.
+
+**Your site's link names** (1.1, orz-markdown 2.5.0, FC-18 §8.2). A link to
+another text — `[week 2](week2.slides.md)`, `[notes](notes.md)` — points at
+its assembled twin: `week2.slides.html`, `notes.md.html`. A site that
+publishes under other names passes a naming, per kind a file-name template
+(`{stem}` once, then only `A-Z a-z 0-9 . _ -`, ending in `.html`, same
+folder): `twinLinks: { slides: '{stem}.html', md: '{stem}.html' }`. The
+flattened preview and the live card then link to `week2.html`;
+`assemble(text, { twinLinks })` and `renderPreview(text, { twinLinks })`
+take the same, and an assembled file keeps the naming in every save and the
+update (`extract(html).twinLinks`). With `hooks.resolveLink` links stay as
+written, so your hook gets the source href.
 
 ### Two ways to edit
 
@@ -235,15 +248,30 @@ visible slide, after the typing pause.
 
 Cmd/Ctrl+P in the editor or its preview is the editor's `print` event: with
 a listener your app decides, without one the browser prints **your page**.
-orz-slides-browser 1.0 has no app-side print of the slides: the deck's print
-document — one slide per page at the slide's size, every fragment shown,
-optionally with the speaker notes — is built by the read view of an
-assembled `.slides.html` (its pencil's *Print* and *Print with notes*). An
-app listens to `print` (so your page is not printed) and offers the file:
+Since 1.1, `printDeck(text, options)` prints the deck as an assembled
+`.slides.html` does from its pencil's *Print* and *Print with notes*: one
+slide per page at the slide's size, every fragment shown, each slide fitted
+as on screen, whatever print had to cut marked on its page — optionally with
+the speaker notes. The deck is laid out in a hidden frame of your page that
+carries the engine's stylesheets, and printed with orz-markdown's
+`printDocument` in a hidden `srcdoc` frame sandboxed `allow-scripts
+allow-modals` (an opaque origin; the document holds no script); your page is
+never printed. It resolves `true` once printed, `false` when a print of this
+page is still running.
 
 ```js
-editor.on('print', () => showMessage('To print the slides, download the .slides.html and use Print in its menu.'));
+editor.on('print', () => printDeck(editor.getText(), {
+  nonce,                 // your CSP nonce: stamped on the stylesheets and the print frame's script
+  includes,              // resolved includes, as you gave the editor
+  fetchInclude,          // URL includes the record lacks (your trust policy)
+  notes: false,          // true: each page the slide over its speaker notes
+  onCut: (message) => showMessage(message),   // e.g. "slide 4 is cut on paper …"
+}));
 ```
+
+`printDocument(html, { nonce })` (the kit's) is exported too, for a whole
+document of your own. 1.0 had no app-side print (STATUS D-114): an app then
+offered the `.slides.html` to print from its menu.
 
 The document's own raw HTML runs only inside the frame (an opaque origin in
 your page), never in your page.
@@ -288,7 +316,7 @@ builds its own preview frame with the kit (`orz-markdown/carrier/editor`'s
 `PREVIEW_BRIDGE_HASH`, `previewScriptHashes`) must take the hash from the
 same orz-markdown version its frame runs: the bridge, and so its hash,
 differs between kit versions (2.3.0 and 2.4.0 differ; orz-slides 1.0 embeds
-2.4.0). Tested in Chrome: the editor (CodeMirror 6), math,
+2.4.0, 1.1 embeds 2.5.0). Tested in Chrome: the editor (CodeMirror 6), math,
 code highlighting, Mermaid, Chart.js and SMILES render in the preview with
 no violation but one — Mermaid's run-time `<style>` (below).
 
@@ -318,17 +346,20 @@ formulas, diagrams and charts wait for their libraries.
 ## Without an editor
 
 ```ts
-import { assemble, extract, readDocument, renderPreview, newDocument, TEMPLATE_IDS, THEMES, parseDeck } from 'orz-slides-browser';
+import { assemble, extract, readDocument, renderPreview, newDocument, TEMPLATE_IDS, THEMES, parseDeck, includeTargets, linkTargets, themeSwatch } from 'orz-slides-browser';
 
 readDocument(text)                        // header + derived facts (title, author, uid, theme, settings, lint) — no rendering; index with it
 parseDeck(text)                           // the deck: config, slides (kind, template, title, layout, regions, notes, footer), lint
 await renderPreview(text, { includes, fetchInclude })  // the flattened deck's HTML (dividers, region labels), not the slides
 await renderPreview(text, { document: true, nonce })   // a whole HTML document of it: the slide theme and the flattened styles inline (<style> stamped with your nonce), no script (iframe srcdoc, thumbnails)
+includeTargets(text)                      // (1.1) the include directives' targets, as written (orz-markdown 2.5.0, browser-safe)
+linkTargets(text)                         // (1.1) every link and image: { href, line, kind: 'twin' | 'asset' | 'other', image, raw } — a site builder's link check
 newDocument({ template: 'talk', title, theme: 'nocturne', ratio: '4:3' })  // a new text from a deck template (TEMPLATE_IDS: starter, talk, minimal): carrier slides, a fresh uid
 await assemble(text, { delivery: 'cdn' })              // a small .slides.html that loads the engine from jsDelivr
 await assemble(text)                                   // an inline .slides.html (the IIFE inlines itself; the ES module fetches this release's bundle once, or pass engineSource)
 await assemble(text, { includes })                     // with resolved includes in #orz-includes
-extract(html)                                          // { text, kind, format, shell, delivery, includes } | null
+await assemble(text, { twinLinks: { slides: '{stem}.html' } })  // (1.1) links to text twins named your site's way; kept by every save
+extract(html)                                          // { text, kind, format, shell, delivery, includes, twinLinks? } | null
                                                        // (1.1) an orz-slides 0.x file: the text `upgrade` writes, shell '', legacy: { version, notes }
 ```
 
@@ -344,7 +375,9 @@ srcdoc=…>`, without `allow-same-origin`), never with `innerHTML` in your page.
 `assemble` writes the same bytes as the Node library (`orz-slides`), so an app
 can publish, preview or download without a server. Store the text; regenerate
 the HTML. `THEMES` lists the 14 slide themes (`id`, `name`, `scheme`
-light/dark, `description`); `DEFAULT_THEME` is `orchard`.
+light/dark, `description`, and since 1.1 `paper` / `accent`, the page and
+signature colours); `themeSwatch(id)` is a theme picker's dot (a CSS
+`background`); `DEFAULT_THEME` is `orchard`.
 
 ## Assembled files in an iframe
 

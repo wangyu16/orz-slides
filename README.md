@@ -282,12 +282,15 @@ applyOp(text, 3, { type: 'split', box: 'body', dir: 'col' }).text;   // a layout
 inspect(html).advice;                            // what to do next, for any version
 await inspectLayout(text);                       // per slide and box: fit scale and clipping (installed Chrome)
 upgrade(oldHtml);                                // { text, html, from, version, moved, notes } for a 0.x file (upgradeReport: what changed)
+assemble(text, { twinLinks: { slides: '{stem}.html' } });   // (1.1) links to other decks named the way your site publishes them; the file keeps it
+linkTargets(text);                               // (1.1) every link and image with its line and kind (twin / asset / other); includeTargets(text): the includes
 ```
 
 Exports (types included; `dist/lib.d.ts` documents each): the documents —
 `assemble`, `extract`, `readDocument`, `newDocument`, `storedText`,
 `upgrade`, `upgradeText`, `readLegacy`, `inspect`, `inspectLayout`,
-`upgradeReport`, `reportNotes`, `browserName`, `upgradeTextName`; Chrome —
+`upgradeReport`, `reportNotes`, `browserName`, `upgradeTextName`,
+`includeTargets`, `linkTargets` (1.1, orz-markdown 2.5.0); Chrome —
 `findChrome`, `chromeCandidates`, `layoutAdvice`; the deck — `parseDeck`,
 `scanMarkers`, `planDeck`, `deckConfig`, `parseLayoutSpec`,
 `serialiseLayout`, `expandPreset`, `slideMarker`, `PRESETS`,
@@ -297,7 +300,8 @@ Exports (types included; `dist/lib.d.ts` documents each): the documents —
 `snapTracks`, `stepTracks`, `nameProblem`, `freshName`, `LayoutOpError`,
 `PRESET_CHOICES`, `PRESET_LABEL`, `TEMPLATE_LABEL`, `SLIDE_SIZE`; templates
 and themes — `TEMPLATES`, `TEMPLATE_IDS`, `DEFAULT_TEMPLATE`, `THEMES`,
-`DEFAULT_THEME`, `DROPPED_THEMES`, `resolveTheme`, `isThemeId`; the
+`DEFAULT_THEME`, `DROPPED_THEMES`, `resolveTheme`, `isThemeId`,
+`themeSwatch`; the
 package — `sha256`, `engineSource`, `engineFiles`, `cdnBundleUrl`,
 `BUNDLE_FILE`, `FORMATS`, `VERSION`, `ORZ_MARKDOWN_VERSION`. The Node library writes
 the same bytes as the browser engine's `OrzCarrier.assemble` for the same
@@ -324,11 +328,14 @@ A platform that shows assembled files in an iframe speaks the host protocols
 (`orz-host-save@1`, `orz-host-ai@1`, `orz-host-include@1`; canonical spec:
 orz-markdown `spec/host-protocols.md`, see [PROTOCOL.md](PROTOCOL.md)).
 
-**No app-side print** (a deliberate 1.0 limit): in an app, Cmd/Ctrl+P in the
-editor is its `print` event — without a listener the browser prints the
-app's page. The slides' print document (one slide per page, with or without
-notes) comes from an assembled `.slides.html`'s *Print*: offer the file
-([docs/embedding.md](docs/embedding.md), "Printing").
+**Print from an app** (1.1): in an app, Cmd/Ctrl+P in the editor is its
+`print` event — without a listener the browser prints the app's page.
+`printDeck(editor.getText(), { nonce })` prints the deck as an assembled
+file's *Print* does (one slide per page, with or without notes), in a hidden
+sandboxed frame ([docs/embedding.md](docs/embedding.md), "Printing"). A site
+that publishes decks under its own names passes them as `twinLinks`
+(`assemble`, `mountEditor`, `renderPreview`): links to other decks and
+documents then point at those names.
 
 ## With an AI agent
 
@@ -407,10 +414,13 @@ failed — check your connection" and changes nothing. Dismiss it and run
 
 ## Versions
 
-> **Release status.** 1.0.0 (on npm since 2026-10-19; the CHANGELOG dates
-> its release commit, 2026-10-17) is the rebuild on text format 1; it
-> depends on `orz-markdown ^2.4.0`. The 0.x line (up to 0.8.5) is
-> described in [Migrating from 0.x](#migrating-from-0x).
+> **Release status.** 1.1.0 (CHANGELOG 2026-10-24) depends on
+> `orz-markdown ^2.5.0`: your site's names for linked texts (`twinLinks`),
+> printing from an app (`printDeck`), the kit's targets of a text and the
+> theme menu's colour dots, plus the 1.0 repairs. 1.0.0 (on npm since
+> 2026-10-19) is the rebuild on text format 1; 1.0 files update in place.
+> The 0.x line (up to 0.8.5) is described in
+> [Migrating from 0.x](#migrating-from-0x).
 
 Two packages, released together with the same version: `orz-slides` (the CLI
 and the Node library) and `orz-slides-browser` (the browser engine and editor
