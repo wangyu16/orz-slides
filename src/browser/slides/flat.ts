@@ -35,7 +35,9 @@
  */
 import { md, prepareSources } from 'orz-markdown';
 import { withoutHeader } from 'orz-markdown/carrier';
+import type { TwinNaming } from 'orz-markdown/carrier';
 import { includeRecordEnv, previewIncludes } from 'orz-markdown/carrier/editor';
+import { twinLinksEnv } from '../../present/render.js';
 import { parseDeck, scanMarkers, type ScannedMarker } from '../../deck/parse.js';
 import { plainInline, sectionTitleOf } from '../../deck/plan.js';
 import { leaves } from '../../deck/layout-spec.js';
@@ -43,7 +45,8 @@ import type { Slide } from '../../types.js';
 
 export interface FlatRenderContext {
   fetchInclude?(target: string): Promise<string | null>;
-  twinLinks?: boolean;
+  /** `false`: links as written (the host resolves them); (1.1) a naming (FC-18 §8.2): the host's names; default the family's. */
+  twinLinks?: boolean | TwinNaming | null;
   cache?: Map<string, unknown>;
   includes?: Readonly<Record<string, string>>;
 }
@@ -114,7 +117,7 @@ export async function renderFlat(text: string, ctx: FlatRenderContext = {}): Pro
     ? await previewIncludes(text, { ...(ctx.includes ? { includes: ctx.includes } : {}), ...(ctx.fetchInclude ? { fetchInclude: ctx.fetchInclude } : {}), ...(ctx.cache ? { cache: ctx.cache } : {}) })
     : null;
   const rec = inc?.includes ?? ctx.includes;
-  const env: Record<string, unknown> = { ...includeRecordEnv(rec ?? {}), orzTwinLinks: ctx.twinLinks !== false };
+  const env: Record<string, unknown> = { ...includeRecordEnv(rec ?? {}), orzTwinLinks: twinLinksEnv(ctx.twinLinks) };
 
   // URL includes, as the engine resolves them, each fetched once per shell
   let source = body;

@@ -15,6 +15,7 @@
  * Default `orchard` (from orz-markdown's default light-neat-3, Q5).
  * Isomorphic: no Node built-ins.
  */
+import { themeInfo } from 'orz-markdown/themes';
 
 export type ThemeScheme = 'light' | 'dark';
 
@@ -30,7 +31,19 @@ export interface SlideTheme {
   sectionNumbers: 'plain' | 'roman' | '01' | 'none';
   /** One line for `orz-slides themes` (what the theme looks like). */
   description: string;
+  /** (1.1) The slide's page colour, for a picker's swatch (a derived theme: its orz-markdown theme's `paper`). */
+  paper: string;
+  /** (1.1) The theme's signature colour, for a picker's swatch (a derived theme: its orz-markdown theme's `accent`). */
+  accent: string;
 }
+
+/** The page and signature colours of the four updated 0.x themes (their layers' `--bg` / `--paper` and `--accent`). */
+const OWN_COLOURS: Readonly<Record<string, { paper: string; accent: string }>> = Object.freeze({
+  architect: { paper: '#f8fafb', accent: '#2c3e50' },
+  chalk: { paper: '#1d2a25', accent: '#ffd663' },
+  neon: { paper: '#0a0f10', accent: '#2ef2d0' },
+  paper: { paper: '#fbf7ef', accent: '#8d6e63' },
+});
 
 export const THEMES: readonly SlideTheme[] = Object.freeze(
   ([
@@ -48,7 +61,11 @@ export const THEMES: readonly SlideTheme[] = Object.freeze(
     { id: 'chalk', name: 'Chalk', scheme: 'dark', derivedFrom: null, sectionNumbers: '01', description: 'a green-black chalkboard, Caveat titles, coloured chalk, a wooden tray' },
     { id: 'neon', name: 'Neon', scheme: 'dark', derivedFrom: null, sectionNumbers: '01', description: 'an instrument panel, phosphor cyan on near-black glass, Barlow and JetBrains Mono' },
     { id: 'paper', name: 'Paper', scheme: 'light', derivedFrom: null, sectionNumbers: 'roman', description: 'a finely printed book: brown ink on laid stock, EB Garamond, roman section numbers' },
-  ] as SlideTheme[]).map((t) => Object.freeze(t)),
+  ] as Array<Omit<SlideTheme, 'paper' | 'accent'>>).map((t) => {
+    // a derived theme shows its orz-markdown theme's colours (the kit's ThemeInfo, 2.5.0); an updated 0.x theme its own
+    const c = t.derivedFrom ? themeInfo(t.derivedFrom) : OWN_COLOURS[t.id]!;
+    return Object.freeze({ ...t, paper: c.paper, accent: c.accent });
+  }),
 );
 
 export const DEFAULT_THEME = 'orchard';
@@ -89,4 +106,14 @@ export function isThemeId(id: unknown): id is string {
 /** The theme an id or alias names, else the default theme. */
 export function themeOf(id: string | undefined | null): SlideTheme {
   return resolveTheme(id) ?? resolveTheme(DEFAULT_THEME)!;
+}
+
+/**
+ * (1.1, STATUS D-95) A CSS `background` for a theme picker's colour dot, as orz-markdown's `themeSwatch`: the slide
+ * theme's page colour and its signature colour, split diagonally — every slide theme's dot differs (the chrome
+ * cannot read a theme's colours without loading it). An unknown id gets the default theme's.
+ */
+export function themeSwatch(id: string | null | undefined): string {
+  const t = themeOf(id);
+  return `linear-gradient(135deg, ${t.paper} 50%, ${t.accent} 50%)`;
 }

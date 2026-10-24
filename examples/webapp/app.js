@@ -73,12 +73,17 @@
   };
 
   // Cmd/Ctrl+P in an editor or its preview is the app's (FC-19 `print` event): without a listener the browser would
-  // print THIS page. orz-slides-browser 1.0 has no app-side print of the slides (the deck's print document is built by
-  // the read view of an assembled file): the app says where to print instead.
+  // print THIS page. printDeck (1.1) prints the deck as an assembled file's Print does — one slide per page, every
+  // fragment shown — in a hidden sandboxed frame, never this page; the app's includes and nonce go with it.
   for (const [id, ed] of Object.entries(editors)) {
     ed.on('print', () => {
       log('print', id);
-      $('note').textContent = 'To print the slides, download the .slides.html and use Print in its menu.';
+      void C.printDeck(ed.getText(), {
+        nonce: NONCE,
+        includes: INCLUDES,
+        fetchInclude: async (u) => (Object.prototype.hasOwnProperty.call(INCLUDES, u) ? INCLUDES[u] : null),
+        onCut: (message) => { $('note').textContent = message; },
+      }).then((ok) => log('printed', `${id} ${ok}`), (e) => { $('note').textContent = `Print failed: ${String(e && e.message || e)}`; });
     });
   }
 

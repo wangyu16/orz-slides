@@ -15,10 +15,15 @@
  * - `protocols`: the file speaks orz-host-ai@1 and orz-host-include@1 (the
  *   kit's carrier/app);
  * - `next`: this build again with the patch number bumped;
- * - `firstRelease: true`: 1.0 is the first release of text format 1 for
- *   slides; the 0.x `orz-slides-browser` releases are pre-format files
- *   (`#orz-deck`, no `#orz-shell`, no `release.json`), which get `upgrade`, not
- *   an in-file update — `C.update.from-previous` is not applicable.
+ * - `previous` (1.1): the published orz-slides-browser 1.0.0 (the
+ *   devDependency alias `orz-slides-browser-previous`, pinned exactly): its
+ *   files update in place to this release (`C.update.from-previous`). 1.0 ran
+ *   with `firstRelease` (the 0.x files get `upgrade`, not an in-file update).
+ *   orz-markdown 2.4.0 compares a previous release on the text-derived parts
+ *   only (STATUS D-60), so slides needs no separate run for it, unlike
+ *   orz-mdhtml 1.0.1;
+ * - `twinLinks: true` (1.1, orz-markdown 2.5.0): `assemble(text, { twinLinks })`
+ *   keeps the host's naming — the `C.links.*` checks must run and pass.
  *
  * The read view is the step-1 stub until rebuild step 3 (the engine), so
  * this run checks the kit's runtime as the slides kind uses it; at step 2
@@ -35,6 +40,10 @@ import { parseManifest } from 'orz-markdown/carrier/shell';
 import { buildBrowser, BUNDLE_FILE } from '../build/bundle.js';
 import { assemble, engineFiles, newDocument, VERSION } from '../src/lib.js';
 import { OFFLINE_ARGS } from './helpers.js';
+
+/** The previous release (the published orz-slides-browser, a devDependency alias pinned to it). */
+const PREVIOUS = join(process.cwd(), 'node_modules', 'orz-slides-browser-previous');
+const PREVIOUS_VERSION = '1.0.0';
 
 type Browser = import('playwright-core').Browser;
 
@@ -68,6 +77,14 @@ const EDITOR_DRIVER = `function (text) {
   return C.mountEditor(el, { text: text });
 }`;
 
+/** The check the main run deselects (KIT GAP, D-122; see the registrations at the end). */
+const LINKS_READ_VIEW_GAP = ['C.links.read-view'];
+
+/** The harness's links text (uid doc-conformance4l5n6k, no slide marker) made a deck: a slide marker before its heading. */
+export function asDeck(text: string): string {
+  return text.includes('uid: doc-conformance4l5n6k') && !text.includes('<!-- slide') ? text.replace(/\n# Twin links\n/, '\n<!-- slide -->\n# Twin links\n') : text;
+}
+
 let target: CarrierTarget | null = null;
 
 async function makeTarget(): Promise<CarrierTarget> {
@@ -85,13 +102,16 @@ async function makeTarget(): Promise<CarrierTarget> {
     version: VERSION,
     bundle: engine.bundle,
     release: engine.release,
-    assemble: (text, o) => assemble(text, o),
+    // the laws hold for every text the browser bundle assembles, a 0.x deck text included (the `deck-block` sample);
+    // the Node library refuses that one by default (D-112: convert it with upgradeText first), so the target opts in
+    assemble: (text, o) => assemble(text, { ...o, legacy: 'as-is' }),
     create: () => newDocument({ template: 'minimal' }),
     samples: SAMPLES,
     protocols: { ai: true, include: true },
     editor: EDITOR_DRIVER,
     next: { bundle: join(nextDir, BUNDLE_FILE), release: join(nextDir, 'release.json') },
-    firstRelease: true,
+    previous: { bundle: join(PREVIOUS, BUNDLE_FILE), release: join(PREVIOUS, 'release.json') },
+    twinLinks: true,
   };
   return target;
 }
@@ -118,7 +138,7 @@ afterAll(async () => {
 describe('the conformance target', () => {
   beforeAll(async () => { await makeTarget(); }, 120_000);
 
-  it('[H.2] the target is the real carrier: the library\'s engine and manifest, its assemble and newDocument, a next build with a higher version, firstRelease', async () => {
+  it('[H.2] the target is the real carrier: the library\'s engine and manifest, its assemble and newDocument, a next build with a higher version, the published previous release, twinLinks', async () => {
     const t = await makeTarget();
     const own = await buildBrowser();
     expect(readFileSync(t.bundle, 'utf8') === own.iife).toBe(true);
@@ -132,11 +152,24 @@ describe('the conformance target', () => {
     expect(bumpPatch('1.0.0-rc.1')).toBe('1.0.0');
     // the next build differs from this one only by its version
     expect(readFileSync(t.next!.bundle, 'utf8').split(JSON.stringify(bumpPatch(VERSION))).join('V') === own.iife.split(JSON.stringify(VERSION)).join('V')).toBe(true);
-    expect(t.firstRelease).toBe(true);
-    expect(t.previous).toBeUndefined();
+    expect(t.firstRelease).toBeUndefined();
+    expect(t.twinLinks).toBe(true);
+    expect(JSON.parse(readFileSync('package.json', 'utf8')).devDependencies['orz-slides-browser-previous']).toBe(`npm:orz-slides-browser@${PREVIOUS_VERSION}`);
+    const prev = parseManifest(JSON.parse(readFileSync(t.previous!.release, 'utf8')), 'slides');
+    expect(prev?.version).toBe(PREVIOUS_VERSION);
+    expect(readFileSync(t.previous!.bundle, 'utf8').length).toBeGreaterThan(100_000);
     const text = await t.create();
     expect(await t.assemble(text)).toBe(assemble(text, { engineSource: own.iife }));
-    expect(CHECK_IDS.length).toBe(46);
+    // a 0.x deck text: the library refuses it by default (D-112), the target assembles it as the browser bundle does
+    expect(() => assemble(SAMPLES['deck-block']!)).toThrow(/upgradeText/);
+    expect(await t.assemble(SAMPLES['deck-block']!)).toBe(assemble(SAMPLES['deck-block']!, { legacy: 'as-is' }));
+    expect(CHECK_IDS.length).toBe(50);
+    // the KIT GAP (D-122): only C.links.read-view is deselected from the main run, and it runs on a deck of the text
+    expect(LINKS_READ_VIEW_GAP).toEqual(['C.links.read-view']);
+    expect(CHECK_IDS).toContain('C.links.read-view');
+    const links = '{{nyml\nkind: document\ntitle: Twin links\nuid: doc-conformance4l5n6k\n}}\n\n# Twin links\n\nSee [week two](week2.slides.md#s3).\n';
+    expect(asDeck(links)).toBe(links.replace('\n# Twin links', '\n<!-- slide -->\n# Twin links'));
+    expect(asDeck(SAMPLES['presentation']!)).toBe(SAMPLES['presentation']);
   });
 });
 
@@ -149,5 +182,24 @@ if (!browser) {
     // two playwright-core type copies while orz-markdown is linked from a checkout; one object at run time
     browser: browser as never,
     log: (line) => log.push(line),
+    // KIT GAP (orz-markdown 2.5.0; STATUS D-122): C.links.read-view opens a file of the harness's LINKS_TEXT, a
+    // text with no slide marker, which a deck renders as no slides (lint text-before-first-slide) — the read view
+    // can show no link at all. It runs below in a registration of its own, on that text made a deck. Only this
+    // check is deselected here (allowSkips: a deselected check passes [conformant]; a failed one still fails it).
+    skip: LINKS_READ_VIEW_GAP,
+    allowSkips: true,
+  });
+  // KIT GAP (above): the same check with LINKS_TEXT as a deck — one `<!-- slide -->` marker before its heading; the
+  // file keeps the naming, its links and their order, so the check's oracle (the read view's hrefs) is unchanged
+  registerConformance({ describe, it, beforeAll, afterAll }, async () => {
+    const t = await makeTarget();
+    return { ...t, assemble: (text, o) => t.assemble(asDeck(text), o) };
+  }, {
+    title: '[H.1] orz-slides conformance: C.links.read-view on the links text made a deck (KIT GAP, D-122; real Chrome)',
+    browser: browser as never,
+    log: (line) => log.push(line),
+    only: LINKS_READ_VIEW_GAP,
+    // the other checks ran above; here only this one must pass
+    allowSkips: true,
   });
 }

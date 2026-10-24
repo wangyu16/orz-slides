@@ -49,6 +49,7 @@ import { parseDeck, TEMPLATES } from '../../deck/parse.js';
 import { leaves } from '../../deck/layout-spec.js';
 import { planDeck } from '../../deck/plan.js';
 import { presentationOf, slideSize } from '../../presentation.js';
+import { twinLinksEnv } from '../../present/render.js';
 import { renderSlide, type Renderer } from '../../render-slide.js';
 import type { Deck, Slide, SlideLint } from '../../types.js';
 import type { SlideLayoutGui, StageGeometry, StageHost, StageParts, StagePreview } from './per-slide.js';
@@ -301,12 +302,12 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
   const sourceOf = (text: string): Promise<{ text: string; env: Record<string, unknown> }> => {
     const record = rc.includes ?? o.includes;
     const fetchInclude = rc.fetchInclude ?? o.fetchInclude;
-    const plain = { text, env: { ...includeRecordEnv(record ?? {}), orzTwinLinks: true } };
+    const plain = { text, env: { ...includeRecordEnv(record ?? {}), orzTwinLinks: twinLinksEnv(rc.twinLinks) } };
     if (!/\{\{\s*(?:markdown|md|md-include)\b/.test(text) || (!fetchInclude && !record)) return Promise.resolve(plain);
     if (sourceCache?.text === text) return sourceCache.source;
     const source = (async () => {
       const inc = await previewIncludes(text, { ...(record ? { includes: record } : {}), ...(fetchInclude ? { fetchInclude } : {}), ...(rc.cache ? { cache: rc.cache } : {}) });
-      const env: Record<string, unknown> = { ...includeRecordEnv(inc.includes ?? {}), orzTwinLinks: true };
+      const env: Record<string, unknown> = { ...includeRecordEnv(inc.includes ?? {}), orzTwinLinks: twinLinksEnv(rc.twinLinks) };
       if (!/\{\{[^}\n]*[a-z][a-z0-9+.-]*:\/\//i.test(text)) return { text, env };
       return { text: await prepareSources(text, { fetcher: inc.fetcher, includeEnv: env as never }).catch(() => text), env };
     })().catch(() => plain);

@@ -92,7 +92,7 @@ async function frameShowing(page: Page, text: string): Promise<Frame> {
 }
 
 chrome('the example web app (real Chrome, offline)', () => {
-  it('[X.1] two editors with every hook under a nonce CSP with \'strict-dynamic\': save, undo per instance, resolveAsset (flattened preview and live slide), fetchInclude, resolveLink, uploadAsset, ai, mintUid; chrome none drives the API — single-slide editing and a layout op (applyOp → applyEdits, one undo step); Cmd/Ctrl+P goes to the app; no CSP violation, no page error, no update check', async () => {
+  it('[X.1] two editors with every hook under a nonce CSP with \'strict-dynamic\': save, undo per instance, resolveAsset (flattened preview and live slide), fetchInclude, resolveLink, uploadAsset, ai, mintUid; chrome none drives the API — single-slide editing and a layout op (applyOp → applyEdits, one undo step); Cmd/Ctrl+P goes to the app, [X.11] which prints the deck with printDeck (one page per slide in the kit\'s sandboxed print frame, never the app page); no CSP violation, no page error, no update check', async () => {
     const log: string[] = [];
     const { page, errors, consoleLines } = await open('/examples/webapp/index.html', log);
     await page.waitForFunction(() => !!(globalThis as unknown as { demo?: unknown }).demo);
@@ -196,10 +196,29 @@ chrome('the example web app (real Chrome, offline)', () => {
     await page.locator('#editor-a .cm-content').first().click();
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+p' : 'Control+p');
     await page.waitForFunction(() => (globalThis as unknown as { demo: Demo }).demo.calls.some((c) => c.hook === 'print'));
+    // [X.11] the app prints the deck itself (printDeck, D-114): the kit's print frame (hidden, sandboxed) holds the
+    // deck's print document — one page per slide, the includes the app resolved, no script — and reports it printed
+    let pages = 0;
+    for (let i = 0; i < 300 && pages === 0; i++) {
+      for (const f of page.frames()) {
+        if (f === page.mainFrame()) continue;
+        const marked = await f.frameElement().then((e) => e.getAttribute('data-orz-print')).catch(() => null);
+        if (marked === null) continue;
+        pages = await f.evaluate(() => (document.documentElement.classList.contains('orz-slides-print') && (document.body.textContent ?? '').includes('resists pH change') && (document.body.textContent ?? '').includes('the acidity scale') ? document.querySelectorAll('.orz-page > section.orz-slide').length : 0)).catch(() => 0);
+      }
+      if (pages === 0) await page.waitForTimeout(100);
+    }
+    const slideCount = await page.evaluate(() => { const g = globalThis as unknown as { demo: Demo; OrzCarrier: { layout: { parseDeck(t: string): { slides: unknown[] } } } }; return g.OrzCarrier.layout.parseDeck(g.demo.editors.a.getText()).slides.length; });
+    expect(slideCount).toBeGreaterThanOrEqual(3);
+    expect(pages, 'the print frame holds one page per slide of the deck').toBe(slideCount);
+    await page.waitForFunction(() => (globalThis as unknown as { demo: Demo }).demo.calls.some((c) => c.hook === 'printed'), null, { timeout: 60_000 });
+    expect((await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).filter((c) => c.hook === 'printed').map((c) => c.detail)).toEqual(['a true']);
+    // the measuring frame is gone, the app page never printed
+    expect(await page.locator('iframe[data-orz-slides-print-stage]').count()).toBe(0);
     expect(await page.evaluate(() => (window as unknown as { __pagePrints: number }).__pagePrints)).toBe(0);
 
     const hooks = new Set((await page.evaluate(() => (globalThis as unknown as { demo: Demo }).demo.calls)).map((c) => c.hook));
-    expect([...hooks].sort()).toEqual(['ai', 'fetchInclude', 'mintUid', 'print', 'resolveAsset', 'resolveLink', 'save', 'uploadAsset']);
+    expect([...hooks].sort()).toEqual(['ai', 'fetchInclude', 'mintUid', 'print', 'printed', 'resolveAsset', 'resolveLink', 'save', 'uploadAsset']);
     // the library view: readDocument without rendering, renderPreview (the flattened deck, themed, nonce-stamped) in a sandboxed frame
     expect(await page.locator('#library li').first().textContent()).toContain('Buffers — lecture 3 (doc-webappslides01, theme orchard, 16:9)');
     const thumb = await page.locator('#thumb').getAttribute('srcdoc');
@@ -414,7 +433,7 @@ describe('the app author\'s guide and the browser package', () => {
     const doc = readFileSync('docs/embedding.md', 'utf8');
     for (const term of ['npm install orz-slides-browser', 'globalThis.OrzCarrier', 'esm/orz-slides.browser.mjs', 'mountEditor', 'assemble', 'extract', 'readDocument', 'renderPreview', 'newDocument', 'TEMPLATE_IDS',
       'save(text)', 'ai.request', 'fetchInclude', 'resolveAsset', 'uploadAsset', 'resolveLink', 'mintUid', 'nonce', 'Content-Security-Policy', "'strict-dynamic'", 'pins the component version', 'files carry their own shells',
-      'flattened', 'live slide card', 'single-slide editing', 'setPerSlide', 'applyOp', 'applyEdits', 'OrzCarrier.layout', 'style-src-attr', 'fonts.gstatic.com', 'print', 'frame-src https://www.youtube.com']) {
+      'flattened', 'live slide card', 'single-slide editing', 'setPerSlide', 'applyOp', 'applyEdits', 'OrzCarrier.layout', 'style-src-attr', 'fonts.gstatic.com', 'print', 'frame-src https://www.youtube.com', 'printDeck', 'twinLinks', 'includeTargets', 'linkTargets', 'themeSwatch']) {
       expect(doc, term).toContain(term);
     }
     expect(readFileSync('examples/webapp/index.html', 'utf8')).toMatch(/http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-[^']+' 'strict-dynamic'/);

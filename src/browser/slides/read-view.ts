@@ -100,6 +100,8 @@ export function createReadView(doc: Document): SlidesReadView {
       await engine.render(t, {
         ...(ctx.includes ? { includes: ctx.includes } : {}),
         ...(ctx.fetchInclude ? { fetchInclude: ctx.fetchInclude } : {}),
+        // the file's twin-link naming (#orz-shell "links", orz-markdown 2.5.0): the deck, its print and speaker view
+        ...(ctx.twinLinks ? { twinLinks: ctx.twinLinks } : {}),
       });
       // the shell's fallback line goes once the deck shows
       view.querySelector(':scope > .orz-fallback')?.remove();

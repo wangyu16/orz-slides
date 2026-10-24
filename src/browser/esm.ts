@@ -13,12 +13,12 @@
  * per-slide editor (`applyOp` → minimal text edits for `editor.applyEdits`,
  * `slideMap`), so an app can offer its own layout tools on the same text.
  */
-import { assemble, extract, formats, kind, mountEditor as mount, readDocument, renderPreview, version, type Editor, type EditorOptions } from './carrier.js';
+import { assemble, extract, formats, includeTargets, kind, linkTargets, mountEditor as mount, printDeck, printDocument, readDocument, renderPreview, version, type Editor, type EditorOptions } from './carrier.js';
 import { LAYOUT_API } from './layout-api.js';
 
-export { assemble, extract, formats, kind, readDocument, renderPreview, version, editHeader } from './carrier.js';
-export type { Editor, EditorOptions, RenderPreviewOptions, DocumentInfo, Extracted, HeaderChange, EditorHooks, PreferenceStore } from './carrier.js';
-export { THEMES, DEFAULT_THEME } from '../themes.js';
+export { assemble, extract, formats, kind, readDocument, renderPreview, version, editHeader, includeTargets, linkTargets, printDeck, printDocument } from './carrier.js';
+export type { Editor, EditorOptions, RenderPreviewOptions, DocumentInfo, Extracted, HeaderChange, EditorHooks, PreferenceStore, TwinNaming, LinkTarget, PrintDeckOptions } from './carrier.js';
+export { THEMES, DEFAULT_THEME, themeSwatch } from '../themes.js';
 export { newDocument } from '../assemble.js';
 export { TEMPLATES, TEMPLATE_IDS, DEFAULT_TEMPLATE } from '../starters.js';
 export { parseDeck } from '../deck/parse.js';
@@ -31,4 +31,4 @@ export function mountEditor(element: HTMLElement, options: EditorOptions): Edito
 }
 
 /** The FC-19 §2 surface as one object (the IIFE's `globalThis.OrzCarrier`, without booting a file). */
-export const OrzCarrier = Object.freeze({ kind, version, formats, assemble, extract, readDocument, mountEditor, renderPreview, layout: LAYOUT_API });
+export const OrzCarrier = Object.freeze({ kind, version, formats, assemble, extract, readDocument, mountEditor, renderPreview, includeTargets, linkTargets, printDocument, printDeck, layout: LAYOUT_API });

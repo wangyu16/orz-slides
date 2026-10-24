@@ -14,7 +14,7 @@
  * src/assemble.ts — the same function the Node library runs, so Node and the
  * browser write the same bytes (FC-18 law 2).
  */
-import { extract as kitExtract, type DocumentInfo, type Extracted, type HeaderChange } from 'orz-markdown/carrier';
+import { extract as kitExtract, type DocumentInfo, type Extracted, type HeaderChange, type TwinNaming } from 'orz-markdown/carrier';
 import { attachAiMenu, attachSettings, button, captureEngineSource, followPresentation, type EngineSource, type StandaloneContext } from 'orz-markdown/carrier/app';
 import { createEditorShell, type EditorHooks, type EditorShell } from 'orz-markdown/carrier/editor';
 import type { PreferenceStore } from 'orz-markdown/carrier/shell';
@@ -35,7 +35,9 @@ export const kind = 'slides' as const;
 export const version: string = VERSION;
 export const formats: number[] = [...FORMATS];
 
-export type { DocumentInfo, Extracted, HeaderChange, EditorHooks, PreferenceStore };
+export type { DocumentInfo, Extracted, HeaderChange, EditorHooks, PreferenceStore, TwinNaming };
+/** (1.1) The kit's browser-safe targets of a text (orz-markdown 2.5.0 K2): its include directives and its links. */
+export { includeTargets, linkTargets, type LinkTarget } from '../assemble.js';
 
 /**
  * The engine an inline assembly writes when no `engineSource` is given. The
@@ -97,8 +99,11 @@ export interface RenderPreviewOptions {
   fetchInclude?(target: string): Promise<string | null>;
   /** Resolved includes (`extract(html).includes`): target as written → text. */
   includes?: Readonly<Record<string, string>>;
-  /** `false`: links as written; default `true` (links to text twins point at their `.html` form). */
-  twinLinks?: boolean;
+  /**
+   * `false`: links as written; default `true` (links to text twins point at their `.html` form); (1.1) a naming
+   * (FC-18 §8.2, e.g. `{ slides: '{stem}.html' }`): links to text twins point at the host's names.
+   */
+  twinLinks?: boolean | TwinNaming;
   /**
    * `true`: a whole HTML document for a sandboxed iframe's `srcdoc` — the
    * header's slide theme, the deck structure and the flattened preview's
@@ -133,7 +138,7 @@ export async function renderPreview(text: string, options: RenderPreviewOptions 
   const inner = await renderFlat(text, {
     ...(options.fetchInclude ? { fetchInclude: options.fetchInclude } : {}),
     ...(options.includes ? { includes: options.includes } : {}),
-    ...(options.twinLinks === false ? { twinLinks: false } : {}),
+    ...(options.twinLinks === false || (options.twinLinks && typeof options.twinLinks === 'object') ? { twinLinks: options.twinLinks } : {}),
   });
   if (!options.document) return inner;
   const p = presentationOf(text);
@@ -183,6 +188,14 @@ export interface EditorOptions {
    * mounted on an assembled file saves under the file's own name.
    */
   fileName?: string;
+  /**
+   * FC-19 §3 `twinLinks` (1.1, orz-markdown 2.5.0): the host's twin-link
+   * naming (FC-18 §8.2, e.g. `{ slides: '{stem}.html', md: '{stem}.html' }`):
+   * the flattened preview and the live slide name links to text twins so, and
+   * a save without `hooks.save` stores it in the file. In an assembled file
+   * the file's own naming is used.
+   */
+  twinLinks?: TwinNaming;
 }
 
 /**
@@ -227,6 +240,8 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
   const fetchInclude = appHooks.fetchInclude ?? ctx?.fetchInclude;
   const hooks: EditorHooks = { ...appHooks, ...(ai ? { ai } : {}), ...(fetchInclude ? { fetchInclude } : {}) };
   const preferences = options.preferences ?? ctx?.preferences;
+  // the twin-link naming (FC-18 §8.2): the opened file's, else the app's
+  const twinLinks = ctx ? ctx.twinLinks : options.twinLinks;
   // the frame is written for the header's theme (followPresentation rebuilds it when the theme changes)
   const theme: FrameTheme = { id: presentationOf(options.text).theme.id };
   const present = (text: string) => slidesPreviewPresentation(text, theme);
@@ -248,6 +263,7 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
     ...(preferences ? { preferences } : {}),
     ...(options.nonce ? { nonce: options.nonce } : {}),
     ...(ctx?.adapter ? { adapter: ctx.adapter } : {}),
+    ...(twinLinks ? { twinLinks } : {}),
     hooks,
     ...(isApp ? {
       ...(options.includes ? { includes: options.includes } : {}),
@@ -262,7 +278,7 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
       standalone: ctx.standalone,
     } : {
       // no hooks.save and no file: an inline file of the text (with the app's includes), through the picker or a download
-      assemble: (t: string, o?: { includes?: Record<string, string> }) => assemble(t, { ...(o?.includes ? { includes: o.includes } : {}) }),
+      assemble: (t: string, o?: { includes?: Record<string, string>; twinLinks?: TwinNaming }) => assemble(t, { ...(o?.includes ? { includes: o.includes } : {}), ...(o?.twinLinks ? { twinLinks: o.twinLinks } : {}) }),
       ...(options.includes ? { includes: options.includes } : {}),
       ...(typeof options.fileName === 'string' && options.fileName !== '' ? { fileName: options.fileName } : {}),
     }),
@@ -323,6 +339,14 @@ export function mountEditor(element: HTMLElement, options: EditorOptions, standa
   };
   return Object.assign(shell, { slides: tools }) as Editor;
 }
+
+/**
+ * (1.1, D-114) Printing from an app (FC-19 §8.5): the kit's `printDocument(html, { nonce })` prints a whole document
+ * in a hidden sandboxed frame; `printDeck(text, { notes, nonce, includes })` prints a deck as the file's Print does
+ * (one slide per page) — what an app's `editor.on('print', …)` listener calls.
+ */
+export { printDocument } from 'orz-markdown/carrier/editor';
+export { printDeck, deckPrintDocument, type PrintDeckOptions } from './slides/app-print.js';
 
 /** Re-exported for apps: the header edit the pickers apply (FC-18 §9). */
 export { editHeader } from 'orz-markdown/carrier';

@@ -31,6 +31,7 @@ import {
   type HeaderChange,
   type Kind,
   type ShellParts,
+  type TwinNaming,
 } from 'orz-markdown/carrier';
 import { bundleUrl, isScriptSafe } from 'orz-markdown/carrier/shell';
 import { headerLint, RATIOS } from './deck/config.js';
@@ -40,8 +41,8 @@ import { DEFAULT_TEMPLATE, isTemplateId, starterBody, TEMPLATE_IDS } from './sta
 import { isThemeId, THEME_VALUES } from './themes.js';
 import { VERSION } from './version.js';
 
-export { extract } from 'orz-markdown/carrier';
-export type { Extracted, DocumentInfo, Kind } from 'orz-markdown/carrier';
+export { extract, includeTargets, linkTargets } from 'orz-markdown/carrier';
+export type { Extracted, DocumentInfo, Kind, TwinNaming, LinkTarget } from 'orz-markdown/carrier';
 
 /** The browser bundle's file name inside `orz-slides-browser` (its `release.json` `bundle.path`). */
 export const BUNDLE_FILE = 'orz-slides.browser.js';
@@ -101,6 +102,15 @@ export interface AssembleOptions {
   engineSource?: string;
   /** Resolved includes, stored in `#orz-includes` exactly as given (FC-18 §8.3, D4). */
   includes?: Record<string, string>;
+  /**
+   * (1.1, orz-markdown 2.5.0) The host's twin-link naming (FC-18 §8.2), e.g.
+   * `{ slides: '{stem}.html' }`: links to text twins in the read view, print
+   * and speaker view point at these names, and the file keeps the naming
+   * (`#orz-shell` `"links"`, only when it is not the family naming: a file
+   * without it keeps its exact bytes) through every save and the update.
+   * An invalid naming throws.
+   */
+  twinLinks?: TwinNaming | null;
 }
 
 /**
@@ -141,6 +151,7 @@ export function shellParts(options: AssembleOptions = {}, presentation: Presenta
     headHtml: shellHead(presentation, { deferred: true }),
     bodyHtml: `${readViewMarkup(presentation, delivery)}\n<div id="${CHROME_MOUNT_ID}"></div>\n${engine}`,
     ...(includes ? { includes } : {}),
+    ...(options.twinLinks ? { twinLinks: options.twinLinks } : {}),
   };
 }
 

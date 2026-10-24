@@ -440,7 +440,7 @@ export interface UpgradeOptions extends AssembleOptions {
  * Upgrade an orz-slides file to text format 1 with this shell: a 0.x file
  * becomes a 1.0 text ({@link upgradeText} of its `#orz-deck` source,
  * with its `<title>` and `#orz-meta`) and that text's file; a file of orz-slides 1.0 or later
- * is re-assembled with its text and includes unchanged. Throws for anything
+ * is re-assembled with its text, includes and twin-link naming unchanged. Throws for anything
  * else (another kind, a newer format, a newer shell without `downgrade`).
  */
 export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResult {
@@ -455,7 +455,9 @@ export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResu
       throw new Error(`orz-slides upgrade: the file's shell (orz-slides ${ex.shell}) is newer than this tool (${VERSION}); upgrading would downgrade it`);
     }
     const includes = assembleOptions.includes ?? ex.includes;
-    return { text: ex.text, html: assemble(ex.text, { ...assembleOptions, ...(includes ? { includes } : {}) }), from: 'format-1', version: null, moved: {}, notes: [] };
+    // the file's twin-link naming (#orz-shell "links", FC-18 §8.2) is kept, as its includes are
+    const twinLinks = assembleOptions.twinLinks !== undefined ? assembleOptions.twinLinks : ex.twinLinks;
+    return { text: ex.text, html: assemble(ex.text, { ...assembleOptions, ...(includes ? { includes } : {}), ...(twinLinks ? { twinLinks } : {}) }), from: 'format-1', version: null, moved: {}, notes: [] };
   }
   const up = upgradeText(legacy.text, { ...(uid !== undefined ? { uid } : {}), file: { title: legacy.title, meta: legacy.meta, defaultTheme: legacy.defaultTheme } });
   return { text: up.text, html: assemble(up.text, assembleOptions), from: 'legacy', version: legacy.version, moved: up.moved, notes: [...legacy.notes, ...up.notes] };

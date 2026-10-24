@@ -3,7 +3,7 @@
   "browser": "browser",
   "kit": {
     "name": "orz-markdown",
-    "required": "2.4.0"
+    "required": "2.5.0"
   },
   "manifest": "browser/release.json",
   "bundles": [

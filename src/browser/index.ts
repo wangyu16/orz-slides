@@ -11,11 +11,13 @@
  *
  * In the quiet update's sandbox and in an app's page there is no island: only
  * the global is set, nothing else is touched. The global also carries
- * `layout` (src/browser/layout-api.ts): the parser and the layout ops.
+ * `layout` (src/browser/layout-api.ts): the parser and the layout ops; (1.1)
+ * `includeTargets` / `linkTargets` (the kit's, K2), `printDocument` (the
+ * kit's) and `printDeck` (an app prints a deck: D-114).
  */
 import { captureEngineSource, startCarrier } from 'orz-markdown/carrier/app';
 import { BUNDLE_FILE } from '../assemble.js';
-import { useEngineSource } from './carrier.js';
+import { includeTargets, linkTargets, printDeck, printDocument, useEngineSource } from './carrier.js';
 import { LAYOUT_API } from './layout-api.js';
 import { SLIDES_KIND } from './slides/kind.js';
 
@@ -23,4 +25,4 @@ useEngineSource(captureEngineSource(undefined, { bundle: BUNDLE_FILE }));
 const { carrier } = startCarrier(SLIDES_KIND);
 // orz-slides' extension of the FC-19 global: the format-1 parser and the per-slide editor's pure layout ops, for apps
 // that load the IIFE with a <script> (the ES module exports them by name)
-try { (carrier as unknown as Record<string, unknown>).layout = LAYOUT_API; } catch { /* a frozen global */ }
+try { Object.assign(carrier as unknown as Record<string, unknown>, { layout: LAYOUT_API, includeTargets, linkTargets, printDocument, printDeck }); } catch { /* a frozen global */ }

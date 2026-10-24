@@ -9,10 +9,7 @@
 import type { SettingControl } from 'orz-markdown/carrier/app';
 import { deckConfig, RATIOS } from '../../deck/config.js';
 import { presentationOf } from '../../presentation.js';
-import { THEMES, themeOf } from '../../themes.js';
-
-/** A swatch colour per scheme (the chrome cannot read a theme's colours without loading it). */
-const SWATCH = { light: 'oklch(97% 0.01 100)', dark: 'oklch(28% 0.02 260)' } as const;
+import { THEMES, themeOf, themeSwatch } from '../../themes.js';
 
 const YES_NO = Object.freeze([{ value: 'yes', label: 'Shown' }, { value: 'no', label: 'Hidden' }]);
 const STYLE_LABEL: Readonly<Record<string, string>> = Object.freeze({ '01': '01, 02, 03', plain: '1, 2, 3', roman: 'I, II, III', none: 'None' });
@@ -22,7 +19,7 @@ export const SLIDES_SETTINGS: readonly SettingControl[] = Object.freeze([
     key: 'theme',
     label: 'Theme',
     icon: 'theme',
-    choices: THEMES.map((t) => ({ value: t.id, label: t.name, swatch: SWATCH[t.scheme] })),
+    choices: THEMES.map((t) => ({ value: t.id, label: t.name, swatch: themeSwatch(t.id) })),
     current: (text: string) => presentationOf(text).theme.id,
   },
   {

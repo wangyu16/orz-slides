@@ -7,6 +7,7 @@
  * (plugins, twin links) in the 1.0 DOM contract (src/render-slide.ts).
  */
 import { md, prepareSources } from 'orz-markdown';
+import type { TwinNaming } from 'orz-markdown/carrier';
 import { includeRecordEnv } from 'orz-markdown/carrier/editor';
 import { parseDeck } from '../deck/parse.js';
 import { renderDeck, type Renderer } from '../render-slide.js';
@@ -20,6 +21,20 @@ export interface DeckRenderContext {
   includes?: Readonly<Record<string, string>>;
   /** A connected host's include resolution (URLs). */
   fetchInclude?(target: string): Promise<string | null>;
+  /**
+   * (1.1, orz-markdown 2.5.0) The file's twin-link naming (`#orz-shell` `"links"`, FC-18 §8.2): links to text twins
+   * point at these names. Absent: the family names (`x.slides.md` → `x.slides.html`).
+   */
+  twinLinks?: TwinNaming;
+}
+
+/**
+ * The `orzTwinLinks` value of a render's env (orz-markdown's twin-link rule): `false` keeps links as written (an app
+ * resolving links itself), a naming (FC-18 §8.2) names twins the host's way, anything else the family's way.
+ */
+export function twinLinksEnv(v: boolean | TwinNaming | null | undefined): boolean | TwinNaming {
+  if (v === false) return false;
+  return v && typeof v === 'object' ? v : true;
 }
 
 export interface RenderedDeck {
@@ -41,7 +56,7 @@ export const logicalSize: (ratio: Ratio) => { width: number; height: number } = 
 /** Render a deck text (see the module comment). */
 export async function renderDeckText(text: string, ctx: DeckRenderContext = {}): Promise<RenderedDeck> {
   const rec = ctx.includes;
-  const env: Record<string, unknown> = { ...includeRecordEnv(rec ?? {}), orzTwinLinks: true };
+  const env: Record<string, unknown> = { ...includeRecordEnv(rec ?? {}), orzTwinLinks: twinLinksEnv(ctx.twinLinks) };
   let source = text;
   // a directive with a URL in it (prepareSources expands only the include directives among them)
   const hasUrlIncludes = /\{\{[^}\n]*[a-z][a-z0-9+.-]*:\/\//i.test(text);

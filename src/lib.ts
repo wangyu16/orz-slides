@@ -30,6 +30,8 @@ import { findChrome, layoutReport, type LayoutReport } from './layout-report.js'
 import { engineSource } from './engine.js';
 
 export { extract, readDocument, newDocument, storedText, cdnBundleUrl, BUNDLE_FILE, FORMATS, type AssembleOptions, type NewDocumentOptions, type Extracted, type DocumentInfo, type Kind } from './assemble.js';
+// (1.1) orz-markdown 2.5.0: the twin-link naming's type (assemble's `twinLinks`) and the browser-safe targets of a text (K2)
+export { includeTargets, linkTargets, type TwinNaming, type LinkTarget } from './assemble.js';
 export { readLegacy, upgradeText, extractLegacy, type LegacyFile, type UpgradeResult, type UpgradeOptions, type TextUpgrade, type UpgradeTextOptions } from './legacy.js';
 export { upgradeReport, reportNotes, type UpgradeReport } from './upgrade-report.js';
 export { browserName, upgradeTextName, type InspectReport, type InspectOptions } from './inspect.js';
@@ -44,7 +46,7 @@ export {
 } from './layout-ops.js';
 export { deckConfig, RATIOS, SECTION_NUMBERS } from './deck/config.js';
 export { parseLayoutSpec, serialiseLayout, expandPreset, slideMarker, PRESETS, PRESET_REGIONS } from './deck/layout-spec.js';
-export { THEMES, DEFAULT_THEME, DROPPED_THEMES, isThemeId, resolveTheme, type SlideTheme } from './themes.js';
+export { THEMES, DEFAULT_THEME, DROPPED_THEMES, isThemeId, resolveTheme, themeSwatch, type SlideTheme } from './themes.js';
 export { sha256 } from 'orz-markdown/carrier';
 export { VERSION } from './version.js';
 export { engineSource, engineFiles, type EngineFiles } from './engine.js';

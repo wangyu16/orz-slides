@@ -10,6 +10,12 @@ export type Kind = 'md' | 'slides' | 'paged';
 export type EditorMode = 'split' | 'editor' | 'preview';
 export type HeaderChange = string | null | { multiline: string };
 export type Ratio = '16:9' | '4:3';
+/**
+ * (1.1, orz-markdown 2.5.0) A twin-link naming (FC-18 §8.2): per-kind file-name templates — `{stem}` once, then only
+ * `A-Z a-z 0-9 . _ -`, ending in `.html`, same folder — e.g. `{ slides: '{stem}.html', md: '{stem}.html' }`. A kind
+ * left out keeps the family name (`x.slides.md` → `x.slides.html`).
+ */
+export type TwinNaming = Partial<Record<Kind, string>>;
 
 export interface AssembleOptions {
   /** `inline` (default) inlines the engine; `cdn` loads it from jsDelivr. */
@@ -18,6 +24,8 @@ export interface AssembleOptions {
   engineSource?: string;
   /** Resolved includes stored in `#orz-includes` exactly as given. */
   includes?: Record<string, string>;
+  /** (1.1) The host's twin-link naming: links to text twins point at these names, and the file keeps it (`#orz-shell` `"links"`, only when it is not the family naming). An invalid naming rejects. */
+  twinLinks?: TwinNaming;
 }
 
 export interface Extracted {
@@ -27,6 +35,8 @@ export interface Extracted {
   shell: string;
   delivery: string;
   includes?: Record<string, string>;
+  /** (1.1) The file's twin-link naming (`#orz-shell` `"links"`); absent: the family naming. */
+  twinLinks?: TwinNaming;
   /**
    * (1.1) An orz-slides 0.x file: `text` is what the Node `upgrade` writes (the deck block, title, metadata and the
    * theme 0.x showed moved into one header; a fresh uid when it had none), `shell` is ''; what was converted.
@@ -88,6 +98,8 @@ export interface EditorOptions {
   includes?: Record<string, string>;
   /** FC-19 §3 `fileName`: the suggested file name of saves without `hooks.save` (picker and download), e.g. `talk.slides.html`; default `document.slides.html`. */
   fileName?: string;
+  /** (1.1) FC-19 §3 `twinLinks`: your twin-link naming — the preview and the live slide name links to text twins so, and a save without `hooks.save` stores it in the file. */
+  twinLinks?: TwinNaming;
 }
 
 export type SaveVia = 'hook' | 'host' | 'file' | 'download';
@@ -188,7 +200,8 @@ export interface Editor {
 export interface RenderPreviewOptions {
   fetchInclude?(target: string): Promise<string | null>;
   includes?: Readonly<Record<string, string>>;
-  twinLinks?: boolean;
+  /** `false`: links as written; default `true` (links to text twins point at their `.slides.html` / `.md.html` form); (1.1) a naming: the host's names. */
+  twinLinks?: boolean | TwinNaming;
   /**
    * A whole HTML document (the header's slide theme and the flattened
    * preview's styles inline, KaTeX and highlight.js stylesheets linked, the
@@ -214,6 +227,42 @@ export interface SlideTheme {
   derivedFrom: string | null;
   sectionNumbers: 'plain' | 'roman' | '01' | 'none';
   description: string;
+  /** (1.1) The slide's page colour (a picker's swatch). */
+  paper: string;
+  /** (1.1) The theme's signature colour (a picker's swatch). */
+  accent: string;
+}
+
+/** (1.1) One link of a text (`linkTargets`, orz-markdown 2.5.0). */
+export interface LinkTarget {
+  /** The target as the renderer writes it (a Markdown destination percent-encoded; a raw `<a href>` as written). */
+  href: string;
+  /** 1-based line of the whole text (header lines counted). */
+  line: number;
+  /** `twin`: a relative link to a text twin; `asset`: another relative path; `other`: an absolute URL, `//host`, a fragment or query. */
+  kind: 'twin' | 'asset' | 'other';
+  image: boolean;
+  raw: boolean;
+}
+
+/** (1.1) Options of `printDeck`. */
+export interface PrintDeckOptions {
+  /** Each page: the slide over its speaker notes ("Print with notes"). */
+  notes?: boolean;
+  /** Resolved includes (target as written → text). */
+  includes?: Readonly<Record<string, string>>;
+  /** An include `includes` lacks (a URL): text or null — your trust policy. */
+  fetchInclude?(target: string): Promise<string | null>;
+  /** Your twin-link naming. */
+  twinLinks?: TwinNaming;
+  /** Your CSP nonce: stamped on the stylesheets of the measuring frame and the print document, and on the print frame's script. */
+  nonce?: string;
+  /** The page (default `document`). */
+  document?: Document;
+  /** How long the print frame waits for the document's fonts before printing anyway (ms). */
+  readyTimeoutMs?: number;
+  /** Told what print had to cut (a slide past the fit floor, notes past their page), in the reader's words. */
+  onCut?(message: string): void;
 }
 
 /** A deck template (`TEMPLATES`, `newDocument({ template })`). */
@@ -286,6 +335,24 @@ export declare function readDocument(text: string): DocumentInfo;
 export declare function renderPreview(text: string, options?: RenderPreviewOptions): Promise<string>;
 export declare function mountEditor(element: HTMLElement, options: EditorOptions): Editor;
 export declare function editHeader(text: string, changes: Readonly<Record<string, HeaderChange>>): string;
+/** (1.1) The include targets of a text's body, as written, in order, without repeats (orz-markdown 2.5.0, browser-safe). */
+export declare function includeTargets(text: string, directives?: readonly string[]): string[];
+/** (1.1) The links of a text as the parser reads them, with line and kind (orz-markdown 2.5.0): for a site builder's link check. */
+export declare function linkTargets(text: string): LinkTarget[];
+/**
+ * (1.1) orz-markdown's `printDocument`: print a whole HTML document in a hidden `srcdoc` frame sandboxed
+ * `allow-scripts allow-modals` (never your page); `true` once printed, `false` when the frame said nothing in time.
+ */
+export declare function printDocument(html: string, options?: { document?: Document; nonce?: string; readyTimeoutMs?: number; title?: string }): Promise<boolean>;
+/**
+ * (1.1) Print a deck from your page as an assembled file's Print does — one slide per page at the slide's size,
+ * every fragment shown, each slide fitted, cuts marked; `notes: true` as "Print with notes". The recipe for the
+ * editor's `print` event: `editor.on('print', () => printDeck(editor.getText(), { nonce }))`. `false` when a print
+ * of this page is still running or the frame said nothing in time.
+ */
+export declare function printDeck(text: string, options?: PrintDeckOptions): Promise<boolean>;
+/** (1.1) A CSS `background` for a theme picker's dot: the slide theme's page and signature colours, split diagonally. */
+export declare function themeSwatch(id: string | null | undefined): string;
 /** The 14 slide themes a header `theme` may name. */
 export declare const THEMES: readonly SlideTheme[];
 export declare const DEFAULT_THEME: string;
@@ -357,6 +424,12 @@ export interface OrzCarrierApi {
   readDocument: typeof readDocument;
   mountEditor: typeof mountEditor;
   renderPreview: typeof renderPreview;
+  /** (1.1) The kit's browser-safe targets of a text. */
+  includeTargets: typeof includeTargets;
+  linkTargets: typeof linkTargets;
+  /** (1.1) Printing from an app (D-114). */
+  printDocument: typeof printDocument;
+  printDeck: typeof printDeck;
   /** orz-slides' extension: the parser and the layout ops. */
   layout: LayoutApi;
   /** The booted file's handle in an assembled `.slides.html` (the IIFE only); null elsewhere. Not in the ES module's `OrzCarrier`. */
