@@ -271,7 +271,7 @@ x.slides.html -o x.browser.slides.md`, merge it into `x.slides.md`, then
 ## The library
 
 ```ts
-import { assemble, extract, readDocument, newDocument, inspect, inspectLayout, upgrade, upgradeText, parseDeck, applyOp, THEMES } from 'orz-slides';
+import { assemble, extract, readDocument, newDocument, inspect, inspectLayout, upgrade, upgradeText, parseDeck, applyOp, linkTargets, THEMES } from 'orz-slides';
 
 const text = newDocument({ template: 'talk', title: 'RAFT in five minutes', theme: 'nocturne' });
 const html = assemble(text);                     // inline (this release's engine); { delivery: 'cdn' } for the web

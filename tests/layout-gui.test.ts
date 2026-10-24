@@ -1172,9 +1172,24 @@ chrome('closed-loop round B2 probes (the layout GUI, real Chrome, offline)', () 
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     const bad: string[] = [];
+    // orz-markdown 2.5.0 (D-100): a rebuilt frame document (a theme change, setOptions) is a NEW iframe, shown once
+    // it has drawn — the frame to measure is the current one, not the one the test opened with
+    // (the previous one stays as a picture until then, at most 3 s: wait until one preview frame is left)
+    void frame;
+    const currentFrame = async (): Promise<Frame> => {
+      for (let i = 0; i < 100; i++) {
+        const live: Frame[] = [];
+        for (const x of page.frames()) {
+          if (x !== page.mainFrame() && !x.isDetached() && await x.evaluate(() => !!document.getElementById('orz-live')).catch(() => false)) live.push(x);
+        }
+        if (live.length === 1) return live[0]!;
+        await page.waitForTimeout(100);
+      }
+      throw new Error('not one current preview frame');
+    };
     const settledCard = async (k: number, how: string): Promise<void> => {
       await page.waitForTimeout(1600);
-      const f = await frame.evaluate(() => {
+      const f = await (await currentFrame()).evaluate(() => {
         const c = document.getElementById('orz-live')!;
         const r = c.getBoundingClientRect();
         const port = c.querySelector<HTMLElement>('.orz-live-port')!.getBoundingClientRect();
