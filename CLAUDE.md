@@ -92,9 +92,12 @@ Real-Chrome tests run **offline** (`OFFLINE_ARGS` in `tests/helpers.ts`:
 only files that load the CDN libraries on purpose launch `online: true`. The
 `chrome` project runs its files one at a time (timings); a timing test that
 fails under a full run is re-run alone. The `conformance` project runs
-orz-markdown's carrier harness (50 checks on kit 2.5, no skips, all pass:
-`previous` = the published orz-slides-browser 1.0.0, the devDependency alias
-`orz-slides-browser-previous`, and `twinLinks: true`) with a `next` build. Real-Chrome tests skip without an installed Chrome (playwright-core,
+orz-markdown's carrier harness (50 checks on kit 2.5, all pass: `previous` =
+the published orz-slides-browser 1.0.0, the devDependency alias
+`orz-slides-browser-previous`, and `twinLinks: true`) with a `next` build;
+`C.links.read-view` runs in a registration of its own on the harness's links
+text made a deck (KIT GAP, STATUS D-122: that text has no slide marker).
+Real-Chrome tests skip without an installed Chrome (playwright-core,
 channel `chrome`) — such a run verifies nothing "real".
 
 ## Architecture
