@@ -590,6 +590,42 @@ chrome('editing mode (a), whole deck (real Chrome, offline)', () => {
     }
   }, 180_000);
 
+  it('[W.10] D-135: at 390 px (a phone, touch) the live card in the preview keeps its head whole — "Slide 3 of 6" is not clipped and lies clear of the Edit chip, which shows its icon alone inside the card; the fold button lies inside the card and clear of the chip', async () => {
+    const { page, ctx, frame, errors } = await openEditor('d135-card.slides.html', SIX, { slide: 2, touch: true });
+    // a phone: one pane, the preview
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate('globalThis.OrzCarrier.standalone.editor().setMode("preview")');
+    await page.locator('[data-orz-slides-enlarge]').waitFor({ state: 'visible', timeout: 10_000 });
+    await frame.waitForFunction(() => !document.getElementById('orz-live')!.hidden && (document.querySelector('#orz-live .orz-live-n')?.textContent ?? '') !== '');
+    await page.waitForTimeout(600);
+    const card = await rectOf(page, '[data-orz-slides-enlarge]');
+    const chip = await rectOf(page, '.orz-slides-card__hint');
+    const fold = await rectOf(page, '[data-orz-slides-fold]');
+    expect(card.w).toBeLessThan(260);
+    expect(await root(page, "root.querySelector('[data-orz-slides-enlarge]').hasAttribute('data-compact')")).toBe(true);
+    expect(await root(page, "getComputedStyle(root.querySelector('.orz-slides-card__hint-word')).display")).toBe('none');
+    expect(chip.visible).toBe(true);
+    expect(chip.x).toBeGreaterThanOrEqual(card.x);
+    expect(chip.x + chip.w).toBeLessThanOrEqual(card.x + card.w);
+    expect(overlap(chip, fold)).toBe(false);
+    expect(fold.x + fold.w).toBeLessThanOrEqual(card.x + card.w + 0.5);
+    // the frame's head: the number whole (not clipped), clear of the chip
+    const ifr = (await page.locator('iframe.orz-editor__frame').boundingBox())!;
+    const n = await frame.evaluate(() => {
+      const e = document.querySelector<HTMLElement>('#orz-live .orz-live-n')!;
+      const r = e.getBoundingClientRect();
+      const head = e.parentElement!.getBoundingClientRect();
+      return { text: e.textContent, x: r.x, y: r.y, w: r.width, h: r.height, whole: e.scrollWidth <= e.clientWidth + 0.5 && r.right <= head.right + 0.5, compact: document.getElementById('orz-live')!.hasAttribute('data-compact') };
+    });
+    expect(n.text).toBe('Slide 3 of 6');
+    expect(n.compact).toBe(true);
+    expect(n.whole).toBe(true);
+    expect(overlap(chip, { x: n.x + ifr.x, y: n.y + ifr.y, w: n.w, h: n.h })).toBe(false);
+    await page.screenshot({ path: '/tmp/orz-d135-card-390.png' }).catch(() => undefined);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
+
   it('[W.10] round B2, B2-ED-3: the folded pill follows the idle checks — a slide found cut in idle time turns the pill to "cut on paper" without a caret move', async () => {
     const uid = 'doc-roundb2pill0001';
     const many = Array.from({ length: 45 }, (_, i) => `- bullet ${i + 1} with words enough for a line`).join('\n');

@@ -28,7 +28,7 @@
  */
 import { chartAspects, decorate } from '../../present/decorate.js';
 import { fitSlide } from '../../present/fit.js';
-import { cardLayout, stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
+import { cardCompact, cardLayout, stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
 
 interface LiveMessage {
   type: 'orz-slides-live';
@@ -172,6 +172,8 @@ const REFITS = 24;
     card.style.left = `${C.card.x}px`;
     card.style.top = `${C.card.y}px`;
     card.style.width = `${C.card.w}px`;
+    // (D-135) a narrow card (a phone): the page's chip is an icon, the head keeps its number whole
+    if (cardCompact(C.card.w)) card.setAttribute('data-compact', ''); else card.removeAttribute('data-compact');
     const w = C.card.w - 2;
     const s = w / shown.width;
     port.style.height = `${Math.round(shown.height * s)}px`;

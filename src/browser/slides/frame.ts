@@ -78,6 +78,10 @@ body.orz-live-on #orz-doc { padding-bottom: 46vh; }
 /* the head's right end holds the trusted page's Edit chip and fold button (round B2, GUI2-1) */
 .orz-live-head { display: flex; align-items: center; gap: 8px; height: 28px; box-sizing: border-box; padding: 0 100px 0 8px; border-bottom: 1px solid var(--orz-live-line); }
 @media (pointer: coarse) { .orz-live-head { padding-right: 116px; } }
+/* (D-135) a narrow card (a phone's preview): the page's Edit chip is an icon, so the number keeps its room; the fit badge is a dot */
+.orz-live[data-compact] .orz-live-head { padding-right: 66px; }
+@media (pointer: coarse) { .orz-live[data-compact] .orz-live-head { padding-right: 78px; } }
+.orz-live[data-compact] .orz-live-badge:not(:empty) { flex: none; width: 8px; height: 8px; padding: 0; font-size: 0; background: currentColor; }
 @media (prefers-reduced-motion: reduce) { .orz-live, .orz-live-port { transition: none; } }
 .orz-live-port { transition: height .16s ease-out; }
 .orz-live-n { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -70,6 +70,14 @@ export const CARD_HEAD = 28;
 /** The card's margin from the frame's bottom (CSS px) and from its right edge (clear of a classic scrollbar). */
 export const CARD_MARGIN = 12;
 export const CARD_MARGIN_RIGHT = 22;
+/**
+ * (STATUS D-135) A card narrower than this (a phone's preview) has a compact
+ * head: the trusted page's Edit chip shows its icon alone and the frame's head
+ * keeps less room for it, so "Slide 1 of 12" is never clipped under the chip.
+ * Both sides decide from the same `cardLayout` width.
+ */
+export const CARD_COMPACT_W = 260;
+export const cardCompact = (w: number): boolean => w < CARD_COMPACT_W;
 
 /**
  * The live card in the whole-deck view (owner decision 2026-10-14): the
