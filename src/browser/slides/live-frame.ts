@@ -178,10 +178,15 @@ const REFITS = 24;
     deck.style.transform = `scale(${s})`;
   };
 
-  /** The template's variant thumbnails (stage only): each its slide at the logical size, scaled down, fitted once. */
+  /**
+   * The template's variant thumbnails (stage only): each its slide at the logical size, scaled down, fitted once.
+   * Always ends by placing the card (`scale`), also when it only clears the thumbnails: leaving the stage on a
+   * template slide comes here, and an early return left the card at the stage's place and size (owner-reported:
+   * after "Whole deck" the slide stayed large in the middle, over the page's card button in the corner).
+   */
   function drawVariants(): void {
     thumbs.replaceChildren();
-    if (!stage || !shown || variants.length === 0) return;
+    if (!stage || !shown || variants.length === 0) { scale(); return; }
     for (const v of variants) {
       const box = D.createElement('div');
       box.className = 'orz-live-variant';

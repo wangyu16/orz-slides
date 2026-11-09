@@ -13,6 +13,7 @@ import { extname, join } from 'node:path';
 import { launchChrome } from './helpers.js';
 import { parseDeck } from '../src/deck/parse.js';
 import { slideMap } from '../src/layout-ops.js';
+import { cardLayout } from '../src/browser/slides/stage-geometry.js';
 
 type Browser = NonNullable<Awaited<ReturnType<typeof launchChrome>>>;
 type Page = import('playwright-core').Page;
@@ -41,8 +42,8 @@ interface GuiState {
   status: string; template: string | null; blocked: string | null; stale: boolean; strip: number[]; stripAxis: 'x' | 'y' | null;
 }
 
-async function context(b: Browser, o: { viewport?: { width: number; height: number }; touch?: boolean } = {}): Promise<BrowserContext> {
-  const ctx = await b.newContext({ viewport: o.viewport ?? { width: 1500, height: 900 }, ...(o.touch ? { hasTouch: true } : {}) });
+async function context(b: Browser, o: { viewport?: { width: number; height: number }; touch?: boolean; reducedMotion?: boolean } = {}): Promise<BrowserContext> {
+  const ctx = await b.newContext({ viewport: o.viewport ?? { width: 1500, height: 900 }, ...(o.touch ? { hasTouch: true } : {}), ...(o.reducedMotion ? { reducedMotion: 'reduce' as const } : {}) });
   await ctx.route(/^https?:\/\//, (r) => {
     const m = /^https:\/\/cdn\.jsdelivr\.net\/npm\/orz-markdown@[^/]+\/(vendor\/.+)$/.exec(r.request().url());
     const f = m ? join('node_modules/orz-markdown', m[1]) : '';
@@ -53,7 +54,7 @@ async function context(b: Browser, o: { viewport?: { width: number; height: numb
 }
 
 /** An app's page with the editor mounted (hooks.save), the caret at `at`, This slide on; the GUI attached and drawn. */
-async function openApp(text: string, at: string, o: { viewport?: { width: number; height: number }; touch?: boolean; noWait?: boolean; mode?: 'split' | 'editor' | 'preview' } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[] }> {
+async function openApp(text: string, at: string, o: { viewport?: { width: number; height: number }; touch?: boolean; reducedMotion?: boolean; noWait?: boolean; mode?: 'split' | 'editor' | 'preview' } = {}): Promise<{ page: Page; ctx: BrowserContext; frame: Frame; errors: string[] }> {
   if (!staged) {
     copyFileSync('dist/orz-slides.browser.js', join(dir, 'orz-slides.browser.js'));
     writeFileSync(join(dir, 'app.html'), '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%}#host{height:100vh}</style></head><body><div id="host"></div><script src="orz-slides.browser.js"></script></body></html>');
@@ -1161,6 +1162,83 @@ chrome('closed-loop round B2 probes (the layout GUI, real Chrome, offline)', () 
     expect(o2.errors).toEqual([]);
     await o2.ctx.close();
   }, 120_000);
+
+  it('[W.10] owner-reported (deck-view-fix): "Whole deck" from the single-slide view of a TEMPLATE slide (title, section, outline, closing — the slides whose looks the stage shows as thumbnails) returns the card to the bottom-right corner at its small size, entered and left several times, at 1440, 1024 and a 390 px phone, with and without animations; the card\'s move completes, and nothing invisible stays clickable (the page\'s card button lies on the drawn card; the old stage area is the flattened preview again). The cause: leaving the stage cleared the variant thumbnails through drawVariants, which returned before placing the card', async () => {
+    const deck = `${HB}<!-- slide template=title -->\n# Deck title\nA subtitle\n\n<!-- slide template=section -->\n# A section\n\n<!-- slide -->\n## A plain slide\nText\n\n<!-- slide template=outline -->\n## Outline\n- one\n- two\n\n<!-- slide template=closing -->\n# Thanks\n`;
+    const configs: Array<{ name: string; viewport: { width: number; height: number }; touch?: boolean; reducedMotion?: boolean; mode?: 'preview' }> = [
+      { name: '1440', viewport: { width: 1440, height: 900 } },
+      { name: '1440 reduced motion', viewport: { width: 1440, height: 900 }, reducedMotion: true },
+      { name: '1024', viewport: { width: 1024, height: 768 } },
+      { name: '390 phone', viewport: { width: 390, height: 844 }, touch: true, mode: 'preview' },
+    ];
+    const bad: string[] = [];
+    for (const c of configs) {
+      const { page, ctx, errors } = await openApp(deck, '# Deck title', { viewport: c.viewport, touch: c.touch, reducedMotion: c.reducedMotion, mode: c.mode });
+      const frameNow = async (): Promise<Frame> => {
+        for (let i = 0; i < 100; i++) {
+          const live: Frame[] = [];
+          for (const x of page.frames()) if (x !== page.mainFrame() && !x.isDetached() && await x.evaluate(() => !!document.getElementById('orz-live')).catch(() => false)) live.push(x);
+          if (live.length === 1) return live[0]!;
+          await page.waitForTimeout(100);
+        }
+        throw new Error('not one current preview frame');
+      };
+      for (const [k, at] of ['# Deck title', '# Deck title', '# A section', '## Outline', '# Thanks', '## A plain slide'].entries()) {
+        const where = `${c.name}, cycle ${k} (${at})`;
+        if (k > 0) {
+          await page.evaluate((s) => { const e = (globalThis as unknown as { __ed: { getText(): string; select(a: number, b: number): void } }).__ed; const i = e.getText().indexOf(s); e.select(i, i); }, at);
+          await page.waitForTimeout(300);
+          await page.locator('[data-orz-slides-enlarge]').click();
+        }
+        await expect.poll(() => ed<boolean>(page, 'e.slides.isPerSlide()'), { timeout: 10_000 }).toBe(true);
+        const f0 = await frameNow();
+        await f0.waitForFunction(() => document.body.classList.contains('orz-stage'), undefined, { timeout: 10_000 });
+        await page.waitForTimeout(500);
+        const stageBox = await f0.evaluate(() => { const r = document.getElementById('orz-live')!.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+        await page.locator('[data-orz-slides-shrink]').click();
+        await expect.poll(() => ed<boolean>(page, 'e.slides.isPerSlide()'), { timeout: 10_000 }).toBe(false);
+        const f = await frameNow();
+        await f.waitForFunction(() => !document.body.classList.contains('orz-stage'), undefined, { timeout: 10_000 });
+        // the move back completes: no running animation on the card within a second, and its box is still
+        const settled = await f.evaluate(async () => {
+          const c = document.getElementById('orz-live')!;
+          const t0 = performance.now();
+          let prev = '';
+          let still = 0;
+          while (performance.now() - t0 < 1500) {
+            await new Promise((r) => requestAnimationFrame(r));
+            const r = c.getBoundingClientRect();
+            const now = `${r.x},${r.y},${r.width},${r.height}`;
+            const running = c.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length;
+            still = now === prev && running === 0 ? still + 1 : 0;
+            prev = now;
+            if (still >= 5) return performance.now() - t0;
+          }
+          return -1;
+        });
+        if (settled < 0) bad.push(`${where}: the card's move did not complete within 1.5 s`);
+        const ifr = (await page.locator('iframe.orz-editor__frame').boundingBox())!;
+        const fc = await f.evaluate(([sx, sy, sw, sh]) => {
+          const c = document.getElementById('orz-live')!;
+          const r = c.getBoundingClientRect();
+          // the centre of where the stage was: the flattened preview again, not the card
+          const hit = document.elementFromPoint(sx + sw / 2, sy + sh / 2);
+          return { x: r.x, y: r.y, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight, hidden: c.hidden, centreIsCard: !!hit?.closest('#orz-live'), thumbs: document.querySelectorAll('.orz-live-variant').length };
+        }, [stageBox.x, stageBox.y, stageBox.w, stageBox.h] as const);
+        const want = cardLayout(fc.vw, fc.vh, 1280, 720).card;
+        if (fc.hidden) bad.push(`${where}: the card is hidden`);
+        if (Math.abs(fc.x - want.x) > 2 || Math.abs(fc.y - want.y) > 2 || Math.abs(fc.w - want.w) > 2 || Math.abs(fc.h - want.h) > 4) bad.push(`${where}: the card is at ${Math.round(fc.x)},${Math.round(fc.y)} ${Math.round(fc.w)}×${Math.round(fc.h)}, not the corner's ${want.x},${want.y} ${want.w}×${want.h}`);
+        if (fc.centreIsCard && (stageBox.w > want.w + 20)) bad.push(`${where}: the card still covers the middle of the pane`);
+        if (fc.thumbs !== 0) bad.push(`${where}: ${fc.thumbs} variant thumbnails left`);
+        // nothing invisible is clickable: the page's (transparent) card button lies exactly on the drawn card
+        const b = await page.locator('[data-orz-slides-enlarge]').boundingBox();
+        if (!b || Math.abs(b.x - (ifr.x + fc.x)) > 2 || Math.abs(b.y - (ifr.y + fc.y)) > 2 || Math.abs(b.width - fc.w) > 2 || Math.abs(b.height - fc.h) > 4) bad.push(`${where}: the page's card button (${JSON.stringify(b)}) does not lie on the drawn card`);
+      }
+      expect(errors).toEqual([]);
+      await ctx.close();
+    }
+    expect(bad).toEqual([]);
+  }, 240_000);
 
   it('[W.10] round B2, the owner\'s intermittent card bug: enlarge → shrink 45 times at a quarter of the CPU — by click, by key, rapid double clicks, a click right after the other, while typing, across theme changes, and while the frame\'s document is rebuilt between the enlarge and the shrink (the cause: a message the frame could not take was resent after a later one), with fit reports and idle checks running — always ends with the card in the bottom-right corner, its slide drawn, and the flattened preview back (no stage left in the pane)', async () => {
     const many = Array.from({ length: 14 }, (_, i) => `<!-- slide ${i % 2 ? '2col' : ''} -->\n## Slide ${i + 1}\nText of slide ${i + 1}${i % 2 ? '\n<!-- @right -->\nRight' : ''}\n`).join('\n');
