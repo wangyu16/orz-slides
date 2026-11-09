@@ -7,7 +7,7 @@
  * D-135 symptom: "Slide 1 o…" under the chip).
  */
 import { describe, it, expect } from 'vitest';
-import { cardCompact, cardLayout } from '../src/browser/slides/stage-geometry';
+import { cardCompact, cardLayout } from '../src/browser/slides/stage-geometry.js';
 
 describe('audit1: cardCompact is decided alike on both sides (D-135)', () => {
   it('[A1-S1] a fractional frame width (page side) and its integer innerWidth (frame side) give the same compact verdict', () => {
