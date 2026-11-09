@@ -87,10 +87,11 @@ export const cardCompact = (w: number): boolean => w < CARD_COMPACT_W;
  * (enlarge, fold), so a click on the card is the reader's, never the frame's.
  */
 export function cardLayout(vw: number, vh: number, sw: number, sh: number): { card: Rect; port: Rect & { scale: number } } {
-  // (audit 1 of D-135) whole CSS px: the trusted page measures the frame's fractional box, the frame its integer
-  // innerWidth — both sides must place (and decide `cardCompact`) alike
-  vw = Math.floor(vw);
-  vh = Math.floor(vh);
+  // (audits 1–2 of D-135) whole CSS px: the trusted page measures the frame's fractional box, the frame its
+  // innerWidth, which Chrome ROUNDS (half up; measured at DPR 1, 2, 3) — both sides must place (and decide
+  // `cardCompact`) alike
+  vw = Math.round(vw);
+  vh = Math.round(vh);
   const w = Math.round(Math.max(120, Math.min(400, vw * 0.46, (vh * 0.5 - CARD_HEAD) * (sw / sh))));
   const ph = Math.round((w * sh) / sw);
   const h = CARD_HEAD + ph;
