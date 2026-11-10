@@ -163,12 +163,14 @@ chrome('the layout GUI (real Chrome, offline; app host: the frame is an opaque o
       const inFrame = await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('#orz-live .orz-page > section .orz-content .orz-region')).map((r) => { const b = r.getBoundingClientRect(); return { name: r.getAttribute('data-region'), x: b.x, y: b.y, w: b.width, h: b.height }; }));
       let worst = 0;
       for (const r of inFrame) {
-        const o = (await page.locator(`.orz-lg-box--region[data-box="${r.name}"]`).boundingBox())!;
+        // the overlay redraws after the frame's report: a box can be missing for a moment (the L.7 flake; polled)
+        const o = await page.locator(`.orz-lg-box--region[data-box="${r.name}"]`).boundingBox();
+        if (!o) return Infinity;
         worst = Math.max(worst, Math.abs(o.x - (ifr.x + r.x)), Math.abs(o.y - (ifr.y + r.y)), Math.abs(o.width - r.w), Math.abs(o.height - r.h));
       }
       return worst;
     };
-    expect(await aligned()).toBeLessThanOrEqual(2);
+    await expect.poll(aligned, { timeout: 5000 }).toBeLessThanOrEqual(2);
     // a badge per box; labels sit outside the box (above its top edge)
     expect(await page.locator('.orz-lg-box--region .orz-lg-badge').count()).toBe(2);
     const box = (await page.locator('.orz-lg-box--region[data-box="right"]').boundingBox())!;
