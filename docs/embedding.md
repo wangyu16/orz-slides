@@ -316,7 +316,7 @@ builds its own preview frame with the kit (`orz-markdown/carrier/editor`'s
 `PREVIEW_BRIDGE_HASH`, `previewScriptHashes`) must take the hash from the
 same orz-markdown version its frame runs: the bridge, and so its hash,
 differs between kit versions (2.3.0 and 2.4.0 differ; orz-slides 1.0 embeds
-2.4.0, 1.1 embeds 2.5.0, 1.2 embeds 2.7.0). Tested in Chrome: the editor (CodeMirror 6), math,
+2.4.0, 1.1 embeds 2.5.0, 1.2 embeds 2.7.1). Tested in Chrome: the editor (CodeMirror 6), math,
 code highlighting, Mermaid, Chart.js and SMILES render in the preview with
 no violation but one — Mermaid's run-time `<style>` (below).
 

@@ -15,7 +15,7 @@ that presents the deck (reveal.js), edits it two ways (the whole deck beside a
 flattened preview with a live slide card; single-slide editing with the
 layout GUI), saves itself and prints one slide per page. Built on the
 orz-markdown carrier kit ([orz-markdown](../orz-markdown) `carrier/*`,
-**2.7.0**): the standalone file's runtime is the kit's
+**2.7.1**): the standalone file's runtime is the kit's
 `orz-markdown/carrier/app`; this repo supplies the slides kind behind its
 `StandaloneKind` seam, the engine (reveal.js 5.2.1, pinned, in one module),
 the 14 slide themes and the two editing modes. orz-mdhtml 1.0 and orz-paged
@@ -31,7 +31,7 @@ Two npm packages live here, **versioned in lockstep**:
   that throws), `docs/embedding.md` (copied), `scripts/check-release.mjs`
   (its `prepublishOnly`).
 
-> **Status: 1.2.0 on `main`** (dated 2026-11-12, on orz-markdown **^2.7.0**: the editor's reader fixes D-129…D-135 and the Whole deck fix D-141). **1.1.0** (dated 2026-10-24; npm publishing of both
+> **Status: 1.2.0 on `main`** (dated 2026-11-12, on orz-markdown **^2.7.1**: the editor's reader fixes D-129…D-135 and the Whole deck fix D-141). **1.1.0** (dated 2026-10-24; npm publishing of both
 > packages is the owner's step, "Releasing" below; 1.0.0 is on npm) — the
 > 1.0 repairs, the family's C1 (twin-link naming `twinLinks` on every
 > surface, the kit's `includeTargets`/`linkTargets`), `printDeck` (D-114)
@@ -229,7 +229,7 @@ family root; never edit the copy here alone). This package's facts are in
 `release.config.json` (kit floor `kit.required`, bundles, manifest check,
 fast lane).
 
-1. orz-markdown is installed from the registry (`^2.7.0`). For a later kit,
+1. orz-markdown is installed from the registry (`^2.7.1`). For a later kit,
    `npx npm@11 install orz-markdown@^X.Y.Z` (the gate refuses a lower range
    than `kit.required`, a link, a non-registry lockfile entry, an older
    install, or a bundle that embeds another kit).
