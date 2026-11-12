@@ -70,6 +70,14 @@ export const CARD_HEAD = 28;
 /** The card's margin from the frame's bottom (CSS px) and from its right edge (clear of a classic scrollbar). */
 export const CARD_MARGIN = 12;
 export const CARD_MARGIN_RIGHT = 22;
+/**
+ * (STATUS D-135) A card narrower than this (a phone's preview) has a compact
+ * head: the trusted page's Edit chip shows its icon alone and the frame's head
+ * keeps less room for it, so "Slide 1 of 12" is never clipped under the chip.
+ * Both sides decide from the same `cardLayout` width.
+ */
+export const CARD_COMPACT_W = 260;
+export const cardCompact = (w: number): boolean => w < CARD_COMPACT_W;
 
 /**
  * The live card in the whole-deck view (owner decision 2026-10-14): the
@@ -79,6 +87,11 @@ export const CARD_MARGIN_RIGHT = 22;
  * (enlarge, fold), so a click on the card is the reader's, never the frame's.
  */
 export function cardLayout(vw: number, vh: number, sw: number, sh: number): { card: Rect; port: Rect & { scale: number } } {
+  // (audits 1–2 of D-135) whole CSS px: the trusted page measures the frame's fractional box, the frame its
+  // innerWidth, which Chrome ROUNDS (half up; measured at DPR 1, 2, 3) — both sides must place (and decide
+  // `cardCompact`) alike
+  vw = Math.round(vw);
+  vh = Math.round(vh);
   const w = Math.round(Math.max(120, Math.min(400, vw * 0.46, (vh * 0.5 - CARD_HEAD) * (sw / sh))));
   const ph = Math.round((w * sh) / sw);
   const h = CARD_HEAD + ph;

@@ -53,7 +53,7 @@ import { twinLinksEnv } from '../../present/render.js';
 import { renderSlide, type Renderer } from '../../render-slide.js';
 import type { Deck, Slide, SlideLint } from '../../types.js';
 import type { SlideLayoutGui, StageGeometry, StageHost, StageParts, StagePreview } from './per-slide.js';
-import { cardLayout, CARD_MARGIN, CARD_MARGIN_RIGHT, type Rect, type StageInsets } from './stage-geometry.js';
+import { cardCompact, cardLayout, CARD_MARGIN, CARD_MARGIN_RIGHT, type Rect, type StageInsets } from './stage-geometry.js';
 
 /** The pause in typing after which the live view and the lints follow the text (ms). */
 export const LIVE_PAUSE_MS = 450;
@@ -224,6 +224,8 @@ const CARD_CSS = `
 /* the way into single-slide editing, drawn at rest in the card's head — on a touch screen too (round B2, GUI2-1: the card
    gave no sign that it can be clicked); the whole card stays the target, the chip fills in on hover and focus */
 .orz-slides-card__hint { position: absolute; top: 3px; right: 32px; display: inline-flex; align-items: center; gap: 4px; height: 22px; box-sizing: border-box; padding: 0 8px 0 6px; border: 1px solid var(--orz-chrome-accent, #2f6fde); border-radius: 5px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-accent, #2f6fde); white-space: nowrap; transition: background .12s, color .12s; }
+.orz-slides-card__enlarge[data-compact] .orz-slides-card__hint { padding: 0 5px; gap: 0; }
+.orz-slides-card__enlarge[data-compact] .orz-slides-card__hint-word { display: none; }
 .orz-slides-card__enlarge:is(:hover, :focus-visible) .orz-slides-card__hint { background: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent-fg, #fff); }
 .orz-slides-card__icon { position: absolute; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: var(--orz-chrome-surface, #fff); color: var(--orz-chrome-fg, #333); }
 .orz-slides-card__icon:hover, .orz-slides-card__icon:focus-visible { border-color: var(--orz-chrome-accent, #2f6fde); color: var(--orz-chrome-accent, #2f6fde); }
@@ -698,7 +700,10 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
       hint.className = 'orz-slides-card__hint';
       hint.insertAdjacentHTML('beforeend', CARD_SVG.enlarge);
       hint.setAttribute('aria-hidden', 'true');
-      hint.append(doc.createTextNode('Edit'));
+      const word = doc.createElement('span');
+      word.className = 'orz-slides-card__hint-word';
+      word.textContent = 'Edit';
+      hint.append(word);
       enlargeBtn.append(hint);
       enlargeBtn.addEventListener('click', (e) => { if (e.isTrusted) setPerSlide(true); });
       foldBtn = doc.createElement('button');
@@ -739,6 +744,8 @@ export function attachSlidesTools(shell: EditorShell, o: SlidesToolsOptions = {}
     const word = !r ? 'not checked yet' : r.boxes.some((b) => b.clipped) ? 'cut on paper' : r.footerCut ? 'footer cut' : min < 0.995 ? `shrunk to ${Math.round(min * 100)}%` : 'fits';
     if (live) {
       place(enlargeBtn!, ox + C.x, oy + C.y, C.w, C.h);
+      // (D-135) a narrow card (a phone): the chip shows its icon alone, clear of the head's "Slide N of M"
+      if (cardCompact(C.w)) enlargeBtn!.setAttribute('data-compact', ''); else enlargeBtn!.removeAttribute('data-compact');
       enlargeBtn!.setAttribute('aria-label', `Edit slide ${i + 1} on its own — enlarge the card (${ENLARGE_KEY}); ${word}`);
       enlargeBtn!.title = `Edit slide ${i + 1} on its own (${ENLARGE_KEY})`;
       // from its measured width (round B2, B2-ED-5: 36 px on touch, placed as if 24)

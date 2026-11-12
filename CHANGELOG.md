@@ -5,6 +5,15 @@ All notable changes to **orz-slides** are recorded here. Versions follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **The live card's head on a phone** (family STATUS D-135, claim W.10): in a
+  card narrower than 260 px (a phone's preview; `cardCompact`, decided by
+  both sides from `cardLayout`) the Edit chip shows its icon alone and the
+  frame's head keeps less room for it (the fit badge a dot), so "Slide 1 of
+  12" is whole instead of "Slide 1 o…" under the chip. Kit-independent: it
+  ships with the next release on any kit.
+
 <a id="110"></a>
 
 ## [1.1.0] — 2026-10-24

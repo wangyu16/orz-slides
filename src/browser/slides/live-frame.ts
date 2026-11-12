@@ -28,7 +28,7 @@
  */
 import { chartAspects, decorate } from '../../present/decorate.js';
 import { fitSlide } from '../../present/fit.js';
-import { cardLayout, stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
+import { cardCompact, cardLayout, stageLayout, type Rect, type StageInsets } from './stage-geometry.js';
 
 interface LiveMessage {
   type: 'orz-slides-live';
@@ -172,16 +172,23 @@ const REFITS = 24;
     card.style.left = `${C.card.x}px`;
     card.style.top = `${C.card.y}px`;
     card.style.width = `${C.card.w}px`;
+    // (D-135) a narrow card (a phone): the page's chip is an icon, the head keeps its number whole
+    if (cardCompact(C.card.w)) card.setAttribute('data-compact', ''); else card.removeAttribute('data-compact');
     const w = C.card.w - 2;
     const s = w / shown.width;
     port.style.height = `${Math.round(shown.height * s)}px`;
     deck.style.transform = `scale(${s})`;
   };
 
-  /** The template's variant thumbnails (stage only): each its slide at the logical size, scaled down, fitted once. */
+  /**
+   * The template's variant thumbnails (stage only): each its slide at the logical size, scaled down, fitted once.
+   * Always ends by placing the card (`scale`), also when it only clears the thumbnails: leaving the stage on a
+   * template slide comes here, and an early return left the card at the stage's place and size (owner-reported:
+   * after "Whole deck" the slide stayed large in the middle, over the page's card button in the corner).
+   */
   function drawVariants(): void {
     thumbs.replaceChildren();
-    if (!stage || !shown || variants.length === 0) return;
+    if (!stage || !shown || variants.length === 0) { scale(); return; }
     for (const v of variants) {
       const box = D.createElement('div');
       box.className = 'orz-live-variant';
