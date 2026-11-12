@@ -3,7 +3,25 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] — 2026-11-12
+
+Requires `orz-markdown ^2.7.0` (was `^2.5.0`): the editor shell's reader
+fixes from the owner's Alembic rounds (family STATUS D-129…D-135), with no
+change to the file format.
+
+- Esc only closes the editor's own pop-ups; Esc then Tab leaves the text (no
+  keyboard trap, nothing typed is lost).
+- The document's `{{nyml …}}` settings fold to one line, "Document settings ·
+  <title> ▸"; while folded no keystroke can change them unseen (they open
+  instead); the file text never changes.
+- Below 640 px the toolbar keeps one row, with the other tools under More.
+- ⌘\ keeps cycling the views; for hosts: `reveal(…)`, `refreshSaveStatus()`
+  and the `saveStatus` hook (FC-19 2.7.0, additive).
+- **Whole deck after a template slide** (owner report, family STATUS D-141):
+  leaving the single-slide view of a title, section, outline or closing
+  slide left the live card large in the middle of the pane, with an
+  invisible card still answering in the corner. The card now always
+  returns to the corner (test W.10, deck-view-fix).
 
 ### Fixed
 

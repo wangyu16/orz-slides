@@ -1,6 +1,6 @@
 {
   "name": "orz-slides",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Single-file, self-editing HTML slide decks authored in Markdown with layout grammar, themes, and presenter tools.",
   "type": "module",
   "main": "./dist/lib.js",

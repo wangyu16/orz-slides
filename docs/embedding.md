@@ -29,7 +29,7 @@ npm install orz-slides-browser@1   # or: npm i orz-slides-browser@1
 | a bundler (Vite, esbuild, webpack) | `import { mountEditor } from 'orz-slides-browser'` | `esm/orz-slides.browser.mjs` (`exports` → `import`) |
 | a plain `<script>` | `<script src=".../orz-slides.browser.js">` → `globalThis.OrzCarrier` | `orz-slides.browser.js` (`exports` → `default`) |
 | `require()` | not supported: it throws, pointing to `import` or `<script>` | `require.cjs` (`exports` → `require`) |
-| the CDN | `https://cdn.jsdelivr.net/npm/orz-slides-browser@<version>/orz-slides.browser.js` (e.g. `@1.1.0`; pin an exact version) | the same IIFE |
+| the CDN | `https://cdn.jsdelivr.net/npm/orz-slides-browser@<version>/orz-slides.browser.js` (e.g. `@1.2.0`; pin an exact version) | the same IIFE |
 
 Types: `orz-slides-browser/index.d.ts` (`Editor`, `EditorOptions`,
 `EditorHooks`, `SlidesTools`, `LayoutOp`, …). The ES module sets no global
@@ -84,7 +84,7 @@ the same tools as icons. Keyboard: Cmd/Ctrl+S saves, Cmd/Ctrl+\ cycles the
 modes, Cmd/Ctrl+Shift+Enter enlarges the live slide card into single-slide
 editing and back, Esc leaves the text for the toolbar.
 
-**Your site's link names** (1.1, orz-markdown 2.5.0, FC-18 §8.2). A link to
+**Your site's link names** (1.1, since orz-markdown 2.5, FC-18 §8.2). A link to
 another text — `[week 2](week2.slides.md)`, `[notes](notes.md)` — points at
 its assembled twin: `week2.slides.html`, `notes.md.html`. A site that
 publishes under other names passes a naming, per kind a file-name template
@@ -316,7 +316,7 @@ builds its own preview frame with the kit (`orz-markdown/carrier/editor`'s
 `PREVIEW_BRIDGE_HASH`, `previewScriptHashes`) must take the hash from the
 same orz-markdown version its frame runs: the bridge, and so its hash,
 differs between kit versions (2.3.0 and 2.4.0 differ; orz-slides 1.0 embeds
-2.4.0, 1.1 embeds 2.5.0). Tested in Chrome: the editor (CodeMirror 6), math,
+2.4.0, 1.1 embeds 2.5.0, 1.2 embeds 2.7.0). Tested in Chrome: the editor (CodeMirror 6), math,
 code highlighting, Mermaid, Chart.js and SMILES render in the preview with
 no violation but one — Mermaid's run-time `<style>` (below).
 
@@ -352,7 +352,7 @@ readDocument(text)                        // header + derived facts (title, auth
 parseDeck(text)                           // the deck: config, slides (kind, template, title, layout, regions, notes, footer), lint
 await renderPreview(text, { includes, fetchInclude })  // the flattened deck's HTML (dividers, region labels), not the slides
 await renderPreview(text, { document: true, nonce })   // a whole HTML document of it: the slide theme and the flattened styles inline (<style> stamped with your nonce), no script (iframe srcdoc, thumbnails)
-includeTargets(text)                      // (1.1) the include directives' targets, as written (orz-markdown 2.5.0, browser-safe)
+includeTargets(text)                      // (1.1) the include directives' targets, as written (since orz-markdown 2.5, browser-safe)
 linkTargets(text)                         // (1.1) every link and image: { href, line, kind: 'twin' | 'asset' | 'other', image, raw } — a site builder's link check
 newDocument({ template: 'talk', title, theme: 'nocturne', ratio: '4:3' })  // a new text from a deck template (TEMPLATE_IDS: starter, talk, minimal): carrier slides, a fresh uid
 await assemble(text, { delivery: 'cdn' })              // a small .slides.html that loads the engine from jsDelivr

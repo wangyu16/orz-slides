@@ -290,7 +290,7 @@ Exports (types included; `dist/lib.d.ts` documents each): the documents —
 `assemble`, `extract`, `readDocument`, `newDocument`, `storedText`,
 `upgrade`, `upgradeText`, `readLegacy`, `inspect`, `inspectLayout`,
 `upgradeReport`, `reportNotes`, `browserName`, `upgradeTextName`,
-`includeTargets`, `linkTargets` (1.1, orz-markdown 2.5.0); Chrome —
+`includeTargets`, `linkTargets` (1.1, since orz-markdown 2.5); Chrome —
 `findChrome`, `chromeCandidates`, `layoutAdvice`; the deck — `parseDeck`,
 `scanMarkers`, `planDeck`, `deckConfig`, `parseLayoutSpec`,
 `serialiseLayout`, `expandPreset`, `slideMarker`, `PRESETS`,
@@ -414,8 +414,9 @@ failed — check your connection" and changes nothing. Dismiss it and run
 
 ## Versions
 
-> **Release status.** 1.1.0 (CHANGELOG 2026-10-24) depends on
-> `orz-markdown ^2.5.0`: your site's names for linked texts (`twinLinks`),
+> **Release status.** 1.2.0 (CHANGELOG 2026-11-12) depends on
+> `orz-markdown ^2.7.0`: the editor's reader fixes and the Whole deck fix.
+> 1.1.0 brought your site's names for linked texts (`twinLinks`),
 > printing from an app (`printDeck`), the kit's targets of a text and the
 > theme menu's colour dots, plus the 1.0 repairs. 1.0.0 (on npm since
 > 2026-10-19) is the rebuild on text format 1; 1.0 files update in place.
