@@ -457,7 +457,9 @@ export function upgrade(html: string, options: UpgradeOptions = {}): UpgradeResu
     const includes = assembleOptions.includes ?? ex.includes;
     // the file's twin-link naming (#orz-shell "links", FC-18 §8.2) is kept, as its includes are
     const twinLinks = assembleOptions.twinLinks !== undefined ? assembleOptions.twinLinks : ex.twinLinks;
-    return { text: ex.text, html: assemble(ex.text, { ...assembleOptions, ...(includes ? { includes } : {}), ...(twinLinks ? { twinLinks } : {}) }), from: 'format-1', version: null, moved: {}, notes: [] };
+    // (orz-markdown 2.9.0) a reader copy (#orz-shell "readerCopy") stays one: an upgrade is a new shell, not a reader's save
+    const readerCopy = assembleOptions.readerCopy !== undefined ? assembleOptions.readerCopy : ex.readerCopy;
+    return { text: ex.text, html: assemble(ex.text, { ...assembleOptions, ...(includes ? { includes } : {}), ...(twinLinks ? { twinLinks } : {}), ...(readerCopy ? { readerCopy } : {}) }), from: 'format-1', version: null, moved: {}, notes: [] };
   }
   const up = upgradeText(legacy.text, { ...(uid !== undefined ? { uid } : {}), file: { title: legacy.title, meta: legacy.meta, defaultTheme: legacy.defaultTheme } });
   return { text: up.text, html: assemble(up.text, assembleOptions), from: 'legacy', version: legacy.version, moved: up.moved, notes: [...legacy.notes, ...up.notes] };

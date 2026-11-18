@@ -514,7 +514,9 @@ function cmdAssemble(p: Parsed, o: Io): void {
   let html: string;
   // the existing file's twin-link naming (#orz-shell "links", FC-18 §8.2: a host's page names) is kept, as its delivery is
   const twinLinks = prior?.kind === 'slides' ? prior.twinLinks : undefined;
-  try { html = assemble(text, { delivery: d, legacy: 'as-is', ...(Object.keys(includes).length ? { includes } : {}), ...(twinLinks ? { twinLinks } : {}) }); } catch (e) { throw libError(file, e); }
+  // (orz-markdown 2.9.0) a reader copy stays one (#orz-shell "readerCopy"), as its naming does
+  const readerCopy = prior?.kind === 'slides' ? prior.readerCopy : undefined;
+  try { html = assemble(text, { delivery: d, legacy: 'as-is', ...(Object.keys(includes).length ? { includes } : {}), ...(twinLinks ? { twinLinks } : {}), ...(readerCopy ? { readerCopy } : {}) }); } catch (e) { throw libError(file, e); }
   for (const w of errors(info.lint)) o.warn(`lint error (the deck may not show what the text says until it is fixed): ${w}`);
   for (const w of warnings(info.lint)) o.warn(w);
   if (toStdout) { process.stdout.write(html); return; }

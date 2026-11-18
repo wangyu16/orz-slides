@@ -96,6 +96,15 @@ take the same, and an assembled file keeps the naming in every save and the
 update (`extract(html).twinLinks`). With `hooks.resolveLink` links stay as
 written, so your hook gets the source href.
 
+**Pages published for readers** (since orz-markdown 2.9, FC-18 §8.2). A
+website that publishes files for readers passes `readerCopy: true` (or `{
+notice: '…' }`, its own plain words) to `assemble`: opened from that site,
+the file's editor says at once that edits can't be saved to the website,
+and its Save reads "Download a copy" and downloads (a downloaded copy is an
+ordinary file). An app that saves its own way can word the editor itself:
+`editor.setWords({ save, saved, notice })` — the Save button's label, the
+toast after a save (`''`: none) and a notice above the panes.
+
 ### Two ways to edit
 
 Both edit the one text, with one undo history; the text stays the single

@@ -77,6 +77,30 @@ describe('the twin-link naming (FC-18 §8.2, orz-markdown 2.5.0)', () => {
     expect(out).toBe(lib.assemble(edited, { delivery: 'cdn', twinLinks: { ...NAMING } }));
   });
 
+  it('[A.9] (orz-markdown 2.9.0, FC-18 §8.2) a reader copy: assemble(text, { readerCopy }) stores true as #orz-shell "readerCopy":{} and { notice } with the notice, extract gives it back, false or null write the bytes of assemble(text), an invalid notice throws; the Node library equals the isomorphic assembler; upgrade of a format-1 file keeps it', () => {
+    const TEXT_RC = TEXT;
+    const NOTICE = 'Your own copy: download it to keep your changes.';
+    for (const delivery of ['inline', 'cdn'] as const) {
+      const name = delivery;
+      const o = delivery === 'inline' ? { engineSource: ENGINE } : { delivery };
+      const plain = isoAssemble(TEXT_RC, o);
+      const reader = isoAssemble(TEXT_RC, { ...o, readerCopy: { notice: NOTICE } });
+      expect(extract(reader)!.readerCopy, name).toEqual({ notice: NOTICE });
+      expect(extract(reader)!.text, name).toBe(TEXT_RC);
+      expect(reader, name).toContain(`"readerCopy":{"notice":"${NOTICE}"}`);
+      expect(extract(isoAssemble(TEXT_RC, { ...o, readerCopy: true }))!.readerCopy, name).toEqual({});
+      expect(extract(plain)!.readerCopy, name).toBeUndefined();
+      expect(isoAssemble(TEXT_RC, { ...o, readerCopy: false }) === plain, name).toBe(true);
+      expect(isoAssemble(TEXT_RC, { ...o, readerCopy: null }) === plain, name).toBe(true);
+      expect(isoAssemble(extract(reader)!.text, { ...o, readerCopy: extract(reader)!.readerCopy }) === reader, name).toBe(true);
+      if (delivery === 'cdn') {
+        expect(lib.assemble(TEXT_RC, { delivery, readerCopy: { notice: NOTICE } })).toBe(reader);
+        expect(lib.upgrade(reader, { delivery }).html === reader).toBe(true);
+      }
+      expect(() => isoAssemble(TEXT_RC, { ...o, readerCopy: { notice: '' } })).toThrow();
+    }
+  });
+
   it('[W.11] every render of the deck names twin links with the naming — the read view\'s deck (and so print and the speaker view), the flattened preview (renderPreview, the editor) and the live card\'s env; `false` keeps links as written (an app\'s resolveLink); default the family names', async () => {
     const hrefs = (html: string): string[] => [...html.matchAll(/<a href="([^"]*)"/g)].map((m) => m[1]!);
     const family = ['week2.slides.html', 'notes.md.html#part', 'https://example.org/a.md'];

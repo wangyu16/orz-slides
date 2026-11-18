@@ -26,6 +26,8 @@ export interface AssembleOptions {
   includes?: Record<string, string>;
   /** (1.1) The host's twin-link naming: links to text twins point at these names, and the file keeps it (`#orz-shell` `"links"`, only when it is not the family naming). An invalid naming rejects. */
   twinLinks?: TwinNaming;
+  /** (orz-markdown 2.9.0) A reader copy: `true` or `{ notice }` (plain text, 1–300 characters) — the file is published for readers (a website's page); opened there, its editor says edits can't be saved to the website and Save reads "Download a copy". Stored in `#orz-shell` as `"readerCopy"`. */
+  readerCopy?: boolean | { notice?: string };
 }
 
 export interface Extracted {
@@ -37,6 +39,8 @@ export interface Extracted {
   includes?: Record<string, string>;
   /** (1.1) The file's twin-link naming (`#orz-shell` `"links"`); absent: the family naming. */
   twinLinks?: TwinNaming;
+  /** (orz-markdown 2.9.0) The file's reader-copy setting (`#orz-shell` `"readerCopy"`), when it has one. */
+  readerCopy?: { notice?: string };
   /**
    * (1.1) An orz-slides 0.x file: `text` is what the Node `upgrade` writes (the deck block, title, metadata and the
    * theme 0.x showed moved into one header; a fresh uid when it had none), `shell` is ''; what was converted.
@@ -195,6 +199,8 @@ export interface Editor {
   readonly ready: Promise<{ engine: string; error?: unknown }>;
   /** orz-slides' own tools: the caret's slide, lints and quick fixes, the live card, single-slide editing. */
   readonly slides: SlidesTools;
+  /** (orz-markdown 2.9.0) Your words: the Save button's label (`save`), the toast after a save (`saved`; `''`: none) and a notice above the panes (`notice`); `null`: back to the default, a key left out: kept. */
+  setWords(words: { save?: string | null; saved?: string | null; notice?: string | null }): void;
 }
 
 export interface RenderPreviewOptions {

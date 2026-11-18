@@ -83,6 +83,7 @@ record is notes/closed-loop.md.
 | A.6 | The Node library inlines this release's engine, verified against its `release.json`: the very bytes of the browser build (`browser/` and `dist/`), so Node and the browser write the same file. | conformance |
 | A.7 | `readDocument` agrees with the manifest for every slides corpus text (kind, derived title, header facts and keys) and takes the kind from the options, the file name, the header's `carrier`, else `slides`. | corpus |
 | A.8 | (1.1, orz-markdown 2.5.0, family C1) The host's twin-link naming (FC-18 §8.2): `assemble(text, { twinLinks })` stores a naming other than the family's in `#orz-shell` `"links"` (`extract` gives it back), the family naming (`{}`, its own templates, `null`) writes the exact bytes of `assemble(text)`, an invalid naming throws; the Node library writes the same bytes; `upgrade` of a format-1 file keeps the file's naming (or takes the one given), and the CLI's `assemble` over a file keeps its naming as it keeps its delivery. | unit |
+| A.9 | (orz-markdown 2.9.0, FC-18 §8.2) A reader copy: `assemble(text, { readerCopy })` stores `true` as `#orz-shell` `"readerCopy":{}` and `{ notice }` with its notice, `extract` gives it back, `false`/`null` write the bytes of `assemble(text)`, an invalid notice throws, the Node library writes the same bytes, and `upgrade` keeps it. | scenario |
 
 ## N — new documents (FC-18 §3, §10)
 

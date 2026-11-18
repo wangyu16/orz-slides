@@ -3,6 +3,23 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Needs orz-markdown **2.9.0** (on release: `^2.9.0` and the lockfile).
+
+- **Reader copies** (FC-18 §8.2, owner decision 2026-11-17): `assemble(text,
+  { readerCopy: true | { notice } })` marks a file published for readers (a
+  website's page). Opened from that website, its editor shows the notice
+  ("You’re editing your own copy. Changes can’t be saved to this website —
+  use “Download a copy” to keep them.", or the site's words) and its Save
+  reads "Download a copy" and downloads; a downloaded copy is an ordinary
+  file. `extract(html).readerCopy` reads it; `upgrade` and the CLI's
+  `assemble` over an existing file keep it. Without it, files are byte for
+  byte as before.
+- The editor's host words (orz-markdown 2.9.0, FC-19 §4): `editor.setWords({
+  save, saved, notice })` — the Save button's label, the save toast and a
+  notice above the panes (typed in `browser/index.d.ts`).
+
 ## [1.2.0] — 2026-11-12
 
 Requires `orz-markdown ^2.7.1` (was `^2.5.0`): the editor shell's reader
