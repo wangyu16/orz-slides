@@ -3,9 +3,11 @@
 All notable changes to **orz-slides** are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.3.0] — 2026-11-20
 
-Needs orz-markdown **2.9.0** (on release: `^2.9.0` and the lockfile).
+Requires `orz-markdown ^2.9.0` (was `^2.7.1`): reader copies for published
+pages and the editor's host words, with no change to files made without
+them.
 
 - **Reader copies** (FC-18 §8.2, owner decision 2026-11-17): `assemble(text,
   { readerCopy: true | { notice } })` marks a file published for readers (a

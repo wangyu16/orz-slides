@@ -5,9 +5,9 @@ The browser engine and editor component of
 Markdown that present, edit and save themselves: the very bundle every
 `.slides.html` file carries, and the same editor for web apps (orz family
 contract FC-19). Built on the carrier kit of
-[orz-markdown](https://www.npmjs.com/package/orz-markdown) 2.7.1 and
+[orz-markdown](https://www.npmjs.com/package/orz-markdown) 2.9.0 and
 [reveal.js](https://revealjs.com/) 5.2.1 (both bundled: this release embeds
-orz-markdown 2.7.1), with the 14 slide themes inside.
+orz-markdown 2.9.0), with the 14 slide themes inside.
 
 ```sh
 npm i orz-slides-browser@1
@@ -26,7 +26,7 @@ const editor = mountEditor(element, { text, nonce, hooks: { async save(text) { /
 ```
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/orz-slides-browser@1.2.0/orz-slides.browser.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/orz-slides-browser@1.3.0/orz-slides.browser.js"></script>
 <script>const editor = OrzCarrier.mountEditor(element, { text, hooks: { save } });</script>
 ```
 

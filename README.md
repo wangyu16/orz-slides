@@ -414,8 +414,10 @@ failed — check your connection" and changes nothing. Dismiss it and run
 
 ## Versions
 
-> **Release status.** 1.2.0 (CHANGELOG 2026-11-12) depends on
-> `orz-markdown ^2.7.1`: the editor's reader fixes and the Whole deck fix.
+> **Release status.** 1.3.0 (CHANGELOG 2026-11-20) depends on
+> `orz-markdown ^2.9.0`: reader copies for a website's pages (`readerCopy`)
+> and the editor's host words (`setWords`). 1.2.0 brought the editor's
+> reader fixes and the Whole deck fix.
 > 1.1.0 brought your site's names for linked texts (`twinLinks`),
 > printing from an app (`printDeck`), the kit's targets of a text and the
 > theme menu's colour dots, plus the 1.0 repairs. 1.0.0 (on npm since
